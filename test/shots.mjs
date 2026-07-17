@@ -94,6 +94,17 @@ async function shot(pageName, file, { width, height, scheme }) {
   await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
   await page.goto(`chrome-extension://${extId}/${pageName}`, { waitUntil: "networkidle0" });
   await sleep(700);
+  if (pageName === "popup.html" && process.env.SHOT_DEBUG) {
+    console.log(
+      await page.evaluate(() =>
+        JSON.stringify({
+          orgHidden: document.getElementById("undoOrgRow").hidden,
+          orgText: document.getElementById("undoOrgText").textContent,
+          archHidden: document.getElementById("undoRow").hidden,
+        }),
+      ),
+    );
+  }
   await page.screenshot({ path: path.join(OUT_DIR, file) });
   await page.close();
   console.log(`wrote ${file}`);
