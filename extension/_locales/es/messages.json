@@ -14,6 +14,18 @@
   "tabs_other": {
     "message": "$1 pestañas"
   },
+  "windows_one": {
+    "message": "$1 ventana"
+  },
+  "windows_few": {
+    "message": "$1 ventanas"
+  },
+  "windows_many": {
+    "message": "$1 ventanas"
+  },
+  "windows_other": {
+    "message": "$1 ventanas"
+  },
   "notifBatchTitle": {
     "message": "TrueTabs archivó pestañas inactivas"
   },
@@ -40,9 +52,6 @@
   },
   "statArchivedToday": {
     "message": "Archivadas hoy"
-  },
-  "inWindows": {
-    "message": "en $1 ventanas"
   },
   "actionsHeader": {
     "message": "Acciones"

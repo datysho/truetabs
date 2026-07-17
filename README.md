@@ -123,7 +123,7 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 ```bash
 cd test
 npm install
-npm test          # 76 e2e contracts against a real Chrome for Testing (ONLY="substring" to run one)
+npm test          # 77 e2e contracts against a real Chrome for Testing (ONLY="substring" to run one)
 HEADFUL=1 npm test
 node shots.mjs    # regenerate store screenshots
 ./package.sh      # build the store zip (strips the dev key)

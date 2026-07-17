@@ -2374,6 +2374,60 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
   });
 
+  await test("popup: a second window does not skew the hero row", async () => {
+    await resetWorld();
+    const win = await swEval(
+      () => new Promise((r) => chrome.windows.create({ url: "about:blank" }, (w) => r({ id: w.id }))),
+    );
+    await sleep(800);
+    const extBase = (await findSwTarget()).url().replace("background.js", "");
+    const page = await browser.newPage();
+    await page.setViewport({ width: 344, height: 900, deviceScaleFactor: 1 });
+    await page.goto(`${extBase}popup.html`, { waitUntil: "networkidle0" });
+    await sleep(700);
+    // Measured at the counts a real browser reaches, not the two tabs this
+    // fixture happens to hold: the old markup only skewed once the number was
+    // wide enough to push its column past its share (55 tabs did it).
+    const measure = (tabs) =>
+      page.evaluate((n) => {
+        if (n) document.getElementById("tabCount").textContent = n;
+        const stats = [...document.querySelectorAll(".stat")];
+        const win = document.getElementById("winCount");
+        const lh = parseFloat(getComputedStyle(win).lineHeight) || 12;
+        return {
+          qualifier: win.textContent,
+          // the qualifier is a note under the label, on its own single line -
+          // never a phrase broken across two
+          lines: win.textContent ? Math.round(win.getBoundingClientRect().height / lh) : 0,
+          widths: stats.map((s) => Math.round(s.getBoundingClientRect().width)),
+          offCenter: stats.map((s) => {
+            const c = s.getBoundingClientRect();
+            const num = s.querySelector(".n").getBoundingClientRect();
+            return Math.round(num.x + num.width / 2 - (c.x + c.width / 2));
+          }),
+          overflow: document.body.scrollWidth > document.body.clientWidth,
+        };
+      }, tabs);
+    const live = await measure(null);
+    assert(live.qualifier.length > 0, "the window count is stated");
+    assert(live.lines === 1, `the qualifier holds one line (got "${live.qualifier}")`);
+    for (const tabs of [null, "55", "555"]) {
+      const hero = await measure(tabs);
+      const what = tabs ? `${tabs} tabs` : "as rendered";
+      assert(
+        new Set(hero.widths).size === 1,
+        `four equal columns at ${what} (${hero.widths.join("/")})`,
+      );
+      assert(
+        hero.offCenter.every((d) => Math.abs(d) <= 1),
+        `every number centered in its column at ${what} (${hero.offCenter.join("/")})`,
+      );
+      assert(!hero.overflow, `the popup never scrolls sideways at ${what}`);
+    }
+    await page.close();
+    await swEval((id) => chrome.windows.remove(id), win.id);
+  });
+
   await test("popup: the order controls name the mode and write it through", async () => {
     await resetWorld();
     await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });

@@ -14,6 +14,18 @@
   "tabs_other": {
     "message": "$1 вкладок"
   },
+  "windows_one": {
+    "message": "$1 окно"
+  },
+  "windows_few": {
+    "message": "$1 окна"
+  },
+  "windows_many": {
+    "message": "$1 окон"
+  },
+  "windows_other": {
+    "message": "$1 окон"
+  },
   "notifBatchTitle": {
     "message": "TrueTabs заархивировал несвежие вкладки"
   },
@@ -40,9 +52,6 @@
   },
   "statArchivedToday": {
     "message": "В архив сегодня"
-  },
-  "inWindows": {
-    "message": "в $1 окнах"
   },
   "actionsHeader": {
     "message": "Действия"

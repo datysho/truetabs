@@ -37,7 +37,7 @@ function render() {
   if (!state) return;
   const c = state.counts;
   $("tabCount").textContent = c.tabs;
-  $("winCount").textContent = c.windows > 1 ? t("inWindows", [c.windows]) : "";
+  $("winCount").textContent = c.windows > 1 ? ttI18n.windowsCount(c.windows) : "";
   $("dupeCount").textContent = c.dupes;
   $("dupeCount").classList.toggle("attention", c.dupes > 0);
   $("staleCount").textContent = c.staleNow;

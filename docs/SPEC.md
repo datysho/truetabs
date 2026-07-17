@@ -73,6 +73,12 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > both orders are manual, both order selects join the popup's Automation section (one writer:
 > `ui:setSetting`), and a managed order hides the drag grip by visibility - never by display, which
 > collapsed the reserved column and slid every row sideways.
+> v1.13.1 the hero row is four columns again: a bare `1fr` floors at min-content, so the nowrap tab
+> cell ("55 in 2 windows") took the width of its neighbours - `repeat(4, minmax(0, 1fr))` plus the
+> qualifier moved out of the number line into the label, where it wraps. It is a plural now, not a
+> phrase: `ttI18n.plural(stem, n)` generalizes tabsCount, `windowsCount` rides it, `windows_*` keys
+> replace `inWindows` (the preposition existed only to dodge Slavic plurals; Intl.PluralRules does it
+> properly). Geometry verified across 8 locales x every plural category.
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

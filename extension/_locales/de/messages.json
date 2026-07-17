@@ -14,6 +14,18 @@
   "tabs_other": {
     "message": "$1 Tabs"
   },
+  "windows_one": {
+    "message": "$1 Fenster"
+  },
+  "windows_few": {
+    "message": "$1 Fenster"
+  },
+  "windows_many": {
+    "message": "$1 Fenster"
+  },
+  "windows_other": {
+    "message": "$1 Fenster"
+  },
   "notifBatchTitle": {
     "message": "TrueTabs hat alte Tabs archiviert"
   },
@@ -40,9 +52,6 @@
   },
   "statArchivedToday": {
     "message": "Heute archiviert"
-  },
-  "inWindows": {
-    "message": "in $1 Fenstern"
   },
   "actionsHeader": {
     "message": "Aktionen"

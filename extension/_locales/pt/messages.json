@@ -14,6 +14,18 @@
   "tabs_other": {
     "message": "$1 abas"
   },
+  "windows_one": {
+    "message": "$1 janela"
+  },
+  "windows_few": {
+    "message": "$1 janelas"
+  },
+  "windows_many": {
+    "message": "$1 janelas"
+  },
+  "windows_other": {
+    "message": "$1 janelas"
+  },
   "notifBatchTitle": {
     "message": "O TrueTabs arquivou abas paradas"
   },
@@ -40,9 +52,6 @@
   },
   "statArchivedToday": {
     "message": "Arquivadas hoje"
-  },
-  "inWindows": {
-    "message": "em $1 janelas"
   },
   "actionsHeader": {
     "message": "Ações"

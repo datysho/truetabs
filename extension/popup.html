@@ -49,13 +49,17 @@
         border-top: none;
       }
       /* One row of four: tabs first, duplicates highlighted when > 0.
-         Numbers on top, labels beneath; everything centers in its column. */
+         Numbers on top, labels beneath; everything centers in its column.
+         minmax(0,...), not a bare 1fr: a bare 1fr floors at min-content, so a
+         single nowrap cell takes width from its neighbours and the row stops
+         being four columns as soon as one counter grows. The number line holds
+         a number only - qualifiers belong to the label, which may wrap. */
       .hero {
         background: var(--tonal);
         border-radius: 12px;
         padding: 11px 8px 10px;
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr 1fr;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
         gap: 8px;
       }
       .stat {
@@ -81,10 +85,12 @@
       .stat .n.attention {
         color: var(--accent);
       }
-      .stat .n .sub {
-        font-size: 10px;
-        font-weight: 500;
-        color: var(--muted);
+      /* The window count qualifies the label, so it sits with it - but on its
+         own line and in its own case: run into the uppercased category name it
+         reads as one phrase and breaks across lines ("IN 2 / WINDOWS"). */
+      #winCount:not(:empty) {
+        display: block;
+        text-transform: none;
       }
       .warming {
         margin: 8px 2px 0;
@@ -314,8 +320,8 @@
       <section class="hero-section">
         <div class="hero">
           <div class="stat">
-            <div class="n"><span id="tabCount">-</span> <span class="sub" id="winCount"></span></div>
-            <div class="l" data-i18n="statTabs"></div>
+            <div class="n" id="tabCount">-</div>
+            <div class="l"><span data-i18n="statTabs"></span> <span id="winCount"></span></div>
           </div>
           <div class="stat">
             <div class="n" id="dupeCount">-</div>

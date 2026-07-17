@@ -37,11 +37,14 @@ const ttI18n = (() => {
     return text;
   }
 
-  function tabsCount(n) {
+  function plural(stem, n) {
     const category = pluralRules ? pluralRules.select(n) : "other";
-    const key = `tabs_${category}`;
-    return t(messages && messages[key] ? key : "tabs_other", [n]);
+    const key = `${stem}_${category}`;
+    return t(messages && messages[key] ? key : `${stem}_other`, [n]);
   }
 
-  return { init, t, tabsCount, resolve };
+  const tabsCount = (n) => plural("tabs", n);
+  const windowsCount = (n) => plural("windows", n);
+
+  return { init, t, tabsCount, windowsCount, resolve };
 })();
