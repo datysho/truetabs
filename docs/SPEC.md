@@ -29,6 +29,11 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > v1.8 one layout engine: applySort enforces the whole ordering contract in one pass (zones via
 > groupsOnTop - maintained continuously now, group order into held slots, tab order, Other last of the
 > block / of the window without zones); partial helpers are no longer combined at call sites.
+> v1.9 ONE recency mechanism: mruSurface deleted, activation triggers the same layout assert
+> (150ms coalesce, settle-gated, skip-if-sorted fast paths make steady-state asserts ~free); smart and
+> custom groups get signatures and re-adopt after restarts (ownership features no longer die on
+> relaunch); the Smart Organize pool sweeps ANY non-ephemeral URL (extension/file/chrome pages) - site
+> fallback stays http-only, exotics go to Other, and one leftover may join an EXISTING catch-all.
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

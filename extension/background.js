@@ -1044,9 +1044,12 @@ async function removeGroupSig(title, color) {
   });
 }
 
-// Restart recovery: group ids do not survive; re-adopt only on a 3-of-3
-// signature (title + color + member-domain majority). Smart groups are NOT
-// re-adopted (no domain to verify) - after a restart they are the user's.
+// Restart recovery: group ids do not survive, signatures do. Domain groups
+// re-adopt on a 3-of-3 signature (title + color + member-domain majority);
+// smart topic groups and the user's rule groups re-adopt on title + color -
+// without this they turn "foreign" after every restart and every ownership
+// feature (recency rise, regroup, Other reuse, collapse) silently dies.
+// Rename or recolor a group and its signature is gone: it is yours forever.
 async function readoptGroups() {
   const { ourGroupSigs = [] } = await chrome.storage.local.get("ourGroupSigs");
   if (!ourGroupSigs.length) return;
@@ -1055,25 +1058,27 @@ async function readoptGroups() {
   const groups = (await quiet(chrome.tabGroups.query, {})) || [];
   for (const group of groups) {
     if (known.has(group.id)) continue;
-    const sig = ourGroupSigs.find(
-      (s) => !s.smart && s.title === group.title && s.color === group.color,
-    );
+    const sig = ourGroupSigs.find((s) => s.title === group.title && s.color === group.color);
     if (!sig) continue;
     const members = await chrome.tabs.query({ groupId: group.id });
     if (!members.length) continue;
-    const matching = members.filter((m) => registrableDomain(m.url) === sig.domain).length;
-    if (matching < Math.ceil(members.length / 2)) continue;
+    if (!sig.smart && !sig.customId) {
+      const matching = members.filter((m) => registrableDomain(m.url) === sig.domain).length;
+      if (matching < Math.ceil(members.length / 2)) continue;
+    }
     ourGroups[group.id] = {
-      domain: sig.domain,
+      domain: sig.smart || sig.customId ? null : sig.domain,
       title: group.title,
       color: group.color,
       windowId: group.windowId,
       createdAt: now(),
       lastTouchedAt: now(),
       collapsedByUs: !!group.collapsed,
-      smart: false,
+      smart: !!sig.smart,
+      other: !!sig.other,
+      customId: sig.customId || null,
     };
-    traceDiag(`re-adopted group ${group.id} (${sig.domain})`);
+    traceDiag(`re-adopted group ${group.id} (${sig.domain || sig.customId || "smart"})`);
   }
   await putOurGroups(ourGroups);
 }
@@ -1104,7 +1109,14 @@ async function createOurGroup(
     customId,
   };
   await putOurGroups(ourGroups);
-  if (!smart && !customId) await upsertGroupSig({ domain, title, color, smart: false });
+  // Every group we make carries a signature, so ownership survives restarts.
+  await upsertGroupSig(
+    customId
+      ? { title, color, smart: false, customId }
+      : smart
+        ? { title, color, smart: true, other }
+        : { domain, title, color, smart: false },
+  );
   for (const id of tabIds) {
     const st = await getTabState(id);
     if (st) {
@@ -1396,7 +1408,7 @@ async function undoOrganize() {
     for (const m of members) await markSelfOp("tabgroup", m.id); // not a user pull-out
     await quiet(chrome.tabs.ungroup, members.map((m) => m.id));
     ungrouped += members.length;
-    if (ourGroups[gid] && !ourGroups[gid].smart) {
+    if (ourGroups[gid]) {
       await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color);
     }
     delete ourGroups[gid];
@@ -1451,10 +1463,11 @@ async function applySort(windowId) {
   if (tabMode !== "off") {
     const cmp = cmpBy(tabMode);
     for (const gid of ourGids) {
-      const members = tabs.filter((t) => t.groupId === gid);
+      const members = tabs.filter((t) => t.groupId === gid); // strip order
       if (members.length < 2) continue;
-      const first = Math.min(...members.map((t) => t.index));
       const sorted = [...members].sort(cmp);
+      if (sorted.every((t, i) => t.id === members[i].id)) continue; // already true
+      const first = Math.min(...members.map((t) => t.index));
       for (let i = 0; i < sorted.length; i++) {
         await quiet(chrome.tabs.move, sorted[i].id, { index: first + i });
       }
@@ -1498,15 +1511,25 @@ async function applySort(windowId) {
   //    the pinned tabs; otherwise only the order inside the block changes,
   //    the block itself stays where the user keeps it.
   const pinnedCount = tabs.filter((t) => t.pinned).length;
-  if (onTop && seq.length) {
-    let cursor = pinnedCount;
-    for (const g of seq) {
-      await quiet(chrome.tabGroups.move, g.id, { windowId, index: cursor });
+  const laidOut = (list, start) => {
+    let cursor = start;
+    for (const g of list) {
+      if (g.first !== cursor) return false;
       cursor += g.size;
+    }
+    return true;
+  };
+  if (onTop && seq.length) {
+    if (!laidOut(seq, pinnedCount)) {
+      let cursor = pinnedCount;
+      for (const g of seq) {
+        await quiet(chrome.tabGroups.move, g.id, { windowId, index: cursor });
+        cursor += g.size;
+      }
     }
   } else if (!onTop && groupMode !== "off" && seq.length > 1) {
     const inBlock = seq.filter((g) => !g.other);
-    if (inBlock.length > 1) {
+    if (inBlock.length > 1 && !laidOut(inBlock, Math.min(...inBlock.map((g) => g.first)))) {
       let cursor = Math.min(...inBlock.map((g) => g.first));
       for (const g of inBlock) {
         await quiet(chrome.tabGroups.move, g.id, { windowId, index: cursor });
@@ -1516,12 +1539,18 @@ async function applySort(windowId) {
   }
 
   // 4) Loose tabs go after the groups, in order.
+  let looseMoved = false;
   if (tabMode !== "off") {
-    const loose = tabs
-      .filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null))
-      .sort(cmpBy(tabMode));
-    for (const t of loose) {
-      await quiet(chrome.tabs.move, t.id, { windowId, index: -1 });
+    const looseNow = tabs.filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null));
+    const loose = [...looseNow].sort(cmpBy(tabMode));
+    // already true: sorted AND packed at the very end of the window
+    const tailStart = tabs.length - loose.length;
+    const settled = loose.every((t, i) => t.id === looseNow[i].id && t.index === tailStart + i);
+    if (!settled) {
+      looseMoved = true;
+      for (const t of loose) {
+        await quiet(chrome.tabs.move, t.id, { windowId, index: -1 });
+      }
     }
   }
 
@@ -1529,73 +1558,9 @@ async function applySort(windowId) {
   //    groupsOnTop it already closes the group block (step 3).
   if (!onTop) {
     const other = seq.find((g) => g.other);
-    if (other) await quiet(chrome.tabGroups.move, other.id, { windowId, index: -1 });
-  }
-}
-
-// --- recency surfacing (MRU): the tab you use surfaces INSTANTLY --------------
-// sortTabs="recent": the tab moves to the front of its container (its group,
-// or the loose block) the moment you switch to it. sortGroups="recent": its
-// group rises to the front of the strip. A calm switch acts with zero delay;
-// rapid cycling (Ctrl+Tab hops) coalesces into one move shortly after the
-// hopping stops - the strip never churns under a scanning finger.
-let mruTimer = null;
-let lastActivationAt = 0;
-
-function scheduleMruSurface(tabId) {
-  clearTimeout(mruTimer);
-  const sinceLast = Date.now() - lastActivationAt;
-  lastActivationAt = Date.now();
-  const dwell = globalThis.__ttMruDwellMs ?? (sinceLast < 800 ? 800 : 0);
-  mruTimer = setTimeout(() => {
-    enqueue(() => mruSurface(tabId), "mru");
-  }, dwell);
-}
-
-async function mruSurface(tabId) {
-  const settings = await getSettings();
-  const liveTabs = settings.sortTabs === "recent";
-  const liveGroups = settings.sortGroups === "recent";
-  if (!liveTabs && !liveGroups) return;
-  if (!(await isSettled()) || (await isPaused())) return;
-  const tab = await quiet(chrome.tabs.get, tabId);
-  if (!tab || !tab.active || tab.pinned) return;
-  const win = await quiet(chrome.windows.get, tab.windowId);
-  if (!win || win.type !== "normal" || win.incognito) return;
-  const inGroup = tab.groupId !== -1 && tab.groupId != null;
-  const ourGroups = await getOurGroups();
-
-  if (liveTabs) {
-    if (inGroup) {
-      const members = await chrome.tabs.query({ groupId: tab.groupId });
-      const first = Math.min(...members.map((m) => m.index));
-      if (tab.index !== first) await quiet(chrome.tabs.move, tab.id, { index: first });
-    } else {
-      // Front of the LOOSE block, wherever it starts: groups are not shoved.
-      const all = await chrome.tabs.query({ windowId: tab.windowId });
-      const loose = all.filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null));
-      const first = Math.min(...loose.map((t) => t.index));
-      if (tab.index !== first) await quiet(chrome.tabs.move, tab.id, { index: first });
-    }
-  }
-
-  if (liveGroups && inGroup) {
-    const ours = ourGroups[tab.groupId];
-    // Only OUR groups surface (foreign layout is not ours to touch), and the
-    // catch-all never leaves the back of the strip.
-    if (ours && !ours.other) {
-      const all = await chrome.tabs.query({ windowId: tab.windowId });
-      const pinnedCount = all.filter((t) => t.pinned).length;
-      const members = all.filter((t) => t.groupId === tab.groupId);
-      const first = Math.min(...members.map((m) => m.index));
-      if (first !== pinnedCount) {
-        await quiet(chrome.tabGroups.move, tab.groupId, {
-          windowId: tab.windowId,
-          index: pinnedCount,
-        });
-      }
-      ours.lastTouchedAt = now();
-      await putOurGroups(ourGroups);
+    // the pre-move snapshot is only trustworthy if nothing moved above
+    if (other && (looseMoved || other.first + other.size < tabs.length)) {
+      await quiet(chrome.tabGroups.move, other.id, { windowId, index: -1 });
     }
   }
 }
@@ -1615,9 +1580,20 @@ function scheduleSortAssert(windowId, delay = 300) {
     windowId,
     setTimeout(() => {
       sortAssertTimers.delete(windowId);
-      enqueue(() => applySort(windowId), "sort-assert");
+      enqueue(async () => {
+        if (!(await isSettled()) || (await isPaused())) return;
+        await applySort(windowId);
+      }, "sort-assert");
     }, delay),
   );
+}
+
+// Activation only changes RECENCY - assert just when a recent mode is on.
+async function recencyAssert(windowId) {
+  const settings = await getSettings();
+  if (settings.sortTabs === "recent" || settings.sortGroups === "recent") {
+    scheduleSortAssert(windowId, 150);
+  }
 }
 
 async function sortAssertIfActive(windowId, delay) {
@@ -1663,7 +1639,7 @@ async function ungroupOne(gid, ourGroups) {
     await quiet(chrome.tabs.ungroup, members.map((m) => m.id));
   }
   if (ourGroups[gid]) {
-    if (!ourGroups[gid].smart) await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color);
+    await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color);
     delete ourGroups[gid];
   }
   return members.length;
@@ -2138,7 +2114,7 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
   for (let offset = 0; offset < rest.length; offset += SMART_BATCH) {
     const batch = rest.slice(offset, offset + SMART_BATCH);
     const items = batch.map((t) => ({
-      domain: registrableDomain(t.url),
+      domain: registrableDomain(t.url) || t.url.split(":")[0] || "page",
       title: (t.title || t.url).slice(0, 120),
     }));
     let lastWrite = 0;
@@ -2193,7 +2169,7 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
   }
   if (!aiFailures && leftovers.length >= 6) {
     const items = leftovers.map((t) => ({
-      domain: registrableDomain(t.url),
+      domain: registrableDomain(t.url) || t.url.split(":")[0] || "page",
       title: (t.title || t.url).slice(0, 120),
     }));
     try {
@@ -2229,8 +2205,13 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
     if (aiFailures > 0 || loose.length > rest.length / 2) {
       run.fellBack = true;
       const byDomain = new Map();
+      const exotic = [];
       for (const t of loose) {
         const domain = registrableDomain(t.url);
+        if (!dupeKey(t.url) || !domain) {
+          exotic.push(t); // not a website: never a site group, Other material
+          continue;
+        }
         if (!byDomain.has(domain)) byDomain.set(domain, []);
         byDomain.get(domain).push(t);
       }
@@ -2256,13 +2237,16 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
           loose.push(...list);
         }
       }
+      loose.push(...exotic);
     }
-    if (settings.smartOther && loose.length >= 2) {
+    if (settings.smartOther && loose.length) {
       await ensureI18n();
       const existingOther = Object.entries(await getOurGroups()).find(
         ([, g]) => g.other && g.windowId === windowId,
       );
-      if (existingOther) {
+      if (!existingOther && loose.length < 2) {
+        // a single leftover with no catch-all yet: a one-tab group is churn
+      } else if (existingOther) {
         for (const t of loose) {
           if (await addToOurGroup(t.id, Number(existingOther[0]))) run.grouped++;
         }
@@ -2302,9 +2286,14 @@ async function smartOrganize(scope, currentWindowId) {
       // Loose tabs + members of OUR auto groups when the user allows rebuilds;
       // hand-made and rule groups are never re-pooled. Sorted by site so
       // batches keep natural clusters together.
+      // ANY page with a real URL is sweepable - chrome-extension://, file://
+      // and chrome:// pages included: with the catch-all enabled nothing
+      // stays loose just because it is not a website. Blank/new-tab pages
+      // stay out (transient), and the site fallback later only buckets
+      // real http(s) domains - exotic schemes go straight to "Other".
       const pool = all
         .filter((t) => {
-          if (!dupeKey(t.url)) return false;
+          if (isEphemeralUrl(t.url) || !t.url) return false;
           if (t.groupId === -1 || t.groupId == null) return true;
           const owner = ourGroups[t.groupId];
           return !!owner && !owner.customId && settings.smartRegroupOurs;
@@ -2908,8 +2897,11 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   }, "updated");
 });
 
-chrome.tabs.onActivated.addListener(({ tabId }) => {
-  scheduleMruSurface(tabId); // live sort: acts only after the dwell, if enabled
+chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
+  // Recency follows use through the SAME layout engine as everything else -
+  // one mechanism, one set of gates. The 150ms coalesce keeps Ctrl+Tab
+  // cycling to a single re-sort after the hopping stops.
+  recencyAssert(windowId);
   enqueue(async () => {
     const tab = await quiet(chrome.tabs.get, tabId);
     if (!tab || tab.groupId === -1 || tab.groupId == null) return;
@@ -2980,7 +2972,7 @@ chrome.tabGroups.onUpdated.addListener((group) => {
     if (group.title !== ours.title || group.color !== ours.color) {
       // The user claimed it: disowned forever - never renamed, filled or
       // collapsed by us again.
-      if (!ours.smart) await removeGroupSig(ours.title, ours.color);
+      await removeGroupSig(ours.title, ours.color);
       delete ourGroups[group.id];
       await putOurGroups(ourGroups);
       traceDiag(`group ${group.id} disowned`);

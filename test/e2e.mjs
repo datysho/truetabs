@@ -1823,6 +1823,80 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
   });
 
+  await test("restart: smart topic groups re-adopt by signature - ownership survives", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const t1 = await createTab({ url: `${baseUrl}/sigTopic1` });
+    const t2 = await createTab({ url: `${altUrl}/sigTopic2` });
+    await sleep(400);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("sigTopic"))
+            .map((line) => parseInt(line, 10));
+          return JSON.stringify({ groups: [{ name: "Topic Keep", tabIndices: idx }] });
+        },
+      }),
+    );
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    const gid = (await getTab(t1.id)).groupId;
+    assert(gid !== -1, "smart group exists");
+    await swEval(() => globalThis.__ttSimulateReload());
+    await waitFor("re-settled", async () => (await ui({ type: "ui:getState" })).settled);
+    await forceSettle();
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(
+      diag.ourGroups[String(gid)] && diag.ourGroups[String(gid)].smart === true,
+      "smart group re-adopted as ours after the restart",
+    );
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("Other sweeps everything: extension pages land in the catch-all", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const extBase = (await findSwTarget()).url().replace("background.js", "");
+    const p1 = await createTab({ url: `${extBase}options.html`, active: false });
+    const p2 = await createTab({ url: `${extBase}archive.html`, active: false });
+    const h1 = await createTab({ url: `${baseUrl}/webTheme1` });
+    const h2 = await createTab({ url: `${altUrl}/webTheme2` });
+    await sleep(500);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("webTheme"))
+            .map((line) => parseInt(line, 10));
+          return JSON.stringify({ groups: [{ name: "Web", tabIndices: idx }] });
+        },
+      }),
+    );
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    await waitFor(
+      "extension pages grouped together",
+      async () =>
+        (await getTab(p1.id)).groupId !== -1 &&
+        (await getTab(p2.id)).groupId === (await getTab(p1.id)).groupId,
+    );
+    const other = await swEval((g) => chrome.tabGroups.get(g), (await getTab(p1.id)).groupId);
+    assert(other.title === "Other", `the catch-all holds them (got "${other.title}")`);
+    assert((await getTab(h1.id)).groupId !== (await getTab(p1.id)).groupId, "web theme separate");
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
   await test("service worker: zero unchecked errors across the whole run", async () => {
     await sleep(500);
     assert(

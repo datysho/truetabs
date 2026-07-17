@@ -37,7 +37,7 @@ sidebar, no new-tab page takeover - Chrome stays Chrome, the mess just stops.
 | 3 | **Auto-group** | One selector: new tabs group by *site* (stable colors, clean names) or by *topic* via AI. Idle groups collapse. One-click "Organize now" for everything else. |
 | 3b | **Smart groups (AI)** | Cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / any OpenAI-compatible endpoint like Ollama). Groups appear batch by batch with live progress. |
 | 3c | **My groups (rules)** | Your named groups with routing rules: a site list (deterministic) and/or a plain-language AI hint. Rules outrank every automatic grouping. |
-| 3d | **Order** | Two axes, applied on Organize: group order and tab order (A-Z / recent / oldest) - plus a *live* mode where the tab you use surfaces in its group, and its group rises to the front. |
+| 3d | **Order** | Two maintained axes: group order and tab order (A-Z / recently used / oldest). New tabs slot into place, manual drags snap back, and with *recently used first* the tab you use surfaces instantly - its group rises to the front. |
 | 4 | **Dashboard** | Live counts (tabs, duplicates, stale, archived today), one-click actions, merge all windows, master switches per automation. |
 
 ## Safety model - why you can trust automation
@@ -77,8 +77,9 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
   address-bar/bookmark navigation the roles flip - the OTHER copy is merged
   into the tab you are in (archived first).
 - Groups this extension creates are tracked by id in session storage and
-  re-adopted after a restart only on a 3-of-3 signature (title + color +
-  member-domain majority). Rename or recolor a group and it is yours forever.
+  re-adopted after a restart by signature: site groups on 3-of-3 (title +
+  color + member-domain majority), topic and rule groups on title + color.
+  Rename or recolor a group and it is yours forever.
 - Smart grouping validates model output against a strict JSON contract;
   garbage falls back to domain grouping silently. The BYOK key lives only in
   `storage.local`, is masked in diagnostics, and host access is requested at
@@ -102,9 +103,9 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 - Smart group names come out in the dominant language of your tab titles.
 - If TruePin's "move locked tabs to front" (`always` mode) is on, it may pull
   a locked tab out of a group; TrueTabs backs off after two strikes.
-- Live sort surfaces only groups TrueTabs made (groups you arranged yourself
-  stay where you put them), and the "Other" catch-all keeps the end of the
-  strip.
+- Maintained sort orders only groups TrueTabs made (groups you arranged
+  yourself keep their places), and the "Other" catch-all keeps the end of
+  the group block.
 
 ## Install (until the Web Store listing is live)
 
@@ -117,7 +118,7 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 ```bash
 cd test
 npm install
-npm test          # 52 e2e contracts against a real Chrome for Testing
+npm test          # 59 e2e contracts against a real Chrome for Testing
 HEADFUL=1 npm test
 node shots.mjs    # regenerate store screenshots
 ./package.sh      # build the store zip (strips the dev key)
