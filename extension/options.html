@@ -63,6 +63,11 @@
       .setting:last-child {
         border-bottom: none;
       }
+      /* A control that governs nothing right now says so, rather than
+         pretending its state matters (same contract as the popup's AI row). */
+      .setting.dim {
+        opacity: 0.45;
+      }
       .setting .info {
         flex: 1;
         min-width: 0;
@@ -340,7 +345,7 @@
             <div class="hint" data-i18n="optSortGroupsHint"></div>
           </div>
           <select id="sortGroups">
-            <option value="off" data-i18n="optOff"></option>
+            <option value="off" data-i18n="optSortManual"></option>
             <option value="title" data-i18n="optSortTitle"></option>
             <option value="recent" data-i18n="optSortRecent"></option>
             <option value="opened" data-i18n="optSortOpened"></option>
@@ -352,13 +357,13 @@
             <div class="hint" data-i18n="optSortTabsHint"></div>
           </div>
           <select id="sortTabs">
-            <option value="off" data-i18n="optOff"></option>
+            <option value="off" data-i18n="optSortManual"></option>
             <option value="title" data-i18n="optSortTitle"></option>
             <option value="recent" data-i18n="optSortRecent"></option>
             <option value="opened" data-i18n="optSortOpened"></option>
           </select>
         </div>
-        <div class="setting">
+        <div class="setting" id="sortAutoRow">
           <div class="info">
             <div class="label" data-i18n="optSortAuto"></div>
             <div class="hint" data-i18n="optSortAutoHint"></div>

@@ -179,6 +179,9 @@
   "optOff": {
     "message": "关闭"
   },
+  "optSortManual": {
+    "message": "手动"
+  },
   "optForever": {
     "message": "永久"
   },
@@ -495,10 +498,10 @@
     "message": "按主题，使用 AI"
   },
   "groupReview": {
-    "message": "重新归类"
+    "message": "整理"
   },
   "statusReviewSame": {
-    "message": "这里没有新的可归类内容"
+    "message": "这里没有可整理的内容"
   },
   "optSortAuto": {
     "message": "自动保持顺序"

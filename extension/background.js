@@ -1522,6 +1522,18 @@ async function organizePool(windowId, pool, { siteBuckets, park, createdGids }) 
   return { grouped, groupsCreated };
 }
 
+// The members of OUR catch-all in one window - the pool of the row's own
+// Organize. Same shape of answer whoever asks, so the two engines behind that
+// one button cannot drift apart on what "the pile" means.
+async function otherPool(windowId) {
+  const ourGroups = await getOurGroups();
+  const entry = Object.entries(ourGroups).find(([, g]) => g.other && g.windowId === windowId);
+  if (!entry) return [];
+  return (await chrome.tabs.query({ groupId: Number(entry[0]) })).filter(
+    (t) => !t.pinned && t.url && !isEphemeralUrl(t.url),
+  );
+}
+
 // Explicit command: the user just asked - ungroupedByUser tabs ARE included;
 // members of foreign groups are not loose, pinned never participate. The pool
 // is placeable(), not "loose": tabs parked in OUR catch-all are exactly what
@@ -2777,27 +2789,43 @@ async function handleUi(request) {
     case "ui:organizeNow":
       return organizeNow(request.scope || "window", request.windowId);
     case "ui:reviewOther": {
-      // The one question nothing else asks: do these strays form a NEW topic
-      // TOGETHER? smartAssign only ever asks "does this one tab fit an
-      // existing group". Explicit, user-pressed - so the busy button and the
-      // progress line are expected, not a surprise.
+      // "Organize", scoped to the parking lot - the same verb as the big
+      // button, and the same policy: the user pressed it, so hands-off flags
+      // do not apply (they guard against AUTOMATION) and the run owns the undo
+      // slot. Only the pool differs: Other's members, nothing else.
+      //
+      // With an engine on it also asks the one question no other path asks: do
+      // these strays form a NEW topic TOGETHER? (smartAssign only ever asks
+      // "does this one tab fit an existing group".) The busy button and the
+      // progress line are expected then, not a surprise.
       const settings = await getSettings();
-      if (settings.smartEngine === "off") return { grouped: 0, groupsCreated: 0 };
+      // No engine, no reason to sit this one out: the deterministic half IS
+      // the answer here - rules first, then site buckets. It runs ON the queue
+      // like every other mutation (the handler answers off it, so a thinking
+      // model can never block the engine) and reads the world from inside the
+      // job: a pool queried before the wait would be a pool of stale ids.
+      if (settings.smartEngine === "off") {
+        return enqueue(async () => {
+          const pool = await otherPool(request.windowId);
+          if (!pool.length) return { grouped: 0, groupsCreated: 0, same: true };
+          const createdGids = [];
+          const res = await organizePool(request.windowId, pool, {
+            siteBuckets: true,
+            park: false, // already parked: whatever finds no home just stays
+            createdGids,
+          });
+          await applySort(request.windowId);
+          await rememberOrganize(createdGids);
+          return { ...res, same: res.grouped === 0 };
+        }, "ui:reviewOther");
+      }
       const { smartRunning } = await chrome.storage.session.get("smartRunning");
       if (smartRunning && now() - smartRunning < 10 * 60e3) return { busy: true };
       const ourGroups = await getOurGroups();
-      const otherEntry = Object.entries(ourGroups).find(
-        ([, g]) => g.other && g.windowId === request.windowId,
-      );
-      if (!otherEntry) return { grouped: 0, groupsCreated: 0 };
-      const pool = [];
-      for (const t of await chrome.tabs.query({ groupId: Number(otherEntry[0]) })) {
-        if (t.pinned || isEphemeralUrl(t.url) || !t.url) continue;
-        const st = await getTabState(t.id);
-        if (st && st.ungroupedByUser) continue;
-        pool.push(t);
-      }
-      if (pool.length < 2) return { grouped: 0, groupsCreated: 0 };
+      const pool = await otherPool(request.windowId);
+      // Two is the floor for the AI question: "do these form a topic
+      // together" needs a together.
+      if (pool.length < 2) return { grouped: 0, groupsCreated: 0, same: true };
       // Same pool, same topics on offer - same answer. Do not wake the model
       // to re-read a question it already answered.
       const topics = Object.values(ourGroups)

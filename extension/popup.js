@@ -47,6 +47,8 @@ function render() {
   $("archiveToggle").checked = state.settings.archiveAfter !== "off";
   $("groupToggle").checked = state.settings.autoGroup !== "off";
   paintAiRow(state.settings);
+  $("sortGroups").value = state.settings.sortGroups;
+  $("sortTabs").value = state.settings.sortTabs;
 
   // Organize speaks the active engine: with smart grouping on, the button IS
   // Smart Organize (it falls back to site grouping by itself).
@@ -121,12 +123,12 @@ function groupRow(group) {
 
   // Drag by the grip only: a row click means "jump to the group". Under an
   // active group sort the order is managed - dragging would just snap back,
-  // so the grip disappears instead of lying.
+  // so the grip disappears instead of lying. It keeps its slot while it does:
+  // the rows must not slide sideways when the order mode changes.
   const managed = state && state.settings.sortGroups !== "off";
   const grip = document.createElement("span");
-  grip.className = "grip";
+  grip.className = managed ? "grip off" : "grip";
   grip.draggable = !managed;
-  grip.hidden = managed;
   grip.title = t("groupDragTitle");
   grip.addEventListener("click", (event) => event.stopPropagation());
   grip.addEventListener("dragstart", (event) => {
@@ -182,11 +184,16 @@ function groupRow(group) {
     });
   });
   actions.appendChild(ungroup);
-  // The catch-all earns one more word: ask the AI whether these strays form a
-  // topic TOGETHER. Only where it can do something - a real engine, a real pile.
-  if (group.other && state && state.settings.smartEngine !== "off") {
+  // The parking lot earns one more word - the same verb as the big button,
+  // scoped to this pile: sort it out NOW. It works in every mode (rules and
+  // site buckets need no model); with AI on it also asks the strays whether
+  // they form a topic together.
+  if (group.other) {
     const review = document.createElement("button");
     review.textContent = t("groupReview");
+    // A run in flight owns the engine: the same rule the big button lives by,
+    // so the two never answer differently about whether now is a good time.
+    review.disabled = !!(state && state.smartProgress && state.smartProgress.total > 0);
     review.addEventListener("click", (event) => {
       event.stopPropagation();
       review.disabled = true;
@@ -429,6 +436,13 @@ async function init() {
       value: event.target.checked ? "24h" : "off",
     }).then(refresh);
   });
+  // Order, where the order is: a change repaints the group list too - a
+  // managed order retires the drag grips in the same frame.
+  for (const key of ["sortGroups", "sortTabs"]) {
+    $(key).addEventListener("change", (event) => {
+      send({ type: "ui:setSetting", key, value: event.target.value }).then(refresh);
+    });
+  }
 
   await refresh();
 
@@ -466,6 +480,8 @@ async function prePaint() {
   $("archiveToggle").checked = s.archiveAfter !== "off";
   $("groupToggle").checked = s.autoGroup !== "off";
   paintAiRow(s);
+  $("sortGroups").value = s.sortGroups;
+  $("sortTabs").value = s.sortTabs;
   $("organizeBtn").textContent =
     s.smartEngine !== "off" ? t("actSmartOrganize") : t("actOrganize");
   const counters = localBag.counters;

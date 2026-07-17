@@ -179,6 +179,9 @@
   "optOff": {
     "message": "Выкл"
   },
+  "optSortManual": {
+    "message": "Вручную"
+  },
   "optForever": {
     "message": "Всегда"
   },
@@ -495,10 +498,10 @@
     "message": "По теме, через AI"
   },
   "groupReview": {
-    "message": "Пересобрать"
+    "message": "Разложить"
   },
   "statusReviewSame": {
-    "message": "Здесь нечего пересобирать"
+    "message": "Здесь нечего раскладывать"
   },
   "optSortAuto": {
     "message": "Держать порядок автоматически"

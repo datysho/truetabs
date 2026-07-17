@@ -63,6 +63,16 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > `{siteFallback:false}`, the existing lock and keepalive, plus a poolSig so the same question is never
 > asked twice). Fixed: a self-op marker set before a JOIN lingered for its TTL and swallowed the user's
 > next pull-out - the join now burns the marker it produced.
+> v1.13 one verb for the parking lot: `ui:reviewOther` is "Organize", scoped - with no engine it runs
+> the deterministic half (`organizePool`, siteBuckets on, park off) through `enqueue` from the
+> off-queue handler and reads its pool INSIDE the job (`otherPool`, shared by both halves), so filing
+> Other by domain no longer needs an AI; and it drops the ungroupedByUser skip that made two EXPLICIT
+> commands disagree (`organizeNow` always included them - hands-off flags guard against automation,
+> not against a click). UI honesty: the sort selects offer "Manual" instead of "Off" (naming the mode,
+> not its absence; `optOff` stays for archive/collapse/engine, where off IS off), `sortAuto` dims when
+> both orders are manual, both order selects join the popup's Automation section (one writer:
+> `ui:setSetting`), and a managed order hides the drag grip by visibility - never by display, which
+> collapsed the reserved column and slid every row sideways.
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

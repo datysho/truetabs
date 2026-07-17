@@ -179,6 +179,10 @@
   "optOff": {
     "message": "Off"
   },
+  "optSortManual": {
+    "message": "Manual",
+    "description": "Sort-mode option: the user arranges them by hand (the value 'off' of sortGroups/sortTabs)"
+  },
   "optForever": {
     "message": "Forever"
   },
@@ -495,10 +499,10 @@
     "message": "By topic, using AI"
   },
   "groupReview": {
-    "message": "Re-sort"
+    "message": "Organize"
   },
   "statusReviewSame": {
-    "message": "Nothing new to sort out here"
+    "message": "Nothing here to organize"
   },
   "optSortAuto": {
     "message": "Keep the order automatically"

@@ -78,6 +78,15 @@ async function setSetting(key, value) {
   return res;
 }
 
+// The order controls are a pair: WHICH order, and whether it is kept live.
+// With both orders manual there is nothing to keep live - the switch says so
+// instead of pretending to govern something.
+function renderSortRows() {
+  const manual = $("sortGroups").value === "off" && $("sortTabs").value === "off";
+  $("sortAuto").disabled = manual;
+  $("sortAutoRow").classList.toggle("dim", manual);
+}
+
 function renderSmartRows() {
   const engine = $("smartEngine").value;
   $("builtinRow").hidden = engine !== "builtin";
@@ -270,6 +279,7 @@ function paintControls() {
         renderSmartRows();
         refreshByokWarning();
       }
+      if (id === "sortGroups" || id === "sortTabs") renderSortRows();
       if (settings.smartEngine === "builtin") refreshBuiltinStatus();
     });
   }
@@ -296,6 +306,7 @@ function paintControls() {
   $("byokBaseUrl").value = settings.byokBaseUrl || "";
   if (byokKeyPresent) $("byokKey").value = "********";
   renderSmartRows();
+  renderSortRows();
   refreshByokWarning();
 
   // Auto-save on change - same contract as every other control on this page.

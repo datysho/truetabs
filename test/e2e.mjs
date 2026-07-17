@@ -2228,7 +2228,48 @@ async function main() {
     );
   });
 
-  await test("Re-sort on Other: one AI question, asked once", async () => {
+  await test("Organize on Other: no AI needed to file by domain", async () => {
+    await resetWorld();
+    // topic mode with a model that clusters nothing: the strays pile up in
+    // the parking lot - the exact state a user then switches away from
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "topic" });
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) =>
+          prompt.includes("Pick the best topic group")
+            ? JSON.stringify({ group: null })
+            : JSON.stringify({ groups: [] }),
+      }),
+    );
+    const s1 = await openViaCommit(`${baseUrl}/siteOtherA`, { active: false });
+    const s2 = await openViaCommit(`${baseUrl}/siteOtherB`, { active: false });
+    await waitFor("both parked in Other", async () => {
+      const [a, b] = [await getTab(s1.id), await getTab(s2.id)];
+      return a.groupId !== -1 && a.groupId === b.groupId;
+    }, 8000);
+    const otherGid = (await getTab(s1.id)).groupId;
+    const winId = (await getTab(s1.id)).windowId;
+    // AI off (the pair rule drops grouping back to site), then the row's own
+    // Organize: same domain, so a real site group must win them back
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    assert(
+      (await ui({ type: "ui:getState" })).settings.autoGroup === "site",
+      "the engine paired AI-off back to site grouping",
+    );
+    const res = await ui({ type: "ui:reviewOther", windowId: winId });
+    assert(res.grouped >= 2, `filed without a model (${res.grouped})`);
+    const gid = (await getTab(s1.id)).groupId;
+    assert(gid !== -1 && gid !== otherGid, "they left the parking lot");
+    assert((await getTab(s2.id)).groupId === gid, "both landed in the same site group");
+    // and it is undoable, like every explicit run
+    const last = (await ui({ type: "ui:getState" })).lastOrganize;
+    assert(last && last.gids.includes(gid), "the user's run owns the undo slot");
+  });
+
+  await test("Organize on Other: one AI question, asked once", async () => {
     await resetWorld();
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
     await ui({ type: "ui:setSetting", key: "autoGroup", value: "topic" });
@@ -2294,6 +2335,72 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "sortAuto", value: true });
     await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
     await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("popup: a managed order retires the grip, never its column", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
+    const g1 = await openViaCommit(`${baseUrl}/gripOne`, { active: false });
+    const g2 = await openViaCommit(`${baseUrl}/gripTwo`, { active: false });
+    await waitFor("a group to list", async () => (await getTab(g2.id)).groupId !== -1, 8000);
+    const extBase = (await findSwTarget()).url().replace("background.js", "");
+    const page = await browser.newPage();
+    const measure = async () => {
+      await page.goto(`${extBase}popup.html`, { waitUntil: "networkidle0" });
+      await sleep(600);
+      return page.evaluate(() => {
+        const row = document.querySelector(".group-row");
+        if (!row) return null;
+        const grip = row.querySelector(".grip");
+        const dot = row.querySelector(".dot");
+        return {
+          dotX: Math.round(dot.getBoundingClientRect().x),
+          shown: getComputedStyle(grip).visibility !== "hidden",
+          draggable: grip.draggable,
+        };
+      });
+    };
+    const free = await measure();
+    assert(free, "the popup lists our group");
+    assert(free.shown && free.draggable, "a free order can be dragged by the grip");
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "title" });
+    const managed = await measure();
+    assert(!managed.shown && !managed.draggable, "a managed order does not pretend to drag");
+    assert(
+      managed.dotX === free.dotX,
+      `the rows hold their column either way (${free.dotX} -> ${managed.dotX})`,
+    );
+    await page.close();
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
+  });
+
+  await test("popup: the order controls name the mode and write it through", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
+    const extBase = (await findSwTarget()).url().replace("background.js", "");
+    const page = await browser.newPage();
+    await page.goto(`${extBase}popup.html`, { waitUntil: "networkidle0" });
+    await sleep(600);
+    // "Off" named the absence of a feature; the mode is "Manual" - the user
+    // arranges them, and that is an answer, not a missing one.
+    const labels = await page.evaluate(() =>
+      [...document.querySelectorAll("#sortGroups option, #sortTabs option")]
+        .filter((o) => o.value === "off")
+        .map((o) => o.textContent),
+    );
+    assert(labels.length === 2, "both order selects live in the popup");
+    assert(
+      labels.every((l) => l === "Manual"),
+      `the free order is named, not negated (got ${JSON.stringify(labels)})`,
+    );
+    await page.select("#sortTabs", "title");
+    await sleep(500);
+    assert(
+      (await ui({ type: "ui:getState" })).settings.sortTabs === "title",
+      "the popup writes the order straight to the engine",
+    );
+    await page.close();
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
   });
 
   await test("service worker: zero unchecked errors across the whole run", async () => {

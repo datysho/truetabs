@@ -179,6 +179,9 @@
   "optOff": {
     "message": "Desactivado"
   },
+  "optSortManual": {
+    "message": "Manual"
+  },
   "optForever": {
     "message": "Para siempre"
   },
@@ -495,10 +498,10 @@
     "message": "Por tema, con IA"
   },
   "groupReview": {
-    "message": "Reordenar"
+    "message": "Ordenar"
   },
   "statusReviewSame": {
-    "message": "No hay nada nuevo que reordenar"
+    "message": "Nada que ordenar aquí"
   },
   "optSortAuto": {
     "message": "Mantener el orden automáticamente"

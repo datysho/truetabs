@@ -185,6 +185,11 @@
       .group-row:hover .grip {
         opacity: 1;
       }
+      /* A managed order takes the grip away, never the space it holds: the
+         list must sit at the same x in every mode. */
+      .group-row .grip.off {
+        visibility: hidden;
+      }
       .group-row .dot {
         width: 10px;
         height: 10px;
@@ -259,6 +264,17 @@
       .toggles .row-sub .switch-label {
         font-weight: 400;
         font-size: 12.5px;
+      }
+      /* Order belongs with the automation it is part of. A select, not a
+         switch: the question is WHICH order, and "Manual" is one of the
+         answers - not the absence of one. The cap fits the longest option of
+         the longest locale (de) with its arrow; the label wraps rather than
+         squeeze the value into the chevron. */
+      .toggles .row select {
+        flex: none;
+        max-width: 176px;
+        padding: 3px 6px;
+        font-size: 12px;
       }
       .action-bar {
         flex: none;
@@ -367,6 +383,24 @@
         <label class="row row-sub" id="aiRow">
           <span class="switch-label" data-i18n="toggleGroupAi"></span>
           <input type="checkbox" id="aiToggle" class="switch" />
+        </label>
+        <label class="row">
+          <span class="switch-label" data-i18n="optSortGroups"></span>
+          <select id="sortGroups">
+            <option value="off" data-i18n="optSortManual"></option>
+            <option value="title" data-i18n="optSortTitle"></option>
+            <option value="recent" data-i18n="optSortRecent"></option>
+            <option value="opened" data-i18n="optSortOpened"></option>
+          </select>
+        </label>
+        <label class="row">
+          <span class="switch-label" data-i18n="optSortTabs"></span>
+          <select id="sortTabs">
+            <option value="off" data-i18n="optSortManual"></option>
+            <option value="title" data-i18n="optSortTitle"></option>
+            <option value="recent" data-i18n="optSortRecent"></option>
+            <option value="opened" data-i18n="optSortOpened"></option>
+          </select>
         </label>
       </section>
 
