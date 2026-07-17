@@ -475,5 +475,20 @@
   },
   "engineReset": {
     "message": "Alle Einstellungen zurücksetzen"
+  },
+  "noticePaused": {
+    "message": "Automatik nach einer Schließ-Welle pausiert."
+  },
+  "noticeRetired": {
+    "message": "Für $1 Seite(n) pausiert, die du zweimal überstimmt hast."
+  },
+  "resumeBtn": {
+    "message": "Fortsetzen"
+  },
+  "statusResumed": {
+    "message": "Automatik fortgesetzt"
+  },
+  "optDiagFailed": {
+    "message": "Kopieren fehlgeschlagen - markiere den Text unten und kopiere ihn manuell."
   }
 }

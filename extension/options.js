@@ -369,13 +369,37 @@ function paintControls() {
     chrome.tabs.create({ url: "chrome://on-device-internals" });
   });
 
+  // Diagnostics must survive its own failure modes: the dump is fetched
+  // off-queue (fast, so the click's user activation is still valid when the
+  // clipboard write happens), and if the write is refused anyway the JSON
+  // lands in a selectable box instead of the button doing nothing at all.
   $("diagBtn").addEventListener("click", async () => {
-    const dump = await send({ type: "ui:diagnostics" });
-    await navigator.clipboard.writeText(JSON.stringify(dump, null, 2));
-    $("diagNote").textContent = t("optDiagCopied");
-    setTimeout(() => {
-      $("diagNote").textContent = "";
-    }, 4000);
+    $("diagNote").textContent = "";
+    $("diagDump").hidden = true;
+    let text;
+    try {
+      const dump = await send({ type: "ui:diagnostics" });
+      if (!dump || dump.error) throw new Error((dump && dump.error) || "no response");
+      text = JSON.stringify(dump, null, 2);
+    } catch (err) {
+      $("diagNote").textContent = t("engineDownBody");
+      $("diagNote").className = "note err";
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      $("diagNote").className = "note";
+      $("diagNote").textContent = t("optDiagCopied");
+      setTimeout(() => {
+        $("diagNote").textContent = "";
+      }, 4000);
+    } catch {
+      $("diagDump").value = text;
+      $("diagDump").hidden = false;
+      $("diagDump").select();
+      $("diagNote").className = "note err";
+      $("diagNote").textContent = t("optDiagFailed");
+    }
   });
 }
 

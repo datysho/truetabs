@@ -475,5 +475,20 @@
   },
   "engineReset": {
     "message": "重置所有设置"
+  },
+  "noticePaused": {
+    "message": "因短时间内大量关闭，自动化已暂停。"
+  },
+  "noticeRetired": {
+    "message": "已对 $1 个被你两次撤销的页面暂停。"
+  },
+  "resumeBtn": {
+    "message": "恢复"
+  },
+  "statusResumed": {
+    "message": "自动化已恢复"
+  },
+  "optDiagFailed": {
+    "message": "复制失败 - 请选中下方文本手动复制。"
   }
 }

@@ -34,6 +34,13 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > custom groups get signatures and re-adopt after restarts (ownership features no longer die on
 > relaunch); the Smart Organize pool sweeps ANY non-ephemeral URL (extension/file/chrome pages) - site
 > fallback stays http-only, exotics go to Other, and one leftover may join an EXISTING catch-all.
+> v1.10 MV3 reality: a model call is not a chrome.* call, so a long smart run outlived nothing - the
+> worker could be killed mid-run leaving smartProgress/smartRunning in session storage (frozen popup,
+> smart blocked 10min). Keepalive heartbeat during runs and downloads + unconditional flag clear at
+> worker init (a run cannot outlive its worker). Retired automation and breaker pauses are now VISIBLE
+> in the popup with one-click ui:resumeAutomation. ensureOtherGroup extracted as the single catch-all
+> path (tail + fresh unmatched tabs, born with the second stray). ui:diagnostics off-queue + clipboard
+> fallback to a selectable dump.
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

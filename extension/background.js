@@ -1271,6 +1271,45 @@ async function rehomeNavigated(tabId, st, inheritGid) {
   }
 }
 
+// The catch-all, in ONE place: the smart tail and a fresh unmatched tab both
+// come here, so "with Other on nothing stays loose" means the same thing on
+// every path. Joining an existing catch-all takes even a single tab; minting
+// a new one waits for two (a one-tab group is churn, not organization).
+async function ensureOtherGroup(windowId, tabIds) {
+  const live = [];
+  for (const id of tabIds) {
+    const t = await quiet(chrome.tabs.get, id);
+    if (t && !t.pinned && (t.groupId === -1 || t.groupId == null) && t.windowId === windowId) {
+      live.push(t.id);
+    }
+  }
+  if (!live.length) return { joined: 0, created: null };
+  await ensureI18n();
+  const existing = Object.entries(await getOurGroups()).find(
+    ([, g]) => g.other && g.windowId === windowId,
+  );
+  if (existing) {
+    let joined = 0;
+    for (const id of live) {
+      if (await addToOurGroup(id, Number(existing[0]))) joined++;
+    }
+    // The catch-all's contract: it closes the strip (or the group block).
+    const settings = await getSettings();
+    if (!settings.groupsOnTop) {
+      await quiet(chrome.tabGroups.move, Number(existing[0]), { windowId, index: -1 });
+    }
+    return { joined, created: null };
+  }
+  if (live.length < 2) return { joined: 0, created: null };
+  const gid = await createOurGroup(live, windowId, {
+    title: ttI18n.t("smartOtherName"),
+    color: "grey",
+    smart: true,
+    other: true,
+  });
+  return gid == null ? { joined: 0, created: null } : { joined: live.length, created: gid };
+}
+
 // Rule pre-pass over a pool of tabs (Organize / Smart Organize): domain-rule
 // matches leave the pool and land in their rule groups first.
 async function routeCustoms(pool, windowId, createdGids) {
@@ -1981,6 +2020,23 @@ function parseSmartResponse(text, itemCount) {
 //   4) the tail: if the model dumped over half the pool, it is grouped BY
 //      SITE; only true singletons land in the localized "Other" (always last).
 
+// MV3 keepalive: an on-device model call can run far longer than the ~30s
+// idle timeout, and web APIs do not reset it - only chrome.* calls do. A
+// heartbeat every 20s keeps the worker (and the run) alive.
+let smartKeepalive = null;
+
+function startSmartKeepalive() {
+  if (smartKeepalive) return;
+  smartKeepalive = setInterval(() => {
+    chrome.runtime.getPlatformInfo(() => void chrome.runtime.lastError);
+  }, 20_000);
+}
+
+function stopSmartKeepalive() {
+  clearInterval(smartKeepalive);
+  smartKeepalive = null;
+}
+
 async function setSmartProgress(done, total) {
   if (total > 0) await chrome.storage.session.set({ smartProgress: { done, total } });
   else await chrome.storage.session.remove("smartProgress");
@@ -2240,28 +2296,11 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
       loose.push(...exotic);
     }
     if (settings.smartOther && loose.length) {
-      await ensureI18n();
-      const existingOther = Object.entries(await getOurGroups()).find(
-        ([, g]) => g.other && g.windowId === windowId,
-      );
-      if (!existingOther && loose.length < 2) {
-        // a single leftover with no catch-all yet: a one-tab group is churn
-      } else if (existingOther) {
-        for (const t of loose) {
-          if (await addToOurGroup(t.id, Number(existingOther[0]))) run.grouped++;
-        }
-        await quiet(chrome.tabGroups.move, Number(existingOther[0]), { windowId, index: -1 });
-      } else {
-        const gid = await createOurGroup(
-          loose.map((t) => t.id),
-          windowId,
-          { title: ttI18n.t("smartOtherName"), color: "grey", smart: true, other: true },
-        );
-        if (gid != null) {
-          run.grouped += loose.length;
-          run.groupsCreated++;
-          run.createdGids.push(gid);
-        }
+      const res = await ensureOtherGroup(windowId, loose.map((t) => t.id));
+      run.grouped += res.joined;
+      if (res.created != null) {
+        run.groupsCreated++;
+        run.createdGids.push(res.created);
       }
     }
     await applySort(windowId); // the one layout engine: sorts + zones + Other
@@ -2275,6 +2314,7 @@ async function smartOrganize(scope, currentWindowId) {
   const { smartRunning } = await chrome.storage.session.get("smartRunning");
   if (smartRunning && now() - smartRunning < 10 * 60e3) return { busy: true };
   await chrome.storage.session.set({ smartRunning: now() });
+  startSmartKeepalive();
   try {
     const windows = await normalWindows();
     const targets = scope === "window" ? windows.filter((w) => w.id === currentWindowId) : windows;
@@ -2317,6 +2357,7 @@ async function smartOrganize(scope, currentWindowId) {
     await rememberOrganize(run.createdGids);
     return { grouped: run.grouped, groupsCreated: run.groupsCreated, fellBack: run.fellBack };
   } finally {
+    stopSmartKeepalive();
     await chrome.storage.session.remove("smartRunning");
   }
 }
@@ -2465,6 +2506,12 @@ async function uiGetState(request) {
     lastBatch,
     lastOrganize,
     paused: await isPaused(),
+    // Retired automation is the quiet reason behind "it worked yesterday":
+    // two overrides retire a class+key for the session. The popup surfaces
+    // the count and offers one click to take it all back.
+    retired: Object.values((await chrome.storage.session.get("strikes")).strikes || {}).filter(
+      (r) => r.count >= STRIKE_LIMIT,
+    ).length,
     settled,
     smartAvailability: await smartAvailability(),
     smartProgress: (await chrome.storage.session.get("smartProgress")).smartProgress || null,
@@ -2477,6 +2524,29 @@ async function handleUi(request) {
   switch (request.type) {
     case "ui:getState":
       return uiGetState(request);
+    case "ui:resumeAutomation": {
+      // One switch back on: forget every retirement, clear the breaker pause
+      // and its ledgers, and drop the per-tab "hands off" marks.
+      await chrome.storage.session.remove([
+        "strikes",
+        "pausedUntil",
+        "breakerNotifiedAt",
+        "closeLedger",
+        "createLedger",
+        "dedupRecent",
+        "archiveRecent",
+      ]);
+      for (const tab of await normalTabs()) {
+        const st = await getTabState(tab.id);
+        if (st && st.ungroupedByUser) {
+          st.ungroupedByUser = false;
+          await putTabState(tab.id, st);
+        }
+      }
+      quiet(chrome.notifications.clear, "tt-breaker");
+      traceDiag("automation resumed by the user");
+      return { ok: true };
+    }
     case "ui:ping":
       // The pages' health probe: cheap, off-queue, answers even mid-storm.
       return { ok: true, version: chrome.runtime.getManifest().version };
@@ -2676,6 +2746,7 @@ async function handleUi(request) {
       // Explicit user click: create() may trigger the one-time model download.
       if (globalThis.__ttMockAi) return { status: "available" };
       if (typeof LanguageModel === "undefined") return { status: "unavailable" };
+      startSmartKeepalive(); // a multi-GB download outlives the idle timeout
       try {
         const session = await LanguageModel.create({
           monitor(m) {
@@ -2692,6 +2763,8 @@ async function handleUi(request) {
         return { status: "available" };
       } catch (err) {
         return { status: "unavailable", error: String((err && err.message) || err) };
+      } finally {
+        stopSmartKeepalive();
       }
     }
     case "ui:diagnostics": {
@@ -2827,6 +2900,35 @@ async function handleCommit(details) {
         } else if (settings.autoGroup === "topic") {
           const assigned = await smartAssign(details.tabId, post);
           if (assigned === "fallback") await groupOnCommit(details.tabId, post);
+        }
+        // "Other" is a promise: with it on, a new tab that fits no topic (and
+        // no site group) joins the catch-all instead of lying around loose.
+        // Topic mode only - under site grouping a lone domain staying loose
+        // is the design (min size 2), not a leftover.
+        if (
+          settings.autoGroup === "topic" &&
+          settings.smartOther &&
+          settings.smartEngine !== "off" &&
+          !post.ungroupedByUser &&
+          (await isSettled()) &&
+          !(await isPaused())
+        ) {
+          const still = await quiet(chrome.tabs.get, details.tabId);
+          if (still && !still.pinned && (still.groupId === -1 || still.groupId == null)) {
+            // Born with the second tab, exactly like a site group: this tab
+            // plus the loose strays already lying around (tabs the user
+            // pulled out by hand keep their freedom).
+            const peers = [];
+            for (const t of await chrome.tabs.query({ windowId: still.windowId, pinned: false })) {
+              if (t.id === still.id) continue;
+              if (t.groupId !== -1 && t.groupId != null) continue;
+              if (isEphemeralUrl(t.url) || !t.url) continue;
+              const peerSt = await getTabState(t.id);
+              if (peerSt && peerSt.ungroupedByUser) continue;
+              peers.push(t.id);
+            }
+            await ensureOtherGroup(still.windowId, [still.id, ...peers]);
+          }
         }
       }
     }
@@ -3032,6 +3134,7 @@ const OFF_QUEUE_UI = new Set([
   "ui:getState",
   "ui:smartStatus",
   "ui:ping",
+  "ui:diagnostics", // read-only, and the debugging tool must answer mid-storm
 ]);
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
@@ -3078,6 +3181,14 @@ function applyActionIcon(style) {
 ensureAlarm();
 ensureSettleBootstrap();
 getSettings().then((settings) => applyActionIcon(settings.iconStyle));
+// A smart run lives inside ONE service worker lifetime: if this file is
+// executing, no run is in flight. Chrome kills an idle MV3 worker after ~30s
+// and an on-device model call is NOT a chrome.* call, so a long run can be
+// cut down mid-flight - while its flags (progress, running) live in session
+// storage, which outlives the worker. Stale flags froze the popup on
+// "Grouping..." and blocked Smart Organize for ten minutes. Clearing them
+// here is exact: a fresh worker means there is nothing in flight to protect.
+chrome.storage.session.remove(["smartProgress", "smartRunning"], checked);
 
 // Mirror onMessage exactly: off-queue types call handleUi directly - routing
 // them through the queue would deadlock smartOrganize, whose APPLY phase

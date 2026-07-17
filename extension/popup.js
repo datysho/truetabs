@@ -58,9 +58,8 @@ function render() {
     $("organizeBtn").disabled = true;
   } else {
     $("organizeBtn").disabled = false;
-    if (state.paused) warming.textContent = t("pausedNote");
-    else if (!state.settled) warming.textContent = t("warmingNote");
-    else warming.textContent = "";
+    if (!state.settled) warming.textContent = t("warmingNote");
+    else warming.textContent = ""; // paused now speaks in the notice row
   }
 
   const undoRow = $("undoRow");
@@ -70,6 +69,21 @@ function render() {
   } else {
     undoRow.hidden = true;
   }
+  // Why automation went quiet - and one click to take it back. Two overrides
+  // retire a class for the session (testing dedup by re-opening looks exactly
+  // like disagreeing with it), and a runaway trips the breaker into a pause.
+  // Both were invisible: this row is the honest answer to "it stopped working".
+  const noticeRow = $("noticeRow");
+  if (state.paused) {
+    noticeRow.hidden = false;
+    $("noticeText").textContent = t("noticePaused");
+  } else if (state.retired > 0) {
+    noticeRow.hidden = false;
+    $("noticeText").textContent = t("noticeRetired", [state.retired]);
+  } else {
+    noticeRow.hidden = true;
+  }
+
   const undoOrgRow = $("undoOrgRow");
   if (state.lastOrganize && state.lastOrganize.gids.length > 0) {
     undoOrgRow.hidden = false;
@@ -318,6 +332,12 @@ async function init() {
   $("undoBtn").addEventListener("click", () => {
     send({ type: "ui:undoLastBatch" }).then((r) => {
       setStatus(t("statusRestored", [r.restored]));
+      refresh();
+    });
+  });
+  $("resumeBtn").addEventListener("click", () => {
+    send({ type: "ui:resumeAutomation" }).then(() => {
+      setStatus(t("statusResumed"));
       refresh();
     });
   });

@@ -475,5 +475,20 @@
   },
   "engineReset": {
     "message": "Reset all settings"
+  },
+  "noticePaused": {
+    "message": "Automation paused after a burst of closes."
+  },
+  "noticeRetired": {
+    "message": "Paused for $1 page(s) you overrode twice."
+  },
+  "resumeBtn": {
+    "message": "Resume"
+  },
+  "statusResumed": {
+    "message": "Automation resumed"
+  },
+  "optDiagFailed": {
+    "message": "Could not copy - select the text below and copy it manually."
   }
 }

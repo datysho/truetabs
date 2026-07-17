@@ -1897,6 +1897,87 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
   });
 
+  await test("topic mode + Other: an unmatched new tab joins the catch-all, never stays loose", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "topic" });
+    // seed a topic group so the catch-all is not the only group around
+    const s1 = await createTab({ url: `${baseUrl}/seedTopicA` });
+    const s2 = await createTab({ url: `${altUrl}/seedTopicB` });
+    await sleep(400);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          if (prompt.includes("Pick the best topic group")) {
+            return JSON.stringify({ group: null }); // fits nothing
+          }
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("seedTopic"))
+            .map((line) => parseInt(line, 10));
+          return JSON.stringify({ groups: [{ name: "Seeded", tabIndices: idx }] });
+        },
+      }),
+    );
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    // two fresh tabs the model refuses to place: they must land in Other
+    const l1 = await openViaCommit(`${baseUrl}/lonelyOne`, { active: false });
+    const l2 = await openViaCommit(`${altUrl}/lonelyTwo`, { active: false });
+    await waitFor(
+      "both lonely tabs grouped",
+      async () => (await getTab(l1.id)).groupId !== -1 && (await getTab(l2.id)).groupId !== -1,
+      8000,
+    );
+    const g = await swEval((gid) => chrome.tabGroups.get(gid), (await getTab(l2.id)).groupId);
+    assert(g.title === "Other", `the catch-all took them (got "${g.title}")`);
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("stale smart flags never outlive the worker; resume takes automation back", async () => {
+    await resetWorld();
+    // a killed worker mid-run used to leave these behind: popup frozen on
+    // "Grouping...", Smart Organize blocked for ten minutes
+    await swEval(() =>
+      chrome.storage.session.set({
+        smartProgress: { done: 3, total: 70 },
+        smartRunning: Date.now(),
+      }),
+    );
+    await swEval(() => globalThis.__ttSimulateReload());
+    await waitFor("re-settled", async () => (await ui({ type: "ui:getState" })).settled);
+    const state = await ui({ type: "ui:getState" });
+    assert(!state.smartProgress, "stale progress cleared by the fresh worker");
+    const { smartRunning } = await swEval(() => chrome.storage.session.get("smartRunning"));
+    assert(!smartRunning, "stale running flag cleared - smart is not blocked");
+    // retired automation is visible and revocable
+    await swEval(() =>
+      chrome.storage.session.set({
+        strikes: { "dedup:http://x/y": { count: 2, lastAt: Date.now() } },
+        pausedUntil: Date.now() + 60_000,
+      }),
+    );
+    const struck = await ui({ type: "ui:getState" });
+    assert(struck.retired === 1, `retired classes surfaced (got ${struck.retired})`);
+    assert(struck.paused === true, "pause surfaced");
+    await ui({ type: "ui:resumeAutomation" });
+    const back = await ui({ type: "ui:getState" });
+    assert(back.retired === 0 && back.paused === false, "resume clears both");
+  });
+
+  await test("diagnostics answers off-queue while the mutation queue grinds", async () => {
+    await swEval(() => globalThis.__ttEnqueueSleep(2500));
+    const t0 = Date.now();
+    const dump = await ui({ type: "ui:diagnostics" });
+    const elapsed = Date.now() - t0;
+    assert(dump && dump.version && Array.isArray(dump.trace), "dump returned");
+    assert(elapsed < 800, `off-queue diagnostics (${elapsed}ms < 800ms)`);
+    await sleep(2600); // let the jam drain
+  });
+
   await test("service worker: zero unchecked errors across the whole run", async () => {
     await sleep(500);
     assert(

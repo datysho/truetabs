@@ -35,7 +35,7 @@ sidebar, no new-tab page takeover - Chrome stays Chrome, the mess just stops.
 | 1 | **Duplicate prevention** | Opening a URL you already have focuses the existing tab instantly - a fresh duplicate is pre-empted before the page even loads. Re-typing an open URL into an EXISTING tab works the other way round: your tab wins, the stale copy merges into it (archived first) and the tab is re-filed by your rules. Manual "Sweep duplicates" for the pile you already have. |
 | 2 | **Auto-archive** | A tab untouched for 24h (configurable 6h-7d, or off) is saved to a local archive and closed. Searchable archive page, restore in one click, notification with Undo after every batch. |
 | 3 | **Auto-group** | One selector: new tabs group by *site* (stable colors, clean names) or by *topic* via AI. Idle groups collapse. One-click "Organize now" for everything else. |
-| 3b | **Smart groups (AI)** | Cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / any OpenAI-compatible endpoint like Ollama). Groups appear batch by batch with live progress. |
+| 3b | **Smart groups (AI)** | Cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / any OpenAI-compatible endpoint like Ollama). Groups appear batch by batch with live progress. With the "Other" catch-all on, nothing is left loose - new tabs that fit no topic join it. |
 | 3c | **My groups (rules)** | Your named groups with routing rules: a site list (deterministic) and/or a plain-language AI hint. Rules outrank every automatic grouping. |
 | 3d | **Order** | Two maintained axes: group order and tab order (A-Z / recently used / oldest). New tabs slot into place, manual drags snap back, and with *recently used first* the tab you use surfaces instantly - its group rises to the front. |
 | 4 | **Dashboard** | Live counts (tabs, duplicates, stale, archived today), one-click actions, merge all windows, master switches per automation. |
@@ -52,7 +52,8 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
   (reopen a deduped page, pull a tab out of a group, expand a collapsed
   group, restore an archived tab) retires that action for that page/site
   until the browser restarts. TrueTabs never fights you - or another
-  extension.
+  extension. The popup says when something is retired and takes it all back
+  in one click.
 - **Circuit breaker.** Automatic closes are capped at 25/minute; bulk
   operations declare exact budgets. Anything runaway pauses ALL automation
   for 10 minutes and tells you once.
@@ -118,7 +119,7 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 ```bash
 cd test
 npm install
-npm test          # 59 e2e contracts against a real Chrome for Testing
+npm test          # 62 e2e contracts against a real Chrome for Testing
 HEADFUL=1 npm test
 node shots.mjs    # regenerate store screenshots
 ./package.sh      # build the store zip (strips the dev key)

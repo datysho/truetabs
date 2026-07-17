@@ -475,5 +475,20 @@
   },
   "engineReset": {
     "message": "Redefinir todas as configurações"
+  },
+  "noticePaused": {
+    "message": "Automação em pausa após uma rajada de fechamentos."
+  },
+  "noticeRetired": {
+    "message": "Em pausa para $1 página(s) que você desfez duas vezes."
+  },
+  "resumeBtn": {
+    "message": "Retomar"
+  },
+  "statusResumed": {
+    "message": "Automação retomada"
+  },
+  "optDiagFailed": {
+    "message": "Não foi possível copiar - selecione o texto abaixo e copie manualmente."
   }
 }

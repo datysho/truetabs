@@ -475,5 +475,20 @@
   },
   "engineReset": {
     "message": "Restablecer todos los ajustes"
+  },
+  "noticePaused": {
+    "message": "Automatización en pausa tras una ráfaga de cierres."
+  },
+  "noticeRetired": {
+    "message": "En pausa para $1 página(s) que anulaste dos veces."
+  },
+  "resumeBtn": {
+    "message": "Reanudar"
+  },
+  "statusResumed": {
+    "message": "Automatización reanudada"
+  },
+  "optDiagFailed": {
+    "message": "No se pudo copiar: selecciona el texto de abajo y cópialo manualmente."
   }
 }

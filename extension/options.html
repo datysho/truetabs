@@ -147,6 +147,17 @@
         font-size: 12px;
         color: var(--muted);
       }
+      /* Manual-copy fallback when the clipboard refuses the write. */
+      .diagdump {
+        width: 100%;
+        min-height: 120px;
+        margin-top: 8px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+      }
+      .diagdump[hidden] {
+        display: none !important;
+      }
       /* Custom rule groups: one bordered item per rule. */
       .custom-item {
         border: 1px solid var(--border);
@@ -471,6 +482,7 @@
         <button id="diagBtn" data-i18n="optDiag"></button>
         <span class="note" id="diagNote"></span>
       </div>
+      <textarea id="diagDump" class="diagdump" spellcheck="false" readonly hidden></textarea>
     </div>
 
     <script src="config.js"></script>
