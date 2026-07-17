@@ -1378,15 +1378,26 @@ async function smartAvailability() {
   }
 }
 
-function smartPrompt(items) {
+function smartPrompt(items, existingTopics = []) {
   const list = items.map((it, i) => `${i}. [${it.domain}] ${it.title}`).join("\n");
+  const topics = existingTopics.length
+    ? `Existing group names - REUSE these names when tabs fit them:\n${existingTopics
+        .map((t) => `- ${t}`)
+        .join("\n")}\n\n`
+    : "";
   return (
     "You organize browser tabs into topic groups.\n" +
-    "Given the numbered tabs below, cluster them into topical groups.\n" +
-    "Rules: every group needs at least 2 tabs; a tab appears in at most one " +
-    "group; tabs that fit nothing are omitted; group names are short (1-3 " +
-    "words, at most 25 characters) in the dominant language of the titles.\n" +
+    "Cluster the numbered tabs below into 3-10 groups.\n" +
+    "Rules:\n" +
+    "- EVERY tab must be assigned to exactly one group. Do not leave tabs " +
+    "out unless a tab is truly unrelated to everything else.\n" +
+    "- Tabs from one site usually belong together: a group per dominant " +
+    'site is good (e.g. all YouTube tabs -> "YouTube").\n' +
+    "- Prefer broad, useful groups over many tiny ones.\n" +
+    "- Group names: 1-3 words, at most 25 characters, in the dominant " +
+    "language of the titles.\n" +
     'Answer with ONLY JSON: {"groups":[{"name":"...","tabIndices":[0,2]}]}\n\n' +
+    topics +
     `Tabs:\n${list}`
   );
 }
@@ -1514,70 +1525,118 @@ function parseSmartResponse(text, itemCount) {
   return groups.length ? groups : null;
 }
 
-async function smartOrganize(scope, currentWindowId) {
+// Smart Organize runs in two phases so a slow model never freezes the
+// engine or the popup:
+//   1) COLLECT (off the mutation queue): read the pool, call the AI batch by
+//      batch with live progress in storage.session; themes merge by name
+//      across batches and later batches see the names already minted.
+//   2) APPLY (one queued job): create the groups atomically, with liveness
+//      re-checks - the world may have moved while the model was thinking.
+// Quality guard: if the model dumps more than half the pool into "no topic",
+// the tail is grouped BY SITE instead, and only the true leftovers land in
+// "Other" - a 51-tab Other is a failure mode, not a result.
+
+async function setSmartProgress(done, total) {
+  if (total > 0) await chrome.storage.session.set({ smartProgress: { done, total } });
+  else await chrome.storage.session.remove("smartProgress");
+}
+
+async function smartCollectPlan(scope, currentWindowId) {
   const settings = await getSettings();
-  if (settings.smartEngine === "off") return { grouped: 0, groupsCreated: 0, fellBack: false };
   const windows = await normalWindows();
   const targets = scope === "window" ? windows.filter((w) => w.id === currentWindowId) : windows;
+  const ourGroups = await getOurGroups();
+  const pools = [];
+  let totalPool = 0;
+  for (const win of targets) {
+    const all = await chrome.tabs.query({ windowId: win.id, pinned: false });
+    // Loose tabs + members of OUR auto groups when the user allows rebuilds;
+    // hand-made groups are never touched. Sorted by site so batches keep
+    // natural clusters together.
+    const pool = all
+      .filter((t) => {
+        if (!dupeKey(t.url)) return false;
+        if (t.groupId === -1 || t.groupId == null) return true;
+        return settings.smartRegroupOurs && !!ourGroups[t.groupId];
+      })
+      .sort((a, b) => registrableDomain(a.url).localeCompare(registrableDomain(b.url)));
+    if (pool.length >= 2) {
+      pools.push({ windowId: win.id, pool });
+      totalPool += pool.length;
+    }
+  }
+  await setSmartProgress(0, totalPool);
+  let done = 0;
+  const plans = [];
+  try {
+    for (const { windowId, pool } of pools) {
+      const themes = new Map(); // lower(name) -> {name, ids}
+      const unassigned = [];
+      let aiFailures = 0;
+      const existingNames = Object.values(ourGroups)
+        .filter((g) => g.smart && !g.other && g.windowId === windowId)
+        .map((g) => g.title);
+      for (let offset = 0; offset < pool.length; offset += SMART_BATCH) {
+        const batch = pool.slice(offset, offset + SMART_BATCH);
+        const items = batch.map((t) => ({
+          domain: registrableDomain(t.url),
+          title: (t.title || t.url).slice(0, 120),
+        }));
+        const topics = [...new Set([...existingNames, ...[...themes.values()].map((t) => t.name)])];
+        let groups = null;
+        try {
+          groups = parseSmartResponse(await smartCall(smartPrompt(items, topics)), items.length);
+        } catch (err) {
+          traceDiag(`smart call failed: ${err && err.message}`);
+        }
+        if (!groups) {
+          aiFailures++;
+          unassigned.push(...batch.map((t) => t.id)); // the site fallback will catch these
+        } else {
+          const assigned = new Set();
+          for (const g of groups) {
+            const key = g.name.toLowerCase();
+            if (!themes.has(key)) themes.set(key, { name: g.name, ids: [] });
+            themes.get(key).ids.push(...g.tabIndices.map((i) => batch[i].id));
+            for (const i of g.tabIndices) assigned.add(i);
+          }
+          batch.forEach((t, i) => {
+            if (!assigned.has(i)) unassigned.push(t.id);
+          });
+        }
+        done += batch.length;
+        await setSmartProgress(done, totalPool);
+      }
+      plans.push({ windowId, themes: [...themes.values()], unassigned, poolSize: pool.length, aiFailures });
+    }
+  } finally {
+    await setSmartProgress(0, 0);
+  }
+  return plans;
+}
+
+async function applySmartPlan(plans) {
+  const settings = await getSettings();
   let grouped = 0;
   let groupsCreated = 0;
   let fellBack = false;
   const smartCreatedGids = [];
-  const settings2 = await getSettings();
-  for (const win of targets) {
-    const ourGroups = await getOurGroups();
-    // The pool: loose tabs, plus members of OUR auto groups when the user
-    // lets Smart Organize rebuild them (hand-made groups are never touched -
-    // Chrome re-seats pooled tabs into the new topic groups automatically).
-    const all = await chrome.tabs.query({ windowId: win.id, pinned: false });
-    const pool = all.filter((t) => {
-      if (!dupeKey(t.url)) return false;
-      if (t.groupId === -1 || t.groupId == null) return true;
-      return settings2.smartRegroupOurs && !!ourGroups[t.groupId];
-    });
-    if (pool.length < 2) continue;
-    const grouping = []; // {name, ids} accumulated across batches
-    const unassigned = [];
-    let batchFailed = false;
-    for (let offset = 0; offset < pool.length; offset += SMART_BATCH) {
-      const batch = pool.slice(offset, offset + SMART_BATCH);
-      const items = batch.map((t) => ({
-        domain: registrableDomain(t.url),
-        title: (t.title || t.url).slice(0, 120),
-      }));
-      let groups = null;
-      try {
-        groups = parseSmartResponse(await smartCall(smartPrompt(items)), items.length);
-      } catch (err) {
-        traceDiag(`smart call failed: ${err && err.message}`);
+  for (const plan of plans) {
+    const win = await quiet(chrome.windows.get, plan.windowId);
+    if (!win) continue;
+    for (const theme of plan.themes) {
+      const live = [];
+      for (const id of theme.ids) {
+        const t = await quiet(chrome.tabs.get, id);
+        if (t && !t.pinned && t.windowId === plan.windowId) live.push(id);
       }
-      if (!groups) {
-        batchFailed = true;
+      if (live.length < 2) {
+        plan.unassigned.push(...live);
         continue;
       }
-      const assigned = new Set();
-      for (const g of groups) {
-        grouping.push({ name: g.name, ids: g.tabIndices.map((i) => batch[i].id) });
-        for (const i of g.tabIndices) assigned.add(i);
-      }
-      batch.forEach((t, i) => {
-        if (!assigned.has(i)) unassigned.push(t.id);
-      });
-    }
-    if (batchFailed && !grouping.length) {
-      fellBack = true;
-      continue;
-    }
-    for (const g of grouping) {
-      const live = [];
-      for (const id of g.ids) {
-        const t = await quiet(chrome.tabs.get, id);
-        if (t && !t.pinned) live.push(id);
-      }
-      if (live.length < 2) continue;
-      const gid = await createOurGroup(live, win.id, {
-        title: g.name,
-        color: colorFor(g.name),
+      const gid = await createOurGroup(live, plan.windowId, {
+        title: theme.name,
+        color: colorFor(theme.name),
         smart: true,
       });
       if (gid != null) {
@@ -1586,52 +1645,85 @@ async function smartOrganize(scope, currentWindowId) {
         smartCreatedGids.push(gid);
       }
     }
-    // The catch-all: whatever fit no topic lands in a localized "Other",
-    // always at the very end of the window.
-    if (settings2.smartOther && unassigned.length >= 2) {
-      await ensureI18n();
-      const live = [];
-      for (const id of unassigned) {
-        const t = await quiet(chrome.tabs.get, id);
-        if (t && !t.pinned && (t.groupId === -1 || t.groupId == null)) live.push(id);
+    // The tail. A huge "no topic" pile means the model underdelivered -
+    // group the tail BY SITE; only what stays loose after that is "Other".
+    let leftovers = [];
+    for (const id of plan.unassigned) {
+      const t = await quiet(chrome.tabs.get, id);
+      if (t && !t.pinned && (t.groupId === -1 || t.groupId == null)) leftovers.push(t);
+    }
+    if (plan.aiFailures > 0 || leftovers.length > plan.poolSize / 2) {
+      fellBack = true;
+      const byDomain = new Map();
+      for (const t of leftovers) {
+        const domain = registrableDomain(t.url);
+        if (!byDomain.has(domain)) byDomain.set(domain, []);
+        byDomain.get(domain).push(t);
       }
-      if (live.length >= 2) {
-        const existingOther = Object.entries(await getOurGroups()).find(
-          ([, g]) => g.other && g.windowId === win.id,
-        );
-        if (existingOther) {
-          for (const id of live) await addToOurGroup(id, Number(existingOther[0]));
-          await quiet(chrome.tabGroups.move, Number(existingOther[0]), {
-            windowId: win.id,
-            index: -1,
-          });
-          grouped += live.length;
-        } else {
-          const gid = await createOurGroup(live, win.id, {
-            title: ttI18n.t("smartOtherName"),
-            color: "grey",
-            smart: true,
-            other: true,
-          });
+      leftovers = [];
+      for (const [domain, list] of byDomain) {
+        if (list.length >= 2) {
+          const ourGroups = await getOurGroups();
+          const gid = await createOurGroup(
+            list.map((t) => t.id),
+            plan.windowId,
+            { domain, title: groupTitleFor(ourGroups, plan.windowId, domain), color: colorFor(domain) },
+          );
           if (gid != null) {
-            grouped += live.length;
+            grouped += list.length;
             groupsCreated++;
             smartCreatedGids.push(gid);
           }
+        } else {
+          leftovers.push(...list);
         }
       }
     }
-    await applySort(win.id);
-    if (settings2.groupsOnTop) await moveGroupsToFront(win.id);
+    if (settings.smartOther && leftovers.length >= 2) {
+      await ensureI18n();
+      const existingOther = Object.entries(await getOurGroups()).find(
+        ([, g]) => g.other && g.windowId === plan.windowId,
+      );
+      if (existingOther) {
+        for (const t of leftovers) await addToOurGroup(t.id, Number(existingOther[0]));
+        await quiet(chrome.tabGroups.move, Number(existingOther[0]), {
+          windowId: plan.windowId,
+          index: -1,
+        });
+        grouped += leftovers.length;
+      } else {
+        const gid = await createOurGroup(
+          leftovers.map((t) => t.id),
+          plan.windowId,
+          { title: ttI18n.t("smartOtherName"), color: "grey", smart: true, other: true },
+        );
+        if (gid != null) {
+          grouped += leftovers.length;
+          groupsCreated++;
+          smartCreatedGids.push(gid);
+        }
+      }
+    }
+    await applySort(plan.windowId);
+    if (settings.groupsOnTop) await moveGroupsToFront(plan.windowId);
   }
-  if (fellBack) {
-    const fallback = await organizeNow(scope, currentWindowId);
-    grouped += fallback.grouped;
-    groupsCreated += fallback.groupsCreated;
-  } else {
-    await rememberOrganize(smartCreatedGids);
-  }
+  await rememberOrganize(smartCreatedGids);
   return { grouped, groupsCreated, fellBack };
+}
+
+async function smartOrganize(scope, currentWindowId) {
+  const settings = await getSettings();
+  if (settings.smartEngine === "off") return { grouped: 0, groupsCreated: 0, fellBack: false };
+  const { smartRunning } = await chrome.storage.session.get("smartRunning");
+  if (smartRunning && now() - smartRunning < 10 * 60e3) return { busy: true };
+  await chrome.storage.session.set({ smartRunning: now() });
+  try {
+    const plans = await smartCollectPlan(scope, currentWindowId);
+    if (!plans.length) return { grouped: 0, groupsCreated: 0, fellBack: false };
+    return await enqueue(() => applySmartPlan(plans), "apply-smart");
+  } finally {
+    await chrome.storage.session.remove("smartRunning");
+  }
 }
 
 // Lazy classification of one new tab into an existing smart group.
@@ -1758,6 +1850,7 @@ async function uiGetState(request) {
     paused: await isPaused(),
     settled,
     smartAvailability: await smartAvailability(),
+    smartProgress: (await chrome.storage.session.get("smartProgress")).smartProgress || null,
     byokKeySet: !!(await getByokKey()),
   };
 }
@@ -2201,7 +2294,7 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 // Long-running calls that do NOT mutate our state (model download, provider
 // test) bypass the FIFO queue - otherwise every settings write would hang
 // behind a multi-minute download and the options page would look dead.
-const OFF_QUEUE_UI = new Set(["ui:smartEnable", "ui:byokTest"]);
+const OFF_QUEUE_UI = new Set(["ui:smartEnable", "ui:byokTest", "ui:smartOrganize"]);
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!request || typeof request.type !== "string" || !request.type.startsWith("ui:")) {
@@ -2244,7 +2337,13 @@ ensureAlarm();
 ensureSettleBootstrap();
 getSettings().then((settings) => applyActionIcon(settings.iconStyle));
 
-globalThis.__ttUiCall = (request) => enqueue(() => handleUi(request), `test ${request.type}`);
+// Mirror onMessage exactly: off-queue types call handleUi directly - routing
+// them through the queue would deadlock smartOrganize, whose APPLY phase
+// enqueues its own job (a job cannot await the queue it is running on).
+globalThis.__ttUiCall = (request) =>
+  OFF_QUEUE_UI.has(request.type)
+    ? handleUi(request)
+    : enqueue(() => handleUi(request), `test ${request.type}`);
 globalThis.__ttTick = ({ now: overrideNow } = {}) =>
   // The clock override must live INSIDE the queued job: setting it before
   // enqueue would leak future time into whatever events sit in the queue

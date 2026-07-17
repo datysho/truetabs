@@ -36,7 +36,7 @@
     "message": "Duplicatas"
   },
   "statStale": {
-    "message": "Paradas"
+    "message": "Prontas p/ arquivo"
   },
   "statArchivedToday": {
     "message": "Arquivadas hoje"
@@ -430,5 +430,8 @@
   },
   "optSmartRegroupHint": {
     "message": "Grupos por site criados pela extensão são reagrupados por tema. Grupos feitos à mão nunca são tocados."
+  },
+  "smartWorking": {
+    "message": "Agrupando por tema… $1 de $2 abas"
   }
 }

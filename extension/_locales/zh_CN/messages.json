@@ -36,7 +36,7 @@
     "message": "重复"
   },
   "statStale": {
-    "message": "闲置"
+    "message": "待归档"
   },
   "statArchivedToday": {
     "message": "今日已归档"
@@ -430,5 +430,8 @@
   },
   "optSmartRegroupHint": {
     "message": "扩展创建的网站分组会按主题重组。你手动创建的分组绝不会被动。"
+  },
+  "smartWorking": {
+    "message": "按主题分组中… $1/$2 个标签页"
   }
 }

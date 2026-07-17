@@ -1165,7 +1165,15 @@ async function main() {
     await swEval(() =>
       globalThis.__ttSetMockAi({
         availability: "available",
-        respond: () => JSON.stringify({ groups: [{ name: "Theme", tabIndices: [0, 1] }] }),
+        // The pool is domain-sorted, so pick indices by CONTENT, not position.
+        respond: (prompt) => {
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("themeA"))
+            .map((line) => parseInt(line, 10));
+          return JSON.stringify({ groups: [{ name: "Theme", tabIndices: idx }] });
+        },
       }),
     );
     const result = await ui({ type: "ui:smartOrganize", scope: "all" });
@@ -1178,6 +1186,57 @@ async function main() {
     const oIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), o1.id);
     const tIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), t1.id);
     assert(oIndex > tIndex, "Other sits after the theme group");
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+  });
+
+  await test("smart quality gate: a half-empty answer sends the tail to site groups, not Other", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    const a1 = await createTab({ url: `${baseUrl}/qa1` });
+    const a2 = await createTab({ url: `${altUrl}/qa2` });
+    const t1 = await createTab({ url: `${baseUrl}/tail1` });
+    const t2 = await createTab({ url: `${baseUrl}/tail2` });
+    const t3 = await createTab({ url: `${altUrl}/tailSolo` });
+    await sleep(400);
+    // the model only clusters 2 of 5: 3 unassigned > half the pool
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("page-qa"))
+            .map((line) => parseInt(line, 10));
+          return JSON.stringify({ groups: [{ name: "Theme", tabIndices: idx }] });
+        },
+      }),
+    );
+    const result = await ui({ type: "ui:smartOrganize", scope: "all" });
+    assert(result.fellBack === true, "quality gate tripped");
+    const tail1 = await getTab(t1.id);
+    const tail2 = await getTab(t2.id);
+    assert(
+      tail1.groupId !== -1 && tail1.groupId === tail2.groupId,
+      "same-site tail tabs grouped by site",
+    );
+    const tailGroup = await swEval((g) => chrome.tabGroups.get(g), tail1.groupId);
+    assert(tailGroup.title !== "Other", `site group, not Other (got "${tailGroup.title}")`);
+    const solo = await getTab(t3.id);
+    if (solo.groupId !== -1) {
+      const g = await swEval((gid) => chrome.tabGroups.get(gid), solo.groupId);
+      const members = await queryTabs({ groupId: solo.groupId });
+      throw new Error(
+        `singleton grouped: "${g.title}" (${g.color}) with ${members
+          .map((m) => m.url.slice(-16))
+          .join(", ")}`,
+      );
+    }
+    const { smartProgress } = await swEval(() => chrome.storage.session.get("smartProgress"));
+    assert(!smartProgress, "progress cleared when done");
     await swEval(() => globalThis.__ttSetMockAi(null));
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
     await ui({ type: "ui:setSetting", key: "groupAuto", value: true });

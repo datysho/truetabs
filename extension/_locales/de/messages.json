@@ -36,7 +36,7 @@
     "message": "Duplikate"
   },
   "statStale": {
-    "message": "Veraltet"
+    "message": "Bereit fürs Archiv"
   },
   "statArchivedToday": {
     "message": "Heute archiviert"
@@ -430,5 +430,8 @@
   },
   "optSmartRegroupHint": {
     "message": "Vom Add-on erstellte Website-Gruppen werden nach Thema neu gebündelt. Von Hand erstellte Gruppen bleiben unberührt."
+  },
+  "smartWorking": {
+    "message": "Gruppiere nach Thema… $1 von $2 Tabs"
   }
 }

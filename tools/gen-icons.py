@@ -18,6 +18,18 @@ BADGE = (0.5, 0.5, 0.5, 0.5, 0.21)
 # Shared stack geometry (normalized): front card + back card offset up-left.
 FRONT = (0.565, 0.565, 0.255, 0.215, 0.055)
 BACK = (0.435, 0.435, 0.255, 0.215, 0.055)
+# The mono glyph has no badge, so it scales up to native toolbar proportions
+# (Chrome's own icons fill ~78% of the box).
+MONO_SCALE = 1.24
+
+
+def scale_shape(shape, k):
+    cx, cy, hw, hh, r = shape
+    return (0.5 + (cx - 0.5) * k, 0.5 + (cy - 0.5) * k, hw * k, hh * k, r * k)
+
+
+MONO_FRONT = scale_shape(FRONT, MONO_SCALE)
+MONO_BACK = scale_shape(BACK, MONO_SCALE)
 
 
 def rr_dist(px, py, shape):
@@ -69,10 +81,10 @@ def render(size, mode):
                     else:
                         # outline stack: back ring only where the front card
                         # (grown by a hair gap) does not cover it
-                        gap = fill_cov(px, py, grow(FRONT, stroke * 0.9), aa)
+                        gap = fill_cov(px, py, grow(MONO_FRONT, stroke * 0.9), aa)
                         cv = max(
-                            ring_cov(px, py, FRONT, aa, stroke),
-                            ring_cov(px, py, BACK, aa, stroke) * (1 - gap),
+                            ring_cov(px, py, MONO_FRONT, aa, stroke),
+                            ring_cov(px, py, MONO_BACK, aa, stroke) * (1 - gap),
                         )
                         sr, sg, sb, sa = GREY[0], GREY[1], GREY[2], cv
                     r_acc += sr

@@ -36,7 +36,7 @@
     "message": "Duplicates"
   },
   "statStale": {
-    "message": "Stale now"
+    "message": "Ready to archive"
   },
   "statArchivedToday": {
     "message": "Archived today"
@@ -430,5 +430,8 @@
   },
   "optSmartRegroupHint": {
     "message": "Site groups this extension made get re-clustered by topic. Groups you made by hand are never touched."
+  },
+  "smartWorking": {
+    "message": "Grouping by topic… $1 of $2 tabs"
   }
 }

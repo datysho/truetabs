@@ -43,25 +43,31 @@
         padding: 0 12px 12px;
         border-top: none;
       }
+      /* One row of four: tabs first, duplicates highlighted when > 0. */
       .hero {
         background: var(--tonal);
         border-radius: 12px;
-        padding: 12px 14px;
+        padding: 10px 12px;
         display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px 12px;
+        grid-template-columns: 1fr 1fr 1fr 1fr;
+        gap: 8px;
       }
       .stat .n {
-        font-size: 18px;
+        font-size: 17px;
         font-weight: 600;
         line-height: 1.2;
+        white-space: nowrap;
+      }
+      .stat .n.attention {
+        color: var(--accent);
       }
       .stat .l {
-        font-size: 11px;
+        font-size: 10px;
         color: var(--muted);
+        line-height: 1.25;
       }
       .stat .n .sub {
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 500;
         color: var(--muted);
       }
@@ -100,26 +106,23 @@
         padding: 4px 12px;
         font-size: 12px;
       }
-      .groups-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 8px;
+      /* Bulk group actions: the same pill grid language as the main actions. */
+      .group-all-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 6px;
+        margin-bottom: 10px;
       }
-      .groups-head .mini {
-        border: none;
-        background: transparent;
-        color: var(--muted);
-        padding: 2px 6px;
-        font-size: 11px;
-        font-weight: 600;
-        letter-spacing: 0.4px;
-        text-transform: uppercase;
-        border-radius: 6px;
+      .group-all-actions button {
+        padding: 5px 6px;
+        font-size: 11.5px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
-      .groups-head .mini:hover {
-        background: var(--hover);
-        color: var(--text);
+      .group-all-actions button.confirm {
+        color: var(--err);
+        border-color: var(--err);
       }
       .group-list {
         display: flex;
@@ -279,14 +282,12 @@
       </section>
 
       <section id="groupsSection" hidden>
-        <h3 class="groups-head">
-          <span><span data-i18n="groupsHeader"></span> <span id="groupsCount"></span></span>
-          <span class="head-actions">
-            <button type="button" class="mini" id="collapseAllBtn" data-i18n="collapseAll"></button>
-            <button type="button" class="mini" id="expandAllBtn" data-i18n="expandAll"></button>
-            <button type="button" class="mini" id="ungroupAllBtn" data-i18n="ungroupAll"></button>
-          </span>
-        </h3>
+        <h3><span data-i18n="groupsHeader"></span> <span id="groupsCount"></span></h3>
+        <div class="group-all-actions">
+          <button type="button" id="collapseAllBtn" data-i18n="collapseAll"></button>
+          <button type="button" id="expandAllBtn" data-i18n="expandAll"></button>
+          <button type="button" id="ungroupAllBtn" data-i18n="ungroupAll"></button>
+        </div>
         <div class="group-list" id="groupList"></div>
         <p class="muted" id="groupsHint" data-i18n="groupsDragHint" style="margin: 6px 2px 0; font-size: 11px;"></p>
       </section>

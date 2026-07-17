@@ -36,7 +36,7 @@
     "message": "Doublons"
   },
   "statStale": {
-    "message": "Délaissés"
+    "message": "Prêts à archiver"
   },
   "statArchivedToday": {
     "message": "Archivés aujourd'hui"
@@ -430,5 +430,8 @@
   },
   "optSmartRegroupHint": {
     "message": "Les groupes par site créés par l'extension sont re-regroupés par thème. Vos groupes faits main ne sont jamais touchés."
+  },
+  "smartWorking": {
+    "message": "Groupement par thème… $1 sur $2 onglets"
   }
 }

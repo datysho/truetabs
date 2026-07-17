@@ -39,6 +39,7 @@ function render() {
   $("tabCount").textContent = c.tabs;
   $("winCount").textContent = c.windows > 1 ? t("inWindows", [c.windows]) : "";
   $("dupeCount").textContent = c.dupes;
+  $("dupeCount").classList.toggle("attention", c.dupes > 0);
   $("staleCount").textContent = c.staleNow;
   $("archivedCount").textContent = c.archivedToday;
 
@@ -52,9 +53,15 @@ function render() {
     state.settings.smartEngine !== "off" ? t("actSmartOrganize") : t("actOrganize");
 
   const warming = $("warming");
-  if (state.paused) warming.textContent = t("pausedNote");
-  else if (!state.settled) warming.textContent = t("warmingNote");
-  else warming.textContent = "";
+  if (state.smartProgress && state.smartProgress.total > 0) {
+    warming.textContent = t("smartWorking", [state.smartProgress.done, state.smartProgress.total]);
+    $("organizeBtn").disabled = true;
+  } else {
+    $("organizeBtn").disabled = false;
+    if (state.paused) warming.textContent = t("pausedNote");
+    else if (!state.settled) warming.textContent = t("warmingNote");
+    else warming.textContent = "";
+  }
 
   const undoRow = $("undoRow");
   if (state.lastBatch && state.lastBatch.count > 0) {

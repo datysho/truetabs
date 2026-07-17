@@ -36,7 +36,7 @@
     "message": "Duplicadas"
   },
   "statStale": {
-    "message": "Inactivas"
+    "message": "Listas para archivar"
   },
   "statArchivedToday": {
     "message": "Archivadas hoy"
@@ -430,5 +430,8 @@
   },
   "optSmartRegroupHint": {
     "message": "Los grupos por sitio creados por la extensión se reagrupan por tema. Los grupos hechos a mano nunca se tocan."
+  },
+  "smartWorking": {
+    "message": "Agrupando por tema… $1 de $2 pestañas"
   }
 }
