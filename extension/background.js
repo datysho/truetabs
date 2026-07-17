@@ -1875,14 +1875,18 @@ ensureAlarm();
 ensureSettleBootstrap();
 
 globalThis.__ttUiCall = (request) => enqueue(() => handleUi(request), `test ${request.type}`);
-globalThis.__ttTick = async ({ now: overrideNow } = {}) => {
-  clockOverride = overrideNow ?? null;
-  try {
-    await enqueue(tick, "test tick");
-  } finally {
-    clockOverride = null;
-  }
-};
+globalThis.__ttTick = ({ now: overrideNow } = {}) =>
+  // The clock override must live INSIDE the queued job: setting it before
+  // enqueue would leak future time into whatever events sit in the queue
+  // ahead of the tick (e.g. an onActivated touch).
+  enqueue(async () => {
+    clockOverride = overrideNow ?? null;
+    try {
+      await tick();
+    } finally {
+      clockOverride = null;
+    }
+  }, "test tick");
 globalThis.__ttSimulateCommit = (details) =>
   enqueue(() => handleCommit({ frameId: 0, transitionQualifiers: [], ...details }), "test commit");
 globalThis.__ttClassifyCommit = classifyCommit;

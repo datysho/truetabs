@@ -1,0 +1,43 @@
+name: Bug report
+description: Something closed, grouped or archived a tab it should not have - or did nothing when it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did TrueTabs do (or fail to do)?
+      placeholder: e.g. it archived a tab I was using 10 minutes ago
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics dump
+      description: >
+        Settings page -> "Copy diagnostics" -> paste here. It contains your
+        settings, engine state and window summaries (URLs only - no page
+        content; your API key is masked). This is usually the whole diagnosis.
+      render: json
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: Chrome version + TrueTabs version
+      placeholder: Chrome 148, TrueTabs 1.0.0
+    validations:
+      required: false
+  - type: checkboxes
+    id: env
+    attributes:
+      label: Environment
+      options:
+        - label: TruePin is also installed
+        - label: Other tab-manager extensions are installed

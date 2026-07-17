@@ -1,0 +1,3 @@
+# Donate button on the repo page. Filled in when the PayPal.me handle exists
+# (same handle as TruePin); empty list = no button, no dead links.
+custom: []
