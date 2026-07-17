@@ -105,15 +105,28 @@
       .gap {
         height: 16px;
       }
-      .footrow {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        margin-top: 16px;
-      }
-      .footrow .note {
+      /* TruePin-parity footer: centered linklike diagnostics, version below. */
+      .ver {
+        text-align: center;
         color: var(--muted);
         font-size: 12px;
+        margin: 20px 0 0;
+      }
+      .linklike {
+        background: none;
+        border: none;
+        padding: 0;
+        font: inherit;
+        color: var(--muted);
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .linklike:hover {
+        color: var(--text);
+        background: none;
+      }
+      #diagNote {
+        margin-left: 8px;
       }
       #smartProgress {
         font-size: 12px;
@@ -132,7 +145,6 @@
       <div class="pagehead">
         <img src="icons/tt-32.png" alt="" />
         <span class="name">TrueTabs</span>
-        <span class="ver" id="version"></span>
       </div>
 
       <div class="card">
@@ -228,6 +240,18 @@
             <option value="30m">30m</option>
           </select>
         </div>
+        <div class="setting">
+          <div class="info">
+            <div class="label" data-i18n="optSort"></div>
+            <div class="hint" data-i18n="optSortHint"></div>
+          </div>
+          <select id="sortMode">
+            <option value="off" data-i18n="optOff"></option>
+            <option value="title" data-i18n="optSortTitle"></option>
+            <option value="recent" data-i18n="optSortRecent"></option>
+            <option value="opened" data-i18n="optSortOpened"></option>
+          </select>
+        </div>
 
         <h3 data-i18n="optSmartHeader"></h3>
         <div class="setting">
@@ -245,6 +269,7 @@
           <div class="info">
             <div class="label" data-i18n="optSmartBuiltinStatus"></div>
             <div class="hint" id="builtinStatus"></div>
+            <div class="hint" id="builtinManaged" hidden data-i18n="smartManagedNote"></div>
             <div class="hint" id="smartProgress"></div>
           </div>
           <button id="smartEnableBtn" data-i18n="optSmartEnable"></button>
@@ -266,7 +291,6 @@
             <input type="text" id="byokBaseUrl" spellcheck="false" placeholder="http://localhost:11434/v1" hidden />
           </div>
           <div class="byok-actions">
-            <button class="primary" id="byokSaveBtn" data-i18n="optByokSave"></button>
             <button id="byokTestBtn" data-i18n="optByokTest"></button>
             <span class="byok-note" id="byokStatus"></span>
           </div>
@@ -293,6 +317,15 @@
         </div>
         <div class="setting">
           <div class="info">
+            <div class="label" data-i18n="optIconStyle"></div>
+          </div>
+          <select id="iconStyle">
+            <option value="color" data-i18n="optIconColor"></option>
+            <option value="mono" data-i18n="optIconMono"></option>
+          </select>
+        </div>
+        <div class="setting">
+          <div class="info">
             <div class="label" data-i18n="optLanguage"></div>
           </div>
           <select id="language">
@@ -309,10 +342,13 @@
         </div>
       </div>
 
-      <div class="footrow">
-        <button id="diagBtn" data-i18n="optDiag"></button>
-        <span class="note" id="diagNote"></span>
-      </div>
+      <p class="ver">
+        <span class="diag">
+          <button id="diagBtn" class="linklike" data-i18n="optDiag"></button>
+          <span id="diagNote" style="visibility: hidden" data-i18n="optDiagCopied"></span>
+        </span>
+      </p>
+      <p class="ver" id="version"></p>
     </div>
 
     <script src="config.js"></script>

@@ -37,7 +37,7 @@ importScripts("config.js");
 const DEFAULTS = {
   // pillar 1 - duplicates
   dedupAuto: true, // close-into-focus on duplicate open
-  dedupScope: "all", // "all" | "window" - where the existing copy may live
+  dedupScope: "window", // "window" | "all" - where the existing copy may live
   // pillar 2 - archive
   archiveAfter: "24h", // "6h" | "12h" | "24h" | "3d" | "7d" | "off"
   archiveTtl: "30d", // "7d" | "30d" | "90d" | "forever"
@@ -48,6 +48,7 @@ const DEFAULTS = {
   // pillar 3 - groups
   groupAuto: true, // group new tabs by site on their first commit
   groupCollapseAfter: "10m", // "off" | "5m" | "10m" | "30m"
+  sortMode: "off", // "off" | "title" | "recent" | "opened" - applied on Organize now
   // pillar 3b - smart (AI) grouping
   smartEngine: "off", // "off" | "builtin" | "byok"
   smartAutoAssign: false, // classify new loose tabs into existing smart groups
@@ -56,6 +57,7 @@ const DEFAULTS = {
   byokBaseUrl: "", // custom OpenAI-compatible endpoint (Ollama, LM Studio)
   // shell
   theme: "auto", // "auto" | "light" | "dark"
+  iconStyle: "color", // "color" | "mono" - match the browser UI (TruePin parity)
   language: "auto",
 };
 
@@ -665,7 +667,13 @@ async function dedupOnCommit(tabId, url, kind, st) {
   traceDiag(`dedup ${kind} ${key} -> kept ${survivor.id}`);
 }
 
-// Count duplicates for the popup: tabs beyond the survivor in each bucket.
+// Count duplicates for the popup: tabs beyond the survivor in each bucket,
+// plus surplus EMPTY new-tab pages (a pile of "New Tab" is duplicates too -
+// they carry no content, so all but the active ones count).
+function blankSurplus(tabs) {
+  return tabs.filter((t) => isEphemeralUrl(t.url) && !t.pinned && !t.active).length;
+}
+
 function countDupes(tabs) {
   const buckets = new Map();
   for (const t of tabs) {
@@ -675,7 +683,7 @@ function countDupes(tabs) {
   }
   let extra = 0;
   for (const n of buckets.values()) extra += n - 1;
-  return extra;
+  return extra + blankSurplus(tabs);
 }
 
 // Manual sweep: an explicit command - ignores strikes and dedupAuto. Victims
@@ -704,7 +712,10 @@ async function sweepDuplicates(scope, currentWindowId) {
       victims.push(t);
     }
   }
-  if (!victims.length) return { closed: 0, batchId: null };
+  // Surplus empty new-tab pages are duplicates of nothing: close them too
+  // (not archived - there is no content to keep). Active/pinned blanks live.
+  const blanks = tabs.filter((t) => isEphemeralUrl(t.url) && !t.pinned && !t.active);
+  if (!victims.length && !blanks.length) return { closed: 0, batchId: null };
   const batchId = newBatchId();
   const groupInfoCache = new Map();
   const entries = [];
@@ -712,15 +723,22 @@ async function sweepDuplicates(scope, currentWindowId) {
     entries.push(makeEntry(t, await groupInfoOf(t, groupInfoCache), "dupe-sweep", batchId));
   }
   let closed = 0;
-  await withCloseAllowance(victims.length, async () => {
-    await archiveRMW((archive) => {
-      archive.entries = [...entries, ...archive.entries];
-      return archive;
-    });
-    closed = await closeTabsGuarded(victims.map((t) => t.id), "sweep");
+  await withCloseAllowance(victims.length + blanks.length, async () => {
+    if (entries.length) {
+      await archiveRMW((archive) => {
+        archive.entries = [...entries, ...archive.entries];
+        return archive;
+      });
+    }
+    closed = await closeTabsGuarded(
+      [...victims.map((t) => t.id), ...blanks.map((t) => t.id)],
+      "sweep",
+    );
   });
   await bumpCounter("sweptToday", closed);
-  await chrome.storage.local.set({ lastBatch: { batchId, at: now(), count: closed } });
+  if (entries.length) {
+    await chrome.storage.local.set({ lastBatch: { batchId, at: now(), count: entries.length } });
+  }
   return { closed, batchId };
 }
 
@@ -785,6 +803,20 @@ async function archiveBatch(tabs, reason) {
   const entries = [];
   for (const tab of tabs) {
     entries.push(makeEntry(tab, await groupInfoOf(tab, cache), reason, batchId));
+  }
+  // Arm resurrection detection: a page that pops right back after our close
+  // is being protected by something (TruePin's manual lock resurrects closed
+  // tabs) - two rounds and the key is retired, no slow ping-pong loops.
+  {
+    const { archiveRecent = {} } = await chrome.storage.session.get("archiveRecent");
+    for (const entry of entries) {
+      const key = dupeKey(entry.url);
+      if (key) archiveRecent[key] = now();
+    }
+    for (const [key, ts] of Object.entries(archiveRecent)) {
+      if (now() - ts > STRIKE_WINDOW_MS) delete archiveRecent[key];
+    }
+    await chrome.storage.session.set({ archiveRecent });
   }
   // WRITE FIRST, close second: a service worker dying mid-batch leaves an
   // extra archive row, never a lost tab.
@@ -1050,6 +1082,7 @@ async function organizeNow(scope, currentWindowId) {
   const targets = scope === "window" ? windows.filter((w) => w.id === currentWindowId) : windows;
   let grouped = 0;
   let groupsCreated = 0;
+  const createdGids = [];
   for (const win of targets) {
     const loose = (await chrome.tabs.query({ windowId: win.id, pinned: false })).filter(
       (t) => (t.groupId === -1 || t.groupId == null) && !isEphemeralUrl(t.url),
@@ -1077,11 +1110,79 @@ async function organizeNow(scope, currentWindowId) {
         if (gid != null) {
           grouped += list.length;
           groupsCreated++;
+          createdGids.push(gid);
         }
       }
     }
+    await applySort(win.id);
   }
+  await rememberOrganize(createdGids);
   return { grouped, groupsCreated };
+}
+
+// One-click undo for an Organize: dissolve only the groups THAT RUN created
+// (joins into pre-existing groups are left alone - conservative).
+async function rememberOrganize(gids) {
+  if (!gids.length) return;
+  await chrome.storage.session.set({ lastOrganize: { gids, at: now() } });
+}
+
+async function undoOrganize() {
+  const { lastOrganize } = await chrome.storage.session.get("lastOrganize");
+  if (!lastOrganize || !lastOrganize.gids.length) return { ungrouped: 0 };
+  let ungrouped = 0;
+  const ourGroups = await getOurGroups();
+  for (const gid of lastOrganize.gids) {
+    const members = await chrome.tabs.query({ groupId: gid });
+    if (!members.length) continue;
+    for (const m of members) await markSelfOp("tabgroup", m.id); // not a user pull-out
+    await quiet(chrome.tabs.ungroup, members.map((m) => m.id));
+    ungrouped += members.length;
+    if (ourGroups[gid] && !ourGroups[gid].smart) {
+      await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color);
+    }
+    delete ourGroups[gid];
+  }
+  await putOurGroups(ourGroups);
+  await chrome.storage.session.remove("lastOrganize");
+  return { ungrouped };
+}
+
+// Optional deterministic order, applied only on explicit Organize: sort loose
+// tabs and OUR groups (foreign groups keep their place relative to pins).
+// Modes: title (A-Z), recent (last used first), opened (oldest first).
+async function applySort(windowId) {
+  const settings = await getSettings();
+  if (settings.sortMode === "off") return;
+  const ourGroups = await getOurGroups();
+  const tabs = await chrome.tabs.query({ windowId });
+  const st = new Map();
+  for (const t of tabs) st.set(t.id, await getTabState(t.id));
+  const metric = (t) => {
+    if (settings.sortMode === "title") return (t.title || t.url || "").toLowerCase();
+    if (settings.sortMode === "opened") return (st.get(t.id) && st.get(t.id).firstSeenAt) || 0;
+    return -(t.lastAccessed || 0); // recent: most recently used first
+  };
+  const cmp = (a, b) => (metric(a) < metric(b) ? -1 : metric(a) > metric(b) ? 1 : 0);
+
+  // Group order: our groups sorted by their best member's metric.
+  const groupIds = [...new Set(tabs.filter((t) => t.groupId !== -1).map((t) => t.groupId))];
+  const ourGids = groupIds.filter((gid) => ourGroups[gid]);
+  const groupBest = new Map();
+  for (const gid of ourGids) {
+    const members = tabs.filter((t) => t.groupId === gid).sort(cmp);
+    if (members.length) groupBest.set(gid, members[0]);
+  }
+  const orderedGids = [...groupBest.keys()].sort((a, b) => cmp(groupBest.get(a), groupBest.get(b)));
+  for (const gid of orderedGids) {
+    await quiet(chrome.tabGroups.move, gid, { windowId, index: -1 });
+  }
+  // Loose tabs go after the groups, in order.
+  const loose = tabs.filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null)).sort(cmp);
+  for (const t of loose) {
+    await markSelfOp("tabgroup", t.id);
+    await quiet(chrome.tabs.move, t.id, { windowId, index: -1 });
+  }
 }
 
 async function collapseScan() {
@@ -1353,6 +1454,7 @@ async function smartOrganize(scope, currentWindowId) {
   let grouped = 0;
   let groupsCreated = 0;
   let fellBack = false;
+  const smartCreatedGids = [];
   for (const win of targets) {
     const loose = (await chrome.tabs.query({ windowId: win.id, pinned: false })).filter(
       (t) => (t.groupId === -1 || t.groupId == null) && dupeKey(t.url),
@@ -1390,14 +1492,18 @@ async function smartOrganize(scope, currentWindowId) {
         if (gid != null) {
           grouped += live.length;
           groupsCreated++;
+          smartCreatedGids.push(gid);
         }
       }
     }
+    await applySort(win.id);
   }
   if (fellBack) {
     const fallback = await organizeNow(scope, currentWindowId);
     grouped += fallback.grouped;
     groupsCreated += fallback.groupsCreated;
+  } else {
+    await rememberOrganize(smartCreatedGids);
   }
   return { grouped, groupsCreated, fellBack };
 }
@@ -1485,7 +1591,30 @@ async function uiGetState(request) {
   const counters = await getCounters();
   const archive = await getArchive();
   const { lastBatch = null } = await chrome.storage.local.get("lastBatch");
-  const { settled = false } = await chrome.storage.session.get("settled");
+  const { settled = false, lastOrganize = null } = await chrome.storage.session.get([
+    "settled",
+    "lastOrganize",
+  ]);
+  // Live group list for the popup: every group in normal windows, ours
+  // flagged (the popup lets the user jump/collapse/reorder any of them -
+  // explicit user acts, not automation).
+  const ourGroups = await getOurGroups();
+  const groups = [];
+  for (const group of (await quiet(chrome.tabGroups.query, {})) || []) {
+    if (!windows.some((w) => w.id === group.windowId)) continue;
+    const members = tabs.filter((t) => t.groupId === group.id);
+    groups.push({
+      id: group.id,
+      title: group.title || "",
+      color: group.color,
+      collapsed: !!group.collapsed,
+      windowId: group.windowId,
+      tabCount: members.length,
+      firstTabIndex: members.length ? Math.min(...members.map((t) => t.index)) : -1,
+      ours: !!ourGroups[group.id],
+    });
+  }
+  groups.sort((a, b) => a.windowId - b.windowId || a.firstTabIndex - b.firstTabIndex);
   return {
     counts: {
       tabs: tabs.length,
@@ -1497,7 +1626,9 @@ async function uiGetState(request) {
       archiveTotal: archive.entries.length,
     },
     settings,
+    groups,
     lastBatch,
+    lastOrganize,
     paused: await isPaused(),
     settled,
     smartAvailability: await smartAvailability(),
@@ -1515,12 +1646,75 @@ async function handleUi(request) {
       settings[request.key] = request.value;
       await chrome.storage.sync.set({ settings });
       i18nReady = null; // language may have changed
+      if (request.key === "iconStyle") applyActionIcon(request.value);
       return { ok: true };
     }
     case "ui:organizeNow":
       return organizeNow(request.scope || "window", request.windowId);
     case "ui:smartOrganize":
       return smartOrganize(request.scope || "window", request.windowId);
+    case "ui:undoOrganize":
+      return undoOrganize();
+    case "ui:groupCollapse": {
+      // Explicit user act from the popup. Expanding OUR collapsed group by
+      // hand must not read as an automation strike - mark it.
+      const ourGroups = await getOurGroups();
+      if (request.collapsed === false && ourGroups[request.gid]) {
+        await markSelfOp("groupexpand", request.gid);
+      }
+      await quiet(chrome.tabGroups.update, request.gid, { collapsed: !!request.collapsed });
+      if (ourGroups[request.gid]) {
+        ourGroups[request.gid].collapsedByUs = !!request.collapsed;
+        ourGroups[request.gid].lastTouchedAt = now();
+        await putOurGroups(ourGroups);
+      }
+      return { ok: true };
+    }
+    case "ui:groupsCollapseAll": {
+      const ourGroups = await getOurGroups();
+      let changed = 0;
+      for (const group of (await quiet(chrome.tabGroups.query, {})) || []) {
+        const win = await quiet(chrome.windows.get, group.windowId);
+        if (!win || win.type !== "normal" || win.incognito) continue;
+        if (group.collapsed === !!request.collapsed) continue;
+        if (request.collapsed) {
+          const members = await chrome.tabs.query({ groupId: group.id });
+          if (members.some((m) => m.active)) continue; // Chrome forbids collapsing the active group
+        } else if (ourGroups[group.id]) {
+          await markSelfOp("groupexpand", group.id);
+        }
+        await quiet(chrome.tabGroups.update, group.id, { collapsed: !!request.collapsed });
+        if (ourGroups[group.id]) {
+          ourGroups[group.id].collapsedByUs = !!request.collapsed;
+          ourGroups[group.id].lastTouchedAt = now();
+        }
+        changed++;
+      }
+      await putOurGroups(ourGroups);
+      return { changed };
+    }
+    case "ui:groupFocus": {
+      const members = await chrome.tabs.query({ groupId: request.gid });
+      if (!members.length) return { ok: false };
+      if ((await quiet(chrome.tabGroups.get, request.gid))?.collapsed) {
+        const ourGroups = await getOurGroups();
+        if (ourGroups[request.gid]) await markSelfOp("groupexpand", request.gid);
+        await quiet(chrome.tabGroups.update, request.gid, { collapsed: false });
+      }
+      const target = members.find((m) => m.active) || members[0];
+      await quiet(chrome.tabs.update, target.id, { active: true });
+      await quiet(chrome.windows.update, target.windowId, { focused: true });
+      return { ok: true };
+    }
+    case "ui:groupMove": {
+      // Popup drag-reorder within a window: index is the target position in
+      // the tab strip. A user command, not automation.
+      const moved = await quiet(chrome.tabGroups.move, request.gid, {
+        windowId: request.windowId,
+        index: request.index,
+      });
+      return { ok: moved != null };
+    }
     case "ui:sweepDupes":
       return sweepDuplicates(request.scope || "window", request.windowId);
     case "ui:archiveStaleNow": {
@@ -1702,6 +1896,15 @@ async function handleCommit(details) {
       await chrome.storage.session.set({ dedupRecent });
       await strike("dedup", st.key);
     }
+    // Resurrection detection: a page we just archived came straight back -
+    // another extension (TruePin lock) is protecting it. Strike the archive
+    // class for this key; two rounds retire it for the session.
+    const { archiveRecent = {} } = await chrome.storage.session.get("archiveRecent");
+    if (archiveRecent[st.key] && now() - archiveRecent[st.key] < STRIKE_WINDOW_MS) {
+      delete archiveRecent[st.key];
+      await chrome.storage.session.set({ archiveRecent });
+      await strike("archive", st.key);
+    }
   }
 
   const kind = classifyCommit(details);
@@ -1824,7 +2027,11 @@ chrome.tabGroups.onUpdated.addListener((group) => {
     if (group.collapsed === false && ours.collapsedByUs) {
       ours.collapsedByUs = false;
       ours.lastTouchedAt = now();
-      await strike("collapse", ours.smart ? `smart:${ours.title}` : ours.domain);
+      // Expanding via OUR popup buttons is the user commanding us, not the
+      // user fighting our automation - no strike then.
+      if (!(await consumeSelfOp("groupexpand", group.id))) {
+        await strike("collapse", ours.smart ? `smart:${ours.title}` : ours.domain);
+      }
     }
     ours.windowId = group.windowId;
     await putOurGroups(ourGroups);
@@ -1857,11 +2064,22 @@ chrome.notifications.onClicked.addListener((notificationId) => {
   chrome.tabs.create({ url: chrome.runtime.getURL("archive.html") }, checked);
 });
 
+// Long-running calls that do NOT mutate our state (model download, provider
+// test) bypass the FIFO queue - otherwise every settings write would hang
+// behind a multi-minute download and the options page would look dead.
+const OFF_QUEUE_UI = new Set(["ui:smartEnable", "ui:byokTest"]);
+
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!request || typeof request.type !== "string" || !request.type.startsWith("ui:")) {
     return false;
   }
-  enqueue(() => handleUi(request), `ui ${request.type}`).then(sendResponse);
+  if (OFF_QUEUE_UI.has(request.type)) {
+    handleUi(request).then(sendResponse, (err) =>
+      sendResponse({ error: String((err && err.message) || err) }),
+    );
+  } else {
+    enqueue(() => handleUi(request), `ui ${request.type}`).then(sendResponse);
+  }
   return true;
 });
 
@@ -1869,10 +2087,28 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === "sync" && changes.settings) i18nReady = null;
 });
 
+// --- action icon (color | mono, TruePin parity) ---------------------------------------------
+
+function applyActionIcon(style) {
+  const prefix = style === "mono" ? "tt-mono" : "tt";
+  chrome.action.setIcon(
+    {
+      path: {
+        16: `icons/${prefix}-16.png`,
+        32: `icons/${prefix}-32.png`,
+        48: `icons/${prefix}-48.png`,
+        128: `icons/${prefix}-128.png`,
+      },
+    },
+    checked,
+  );
+}
+
 // --- bootstrap + test hooks ---------------------------------------------------------------
 
 ensureAlarm();
 ensureSettleBootstrap();
+getSettings().then((settings) => applyActionIcon(settings.iconStyle));
 
 globalThis.__ttUiCall = (request) => enqueue(() => handleUi(request), `test ${request.type}`);
 globalThis.__ttTick = ({ now: overrideNow } = {}) =>

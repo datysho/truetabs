@@ -1,125 +1,401 @@
 {
-  "appDesc": { "message": "Порядок во вкладках, как в Arc: без дублей, несвежие сами уходят в архив (с отменой), группировка по сайтам и темам." },
-
-  "tabs_one": { "message": "$1 вкладка" },
-  "tabs_few": { "message": "$1 вкладки" },
-  "tabs_many": { "message": "$1 вкладок" },
-  "tabs_other": { "message": "$1 вкладок" },
-
-  "notifBatchTitle": { "message": "TrueTabs заархивировал несвежие вкладки" },
-  "notifBatchMsg": { "message": "$1 вкладок сохранены в архив и закрыты. Нажмите, чтобы открыть архив." },
-  "notifBreakerTitle": { "message": "TrueTabs поставил себя на паузу" },
-  "notifBreakerMsg": { "message": "Слишком много автоматических действий за короткое время - автоматика на паузе 10 минут. Ручные действия работают." },
-  "undoBtn": { "message": "Отменить" },
-
-  "statTabs": { "message": "Открытых вкладок" },
-  "statDupes": { "message": "Дубликатов" },
-  "statStale": { "message": "Несвежих" },
-  "statArchivedToday": { "message": "В архив сегодня" },
-  "inWindows": { "message": "в $1 окнах" },
-  "actionsHeader": { "message": "Действия" },
-  "actOrganize": { "message": "Разложить по группам" },
-  "actSweep": { "message": "Закрыть дубликаты" },
-  "actArchiveNow": { "message": "Архивировать несвежие" },
-  "actMerge": { "message": "Собрать все окна" },
-  "undoRowText": { "message": "В архиве $1 вкладок - вернуть?" },
-  "automationHeader": { "message": "Автоматика" },
-  "toggleDedup": { "message": "Защита от дублей" },
-  "toggleArchive": { "message": "Авто-архив несвежих" },
-  "toggleGroup": { "message": "Авто-группы по сайтам" },
-  "pausedNote": { "message": "Автоматика на паузе (предохранитель). Возобновится сама." },
-  "warmingNote": { "message": "Разогрев - автоматика включится, когда сессия устаканится." },
-  "statusOrganized": { "message": "Сгруппировано $1 вкладок, новых групп: $2" },
-  "statusSwept": { "message": "Закрыто дубликатов: $1 (сохранены в архив)" },
-  "statusArchived": { "message": "В архив: $1 вкладок" },
-  "statusMerged": { "message": "Перенесено в это окно: $1 вкладок" },
-  "statusRestored": { "message": "Восстановлено вкладок: $1" },
-  "footerArchive": { "message": "Открыть архив" },
-  "footerGithub": { "message": "Звезда на GitHub" },
-  "footerReview": { "message": "Оценить TrueTabs" },
-  "footerDonate": { "message": "Поддержать разработку" },
-  "optionsLink": { "message": "Настройки" },
-
-  "optDupesHeader": { "message": "Дубликаты" },
-  "optDedupAuto": { "message": "Не давать вкладкам дублироваться" },
-  "optDedupAutoHint": { "message": "Открыли страницу, которая уже открыта, - переключит на существующую вкладку." },
-  "optDedupScope": { "message": "Где искать существующую копию" },
-  "optScopeAll": { "message": "Во всех окнах" },
-  "optScopeWindow": { "message": "Только в этом окне" },
-
-  "optArchiveHeader": { "message": "Авто-архив" },
-  "optArchiveAfter": { "message": "Архивировать вкладки без активности" },
-  "optArchiveAfterHint": { "message": "Сохраняются в архив, затем закрываются. Закреплённые, активные, играющие и вкладки из белого списка не трогаются никогда." },
-  "optArchiveTtl": { "message": "Хранить записи архива" },
-  "optArchiveTtlHint": { "message": "Старые записи удаляются автоматически." },
-  "optArchiveNotify": { "message": "Уведомлять с кнопкой отмены после каждого авто-архива" },
-  "optArchiveForeign": { "message": "Архивировать и внутри ваших собственных групп" },
-  "optArchiveForeignHint": { "message": "Выкл: группы, собранные вами вручную, считаются осознанным выбором и пропускаются." },
-  "optDiscard": { "message": "Освобождать память раньше (выгрузка)" },
-  "optDiscardHint": { "message": "На полпути к порогу вкладка выгружается, но остаётся на месте. Memory Saver в Chrome делает то же." },
-  "optAllowlist": { "message": "Никогда не архивировать эти сайты" },
-  "optAllowlistHint": { "message": "Один домен на строку. Звонки и встречи добавлены заранее - API вкладок не видит камеру и микрофон." },
-  "optDays3": { "message": "3 дня" },
-  "optDays7": { "message": "7 дней" },
-  "optDays30": { "message": "30 дней" },
-  "optDays90": { "message": "90 дней" },
-  "optOff": { "message": "Выкл" },
-  "optForever": { "message": "Всегда" },
-
-  "optGroupsHeader": { "message": "Группы" },
-  "optGroupAuto": { "message": "Группировать новые вкладки по сайтам" },
-  "optGroupAutoHint": { "message": "Бережно: группируются только новые вкладки, старые не перекладываются. Ваши собственные группы не трогаются." },
-  "optCollapse": { "message": "Сворачивать неактивные группы через" },
-
-  "optSmartHeader": { "message": "Умная группировка (ИИ)" },
-  "optSmartEngine": { "message": "Группировать по темам через" },
-  "optSmartEngineHint": { "message": "Добавляет «умную раскладку»: вкладки собираются по смыслу, а не только по сайту." },
-  "optSmartBuiltin": { "message": "Встроенный ИИ (на устройстве)" },
-  "optSmartByok": { "message": "Мой API-ключ" },
-  "optSmartBuiltinStatus": { "message": "Локальная модель (Gemini Nano)" },
-  "optSmartEnable": { "message": "Включить - скачать модель" },
-  "smartStatusReady": { "message": "Готово. Всё работает на этом устройстве - заголовки не покидают браузер." },
-  "smartStatusDownloadable": { "message": "Chrome один раз скачает модель (около 2-4 ГБ). Начнётся только после нажатия." },
-  "smartStatusUnavailable": { "message": "Недоступно на этом устройстве (нужен Chrome 138+, 22 ГБ на диске и 16 ГБ ОЗУ или GPU на 4 ГБ). Используйте API-ключ или группировку по сайтам." },
-  "smartDownloading": { "message": "Скачивание модели…" },
-  "optByokProvider": { "message": "Провайдер" },
-  "optByokCustom": { "message": "Свой (OpenAI-совместимый)" },
-  "optByokKey": { "message": "API-ключ" },
-  "optByokModel": { "message": "Модель" },
-  "optByokBaseUrl": { "message": "Адрес эндпоинта" },
-  "optByokSave": { "message": "Сохранить" },
-  "optByokTest": { "message": "Проверить" },
-  "optByokPrivacy": { "message": "Ключ хранится только на этом устройстве. В этом режиме заголовки вкладок и домены отправляются выбранному провайдеру по вашему ключу. Доступ к домену провайдера запрашивается при сохранении." },
-  "byokSaved": { "message": "Сохранено." },
-  "byokTesting": { "message": "Проверка…" },
-  "byokTestOk": { "message": "Работает." },
-  "byokTestFail": { "message": "Ошибка:" },
-  "byokBadUrl": { "message": "Сначала укажите корректный адрес эндпоинта." },
-  "byokPermDenied": { "message": "Доступ к провайдеру не выдан." },
-  "optSmartAssign": { "message": "Автоматически относить новые вкладки к умным группам" },
-  "optSmartAssignHint": { "message": "Новая вкладка, подходящая существующей тематической группе, присоединяется сама." },
-
-  "optAppearanceHeader": { "message": "Вид" },
-  "optTheme": { "message": "Тема" },
-  "optThemeAuto": { "message": "Как в системе" },
-  "optThemeLight": { "message": "Светлая" },
-  "optThemeDark": { "message": "Тёмная" },
-  "optLanguage": { "message": "Язык" },
-  "optDiag": { "message": "Скопировать диагностику" },
-  "optDiagCopied": { "message": "Скопировано - вставьте в отчёт. Только адреса, без содержимого страниц." },
-
-  "archiveTitle": { "message": "Архив TrueTabs" },
-  "archiveSearch": { "message": "Поиск по названию, адресу, сайту…" },
-  "archiveEmpty": { "message": "Архив пуст. Несвежие вкладки будут попадать сюда, а не теряться." },
-  "archiveToday": { "message": "Сегодня" },
-  "archiveYesterday": { "message": "Вчера" },
-  "archiveRestore": { "message": "Вернуть" },
-  "archiveDelete": { "message": "Удалить" },
-  "archiveRestoreAll": { "message": "Вернуть все" },
-  "archiveDeleteAll": { "message": "Удалить все" },
-  "archiveRestoreSel": { "message": "Вернуть выбранные" },
-  "archiveDeleteSel": { "message": "Удалить выбранные" },
-  "archiveSelected": { "message": "Выбрано: $1" },
-  "archiveConfirmMany": { "message": "Вернуть сразу $1 вкладок?" },
-  "archiveTtlNote": { "message": "Записи старше $1 удаляются автоматически." }
+  "appDesc": {
+    "message": "Порядок во вкладках, как в Arc: без дублей, несвежие сами уходят в архив (с отменой), группировка по сайтам и темам."
+  },
+  "tabs_one": {
+    "message": "$1 вкладка"
+  },
+  "tabs_few": {
+    "message": "$1 вкладки"
+  },
+  "tabs_many": {
+    "message": "$1 вкладок"
+  },
+  "tabs_other": {
+    "message": "$1 вкладок"
+  },
+  "notifBatchTitle": {
+    "message": "TrueTabs заархивировал несвежие вкладки"
+  },
+  "notifBatchMsg": {
+    "message": "$1 вкладок сохранены в архив и закрыты. Нажмите, чтобы открыть архив."
+  },
+  "notifBreakerTitle": {
+    "message": "TrueTabs поставил себя на паузу"
+  },
+  "notifBreakerMsg": {
+    "message": "Слишком много автоматических действий за короткое время - автоматика на паузе 10 минут. Ручные действия работают."
+  },
+  "undoBtn": {
+    "message": "Отменить"
+  },
+  "statTabs": {
+    "message": "Открытых вкладок"
+  },
+  "statDupes": {
+    "message": "Дубликатов"
+  },
+  "statStale": {
+    "message": "Несвежих"
+  },
+  "statArchivedToday": {
+    "message": "В архив сегодня"
+  },
+  "inWindows": {
+    "message": "в $1 окнах"
+  },
+  "actionsHeader": {
+    "message": "Действия"
+  },
+  "actOrganize": {
+    "message": "Разложить по группам"
+  },
+  "actSweep": {
+    "message": "Закрыть дубликаты"
+  },
+  "actArchiveNow": {
+    "message": "Архивировать несвежие"
+  },
+  "actMerge": {
+    "message": "Собрать все окна"
+  },
+  "undoRowText": {
+    "message": "В архиве $1 вкладок - вернуть?"
+  },
+  "automationHeader": {
+    "message": "Автоматика"
+  },
+  "toggleDedup": {
+    "message": "Защита от дублей"
+  },
+  "toggleArchive": {
+    "message": "Авто-архив несвежих"
+  },
+  "toggleGroup": {
+    "message": "Авто-группы по сайтам"
+  },
+  "pausedNote": {
+    "message": "Автоматика на паузе (предохранитель). Возобновится сама."
+  },
+  "warmingNote": {
+    "message": "Разогрев - автоматика включится, когда сессия устаканится."
+  },
+  "statusOrganized": {
+    "message": "Сгруппировано $1 вкладок, новых групп: $2"
+  },
+  "statusSwept": {
+    "message": "Закрыто дубликатов: $1 (сохранены в архив)"
+  },
+  "statusArchived": {
+    "message": "В архив: $1 вкладок"
+  },
+  "statusMerged": {
+    "message": "Перенесено в это окно: $1 вкладок"
+  },
+  "statusRestored": {
+    "message": "Восстановлено вкладок: $1"
+  },
+  "footerArchive": {
+    "message": "Открыть архив"
+  },
+  "footerGithub": {
+    "message": "Звезда на GitHub"
+  },
+  "footerReview": {
+    "message": "Оценить TrueTabs"
+  },
+  "footerDonate": {
+    "message": "Поддержать разработку"
+  },
+  "optionsLink": {
+    "message": "Настройки"
+  },
+  "optDupesHeader": {
+    "message": "Дубликаты"
+  },
+  "optDedupAuto": {
+    "message": "Не давать вкладкам дублироваться"
+  },
+  "optDedupAutoHint": {
+    "message": "Открыли страницу, которая уже открыта, - переключит на существующую вкладку."
+  },
+  "optDedupScope": {
+    "message": "Где искать существующую копию"
+  },
+  "optScopeAll": {
+    "message": "Во всех окнах"
+  },
+  "optScopeWindow": {
+    "message": "Только в этом окне"
+  },
+  "optArchiveHeader": {
+    "message": "Авто-архив"
+  },
+  "optArchiveAfter": {
+    "message": "Архивировать вкладки без активности"
+  },
+  "optArchiveAfterHint": {
+    "message": "Сохраняются в архив, затем закрываются. Закреплённые, активные, играющие и вкладки из белого списка не трогаются никогда."
+  },
+  "optArchiveTtl": {
+    "message": "Хранить записи архива"
+  },
+  "optArchiveTtlHint": {
+    "message": "Старые записи удаляются автоматически."
+  },
+  "optArchiveNotify": {
+    "message": "Уведомлять с кнопкой отмены после каждого авто-архива"
+  },
+  "optArchiveForeign": {
+    "message": "Архивировать и внутри ваших собственных групп"
+  },
+  "optArchiveForeignHint": {
+    "message": "Выкл: группы, собранные вами вручную, считаются осознанным выбором и пропускаются."
+  },
+  "optDiscard": {
+    "message": "Освобождать память раньше (выгрузка)"
+  },
+  "optDiscardHint": {
+    "message": "Вкладка, дожившая до половины порога архива, выгружается из памяти, но остаётся на своём месте в панели; клик по ней перезагрузит страницу. Экономит память ещё до архивации."
+  },
+  "optAllowlist": {
+    "message": "Никогда не архивировать эти сайты"
+  },
+  "optAllowlistHint": {
+    "message": "Один домен на строку. Звонки и встречи добавлены заранее - API вкладок не видит камеру и микрофон."
+  },
+  "optDays3": {
+    "message": "3 дня"
+  },
+  "optDays7": {
+    "message": "7 дней"
+  },
+  "optDays30": {
+    "message": "30 дней"
+  },
+  "optDays90": {
+    "message": "90 дней"
+  },
+  "optOff": {
+    "message": "Выкл"
+  },
+  "optForever": {
+    "message": "Всегда"
+  },
+  "optGroupsHeader": {
+    "message": "Группы"
+  },
+  "optGroupAuto": {
+    "message": "Группировать новые вкладки по сайтам"
+  },
+  "optGroupAutoHint": {
+    "message": "Бережно: группируются только новые вкладки, старые не перекладываются. Ваши собственные группы не трогаются."
+  },
+  "optCollapse": {
+    "message": "Сворачивать неактивные группы через"
+  },
+  "optSmartHeader": {
+    "message": "Умная группировка (ИИ)"
+  },
+  "optSmartEngine": {
+    "message": "Группировать по темам через"
+  },
+  "optSmartEngineHint": {
+    "message": "Добавляет «умную раскладку»: вкладки собираются по смыслу, а не только по сайту."
+  },
+  "optSmartBuiltin": {
+    "message": "Встроенный ИИ (на устройстве)"
+  },
+  "optSmartByok": {
+    "message": "Мой API-ключ"
+  },
+  "optSmartBuiltinStatus": {
+    "message": "Локальная модель (Gemini Nano)"
+  },
+  "optSmartEnable": {
+    "message": "Включить - скачать модель"
+  },
+  "smartStatusReady": {
+    "message": "Готово. Всё работает на этом устройстве - заголовки не покидают браузер."
+  },
+  "smartStatusDownloadable": {
+    "message": "Chrome один раз скачает модель (около 2-4 ГБ). Начнётся только после нажатия."
+  },
+  "smartStatusUnavailable": {
+    "message": "Недоступно на этом устройстве (нужен Chrome 138+, 22 ГБ на диске и 16 ГБ ОЗУ или GPU на 4 ГБ). Используйте API-ключ или группировку по сайтам."
+  },
+  "smartDownloading": {
+    "message": "Скачивание модели…"
+  },
+  "optByokProvider": {
+    "message": "Провайдер"
+  },
+  "optByokCustom": {
+    "message": "Свой (OpenAI-совместимый)"
+  },
+  "optByokKey": {
+    "message": "API-ключ"
+  },
+  "optByokModel": {
+    "message": "Модель"
+  },
+  "optByokBaseUrl": {
+    "message": "Адрес эндпоинта"
+  },
+  "optByokTest": {
+    "message": "Проверить"
+  },
+  "optByokPrivacy": {
+    "message": "Ключ хранится только на этом устройстве. В этом режиме заголовки вкладок и домены отправляются выбранному провайдеру по вашему ключу. Доступ к домену провайдера запрашивается при сохранении."
+  },
+  "byokSaved": {
+    "message": "Сохранено."
+  },
+  "byokTesting": {
+    "message": "Проверка…"
+  },
+  "byokTestOk": {
+    "message": "Работает."
+  },
+  "byokTestFail": {
+    "message": "Ошибка:"
+  },
+  "byokBadUrl": {
+    "message": "Сначала укажите корректный адрес эндпоинта."
+  },
+  "byokPermDenied": {
+    "message": "Доступ к провайдеру не выдан."
+  },
+  "optSmartAssign": {
+    "message": "Автоматически относить новые вкладки к умным группам"
+  },
+  "optSmartAssignHint": {
+    "message": "Новая вкладка, подходящая существующей тематической группе, присоединяется сама."
+  },
+  "optAppearanceHeader": {
+    "message": "Вид"
+  },
+  "optTheme": {
+    "message": "Тема"
+  },
+  "optThemeAuto": {
+    "message": "Как в системе"
+  },
+  "optThemeLight": {
+    "message": "Светлая"
+  },
+  "optThemeDark": {
+    "message": "Тёмная"
+  },
+  "optLanguage": {
+    "message": "Язык"
+  },
+  "optDiag": {
+    "message": "Скопировать диагностику"
+  },
+  "optDiagCopied": {
+    "message": "Скопировано - вставьте в отчёт. Только адреса, без содержимого страниц."
+  },
+  "archiveTitle": {
+    "message": "Архив TrueTabs"
+  },
+  "archiveSearch": {
+    "message": "Поиск по названию, адресу, сайту…"
+  },
+  "archiveEmpty": {
+    "message": "Архив пуст. Несвежие вкладки будут попадать сюда, а не теряться."
+  },
+  "archiveToday": {
+    "message": "Сегодня"
+  },
+  "archiveYesterday": {
+    "message": "Вчера"
+  },
+  "archiveRestore": {
+    "message": "Вернуть"
+  },
+  "archiveDelete": {
+    "message": "Удалить"
+  },
+  "archiveRestoreAll": {
+    "message": "Вернуть все"
+  },
+  "archiveDeleteAll": {
+    "message": "Удалить все"
+  },
+  "archiveRestoreSel": {
+    "message": "Вернуть выбранные"
+  },
+  "archiveDeleteSel": {
+    "message": "Удалить выбранные"
+  },
+  "archiveSelected": {
+    "message": "Выбрано: $1"
+  },
+  "archiveConfirmMany": {
+    "message": "Вернуть сразу $1 вкладок?"
+  },
+  "archiveTtlNote": {
+    "message": "Записи старше $1 удаляются автоматически."
+  },
+  "actSmartOrganize": {
+    "message": "Умная раскладка"
+  },
+  "undoOrgText": {
+    "message": "Создано групп: $1 - распустить?"
+  },
+  "statusUngrouped": {
+    "message": "Разгруппировано вкладок: $1"
+  },
+  "groupsHeader": {
+    "message": "Группы"
+  },
+  "collapseAll": {
+    "message": "Свернуть все"
+  },
+  "expandAll": {
+    "message": "Развернуть все"
+  },
+  "groupsDragHint": {
+    "message": "Клик - перейти к группе. Перетаскивание меняет порядок в её окне."
+  },
+  "groupUntitled": {
+    "message": "Без имени"
+  },
+  "groupExpand": {
+    "message": "Развернуть группу"
+  },
+  "groupCollapse": {
+    "message": "Свернуть группу"
+  },
+  "optSort": {
+    "message": "Сортировка при раскладке"
+  },
+  "optSortHint": {
+    "message": "Применяется только по кнопке раскладки: группы и свободные вкладки выстраиваются по порядку. Сама по себе ничего не пересортировывает."
+  },
+  "optSortTitle": {
+    "message": "По алфавиту"
+  },
+  "optSortRecent": {
+    "message": "Недавние сначала"
+  },
+  "optSortOpened": {
+    "message": "Старые сначала"
+  },
+  "optIconStyle": {
+    "message": "Иконка на панели"
+  },
+  "optIconColor": {
+    "message": "Цветная"
+  },
+  "optIconMono": {
+    "message": "Монохром (в стиле Chrome)"
+  },
+  "smartManagedNote": {
+    "message": "Модель скачивает и хранит сам Chrome. Удалить её потом: chrome://on-device-internals."
+  },
+  "byokNoKey": {
+    "message": "Ключ не задан - умная группировка не работает, пока не введёшь его."
+  }
 }

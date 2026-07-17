@@ -197,8 +197,27 @@ async function openViaCommit(url, { windowId, active = true } = {}) {
 // (NOT the settle flag) so each test builds its own world.
 async function resetWorld() {
   await swEval(async () => {
+    // Keep the browser alive: a sweep may have closed the initial blank tab,
+    // and emptying the last window would take the whole window down.
+    const wins = (await chrome.windows.getAll({ windowTypes: ["normal"] })).filter(
+      (w) => !w.incognito,
+    );
+    if (!wins.length) {
+      await new Promise((r) => chrome.windows.create({ url: "about:blank" }, () => r()));
+    } else {
+      await new Promise((r) =>
+        chrome.tabs.create({ url: "about:blank", windowId: wins[0].id, active: false }, () => {
+          void chrome.runtime.lastError;
+          r();
+        }),
+      );
+    }
     const tabs = await chrome.tabs.query({});
-    const victims = tabs.filter((t) => /^https?:/.test(t.url || t.pendingUrl || ""));
+    const blanks = tabs.filter((t) => !/^https?:/.test(t.url || t.pendingUrl || ""));
+    const victims = [
+      ...tabs.filter((t) => /^https?:/.test(t.url || t.pendingUrl || "")),
+      ...blanks.slice(1), // keep exactly one blank per run - a clean world
+    ];
     for (const t of victims) {
       if (t.pinned) {
         await new Promise((r) => chrome.tabs.update(t.id, { pinned: false }, () => r()));
@@ -304,9 +323,11 @@ async function main() {
     step("read state");
     const state = await ui({ type: "ui:getState" });
     assert(state.settings.dedupAuto === true, "dedupAuto default on");
+    assert(state.settings.dedupScope === "window", "dedupScope default window");
     assert(state.settings.archiveAfter === "24h", "archiveAfter default 24h");
     assert(state.settings.groupAuto === true, "groupAuto default on");
     assert(state.settings.smartEngine === "off", "smart off by default");
+    assert(state.settings.sortMode === "off", "sort off by default");
     step("alarm");
     const alarm = await swEval(
       () => new Promise((resolve) => chrome.alarms.get("tt-tick", (a) => resolve(a || null))),
@@ -493,11 +514,28 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "dedupAuto", value: true });
     assert((await countTabsWith("/sweepPage")) === 3, "three copies built");
     const result = await ui({ type: "ui:sweepDupes", scope: "all" });
-    assert(result.closed === 2, `sweep closed ${result.closed} == 2`);
+    assert(result.closed >= 2, `sweep closed ${result.closed} >= 2`);
     await waitFor("one copy left", async () => (await countTabsWith("/sweepPage")) === 1);
     const entries = await archiveEntries();
     const swept = entries.filter((e) => e.reason === "dupe-sweep" && e.url.includes("/sweepPage"));
     assert(swept.length === 2, "sweep victims landed in archive");
+  });
+
+  await test("sweep: surplus empty new-tab pages close too (not archived)", async () => {
+    await resetWorld();
+    const anchor = await openViaCommit(`${baseUrl}/blankAnchor`, { active: true });
+    const b1 = await createTab({ url: "about:blank", active: false });
+    const b2 = await createTab({ url: "about:blank", active: false });
+    const b3 = await createTab({ url: "about:blank", active: false });
+    await sleep(300);
+    const before = await ui({ type: "ui:getState" });
+    assert(before.counts.dupes >= 3, `blank surplus counted (${before.counts.dupes})`);
+    const result = await ui({ type: "ui:sweepDupes", scope: "all" });
+    assert(result.closed >= 3, `blanks closed (${result.closed})`);
+    assert((await getTab(b1.id)) === null && (await getTab(b2.id)) === null, "blanks gone");
+    assert((await getTab(anchor.id)) !== null, "content tab untouched");
+    const entries = await archiveEntries();
+    assert(!entries.some((e) => e.url.startsWith("about:")), "blanks never archived");
   });
 
   await test("archive: stale tab archived with url/title/winHint, closed, undoable state set", async () => {
@@ -955,6 +993,120 @@ async function main() {
     });
     assert(zh.lang === "zh_CN" && zh.msg.length > 0, "zh resolves and loads");
     await swEval(async () => ttI18n.init("en"));
+  });
+
+  await test("dedup scope: window default leaves a cross-window duplicate alone; 'all' catches it", async () => {
+    await resetWorld();
+    const here = await openViaCommit(`${baseUrl}/scoped`, { active: false });
+    const win2 = await swEval(
+      () => new Promise((r) => chrome.windows.create({ url: "about:blank" }, (w) => r({ id: w.id }))),
+    );
+    await sleep(300);
+    const there = await openViaCommit(`${baseUrl}/scoped`, { windowId: win2.id, active: false });
+    await sleep(600);
+    assert((await getTab(there.id)) !== null, "window scope: cross-window copy lives");
+    await ui({ type: "ui:setSetting", key: "dedupScope", value: "all" });
+    const thereDupe = await openViaCommit(`${baseUrl}/scoped`, { windowId: win2.id, active: false });
+    await waitFor("all scope: dupe closed", async () => (await getTab(thereDupe.id)) === null);
+    await ui({ type: "ui:setSetting", key: "dedupScope", value: "window" });
+    await swEval((id) => new Promise((r) => chrome.windows.remove(id, () => r())), win2.id);
+  });
+
+  await test("undo organize: created groups dissolve, tabs stay, no strikes recorded", async () => {
+    await resetWorld();
+    // continuous mode off: the explicit Organize must be the one creating
+    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    const a = await createTab({ url: `${baseUrl}/orgA`, active: false });
+    const b = await createTab({ url: `${baseUrl}/orgB`, active: false });
+    await sleep(400);
+    const org = await ui({ type: "ui:organizeNow", scope: "all" });
+    assert(org.groupsCreated >= 1, "group created");
+    const state = await ui({ type: "ui:getState" });
+    assert(state.lastOrganize && state.lastOrganize.gids.length >= 1, "lastOrganize set");
+    const undo = await ui({ type: "ui:undoOrganize" });
+    assert(undo.ungrouped >= 2, `ungrouped ${undo.ungrouped} >= 2`);
+    assert((await getTab(a.id)).groupId === -1, "tab a loose again");
+    assert((await getTab(b.id)) !== null, "tabs alive");
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(
+      !Object.keys(diag.strikes).some((k) => k.startsWith("group:")),
+      "our undo is not a user pull-out",
+    );
+    const aState = await tabState(a.id);
+    assert(!aState.ungroupedByUser, "tab not marked user-ungrouped");
+    // organize again still works (nothing retired)
+    const again = await ui({ type: "ui:organizeNow", scope: "all" });
+    assert(again.groupsCreated >= 1, "regrouping works after undo");
+    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+  });
+
+  await test("archive resurrection: a protected page that pops back strikes out of archiving", async () => {
+    await resetWorld();
+    const url = `${baseUrl}/lockedPage`;
+    const future1 = Date.now() + 25 * 3600e3;
+    const v1 = await openViaCommit(url, { active: false });
+    await swEval((n) => globalThis.__ttTick({ now: n }), future1);
+    await waitFor("archived once", async () => (await getTab(v1.id)) === null);
+    // "TruePin" resurrects it: same url comes right back with a real commit
+    const v2 = await openViaCommit(url, { active: false });
+    await sleep(300);
+    await swEval((n) => globalThis.__ttTick({ now: n }), future1 + 26 * 3600e3);
+    await waitFor("archived twice", async () => (await getTab(v2.id)) === null);
+    const v3 = await openViaCommit(url, { active: false });
+    await sleep(300);
+    await swEval((n) => globalThis.__ttTick({ now: n }), future1 + 52 * 3600e3);
+    await sleep(700);
+    assert((await getTab(v3.id)) !== null, "third round: key retired, tab stays");
+    const diag = await ui({ type: "ui:diagnostics" });
+    const struck = Object.keys(diag.strikes).find(
+      (k) => k.startsWith("archive:") && k.includes("lockedPage"),
+    );
+    assert(struck && diag.strikes[struck].count >= 2, "archive strikes recorded");
+  });
+
+  await test("popup groups API: list, fold via command (no strike), focus", async () => {
+    await resetWorld();
+    const a = await openViaCommit(`${altUrl}/apiG1`, { active: false });
+    const b = await openViaCommit(`${altUrl}/apiG2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(b.id)).groupId !== -1);
+    const gid = (await getTab(b.id)).groupId;
+    const state = await ui({ type: "ui:getState" });
+    const listed = state.groups.find((g) => g.id === gid);
+    assert(listed && listed.ours && listed.tabCount === 2, "group listed with fields");
+    await ui({ type: "ui:groupCollapse", gid, collapsed: true });
+    assert((await swEval((g) => chrome.tabGroups.get(g), gid)).collapsed, "folded by command");
+    await ui({ type: "ui:groupsCollapseAll", collapsed: false });
+    await sleep(400);
+    assert(!(await swEval((g) => chrome.tabGroups.get(g), gid)).collapsed, "unfolded by command");
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(
+      !Object.keys(diag.strikes).some((k) => k.startsWith("collapse:")),
+      "popup expand is a command, not a strike",
+    );
+    await ui({ type: "ui:groupFocus", gid });
+    await waitFor("focused member", async () => {
+      const tabs = await queryTabs({ groupId: gid });
+      return tabs.some((t) => t.active);
+    });
+  });
+
+  await test("sort on organize: alphabetical order applied to loose tabs", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "sortMode", value: "title" });
+    // three different sites (no grouping possible), shuffled titles
+    const c = await openViaCommit(`${baseUrl}/zebra`, { active: false });
+    const a = await openViaCommit(`${altUrl}/alpha`, { active: false });
+    await sleep(300);
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    await sleep(400);
+    const tabs = (await queryTabs()).filter((t) => /alpha|zebra/.test(t.url));
+    const ordered = await Promise.all(tabs.map((t) => getTab(t.id)));
+    const alphaTab = ordered.find((t) => t.url.includes("alpha"));
+    const zebraTab = ordered.find((t) => t.url.includes("zebra"));
+    const alphaIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), alphaTab.id);
+    const zebraIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), zebraTab.id);
+    assert(alphaIndex < zebraIndex, `alpha (${alphaIndex}) before zebra (${zebraIndex})`);
+    await ui({ type: "ui:setSetting", key: "sortMode", value: "off" });
   });
 
   await test("service worker: zero unchecked errors across the whole run", async () => {

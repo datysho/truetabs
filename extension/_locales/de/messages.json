@@ -1,125 +1,401 @@
 {
-  "appDesc": { "message": "Tab-Ordnung wie in Arc: keine Duplikate, alte Tabs wandern ins Archiv (rückgängig machbar), Gruppen nach Website oder Thema." },
-
-  "tabs_one": { "message": "$1 Tab" },
-  "tabs_few": { "message": "$1 Tabs" },
-  "tabs_many": { "message": "$1 Tabs" },
-  "tabs_other": { "message": "$1 Tabs" },
-
-  "notifBatchTitle": { "message": "TrueTabs hat alte Tabs archiviert" },
-  "notifBatchMsg": { "message": "$1 Tabs wurden ins Archiv gespeichert und geschlossen. Klicken, um das Archiv zu öffnen." },
-  "notifBreakerTitle": { "message": "TrueTabs hat sich pausiert" },
-  "notifBreakerMsg": { "message": "Zu viele automatische Aktionen in kurzer Zeit - die Automatik pausiert 10 Minuten. Manuelle Aktionen funktionieren weiter." },
-  "undoBtn": { "message": "Rückgängig" },
-
-  "statTabs": { "message": "Offene Tabs" },
-  "statDupes": { "message": "Duplikate" },
-  "statStale": { "message": "Veraltet" },
-  "statArchivedToday": { "message": "Heute archiviert" },
-  "inWindows": { "message": "in $1 Fenstern" },
-  "actionsHeader": { "message": "Aktionen" },
-  "actOrganize": { "message": "Jetzt ordnen" },
-  "actSweep": { "message": "Duplikate schließen" },
-  "actArchiveNow": { "message": "Alte Tabs archivieren" },
-  "actMerge": { "message": "Alle Fenster vereinen" },
-  "undoRowText": { "message": "$1 Tabs archiviert - zurückholen?" },
-  "automationHeader": { "message": "Automatik" },
-  "toggleDedup": { "message": "Duplikat-Schutz" },
-  "toggleArchive": { "message": "Auto-Archiv alter Tabs" },
-  "toggleGroup": { "message": "Auto-Gruppen nach Website" },
-  "pausedNote": { "message": "Automatik pausiert (Sicherung). Sie startet von selbst wieder." },
-  "warmingNote": { "message": "Aufwärmen - die Automatik startet, sobald die Sitzung ruhig ist." },
-  "statusOrganized": { "message": "$1 Tabs in $2 neue Gruppen sortiert" },
-  "statusSwept": { "message": "$1 Duplikate geschlossen (im Archiv gesichert)" },
-  "statusArchived": { "message": "$1 Tabs archiviert" },
-  "statusMerged": { "message": "$1 Tabs in dieses Fenster verschoben" },
-  "statusRestored": { "message": "$1 Tabs wiederhergestellt" },
-  "footerArchive": { "message": "Archiv öffnen" },
-  "footerGithub": { "message": "Stern auf GitHub" },
-  "footerReview": { "message": "TrueTabs bewerten" },
-  "footerDonate": { "message": "Entwicklung unterstützen" },
-  "optionsLink": { "message": "Einstellungen" },
-
-  "optDupesHeader": { "message": "Duplikate" },
-  "optDedupAuto": { "message": "Doppelte Tabs verhindern" },
-  "optDedupAutoHint": { "message": "Öffnen Sie eine bereits offene Seite, wird zum bestehenden Tab gewechselt." },
-  "optDedupScope": { "message": "Bestehende Kopie suchen" },
-  "optScopeAll": { "message": "In allen Fenstern" },
-  "optScopeWindow": { "message": "Nur im selben Fenster" },
-
-  "optArchiveHeader": { "message": "Auto-Archiv" },
-  "optArchiveAfter": { "message": "Tabs archivieren, die unberührt sind seit" },
-  "optArchiveAfterHint": { "message": "Ins Archiv gespeichert, dann geschlossen. Angepinnte, aktive, abspielende und freigegebene Tabs werden nie angefasst." },
-  "optArchiveTtl": { "message": "Archiv-Einträge aufbewahren für" },
-  "optArchiveTtlHint": { "message": "Ältere Einträge werden automatisch entfernt." },
-  "optArchiveNotify": { "message": "Nach jedem Auto-Archiv mit Rückgängig-Knopf benachrichtigen" },
-  "optArchiveForeign": { "message": "Auch innerhalb Ihrer eigenen Tab-Gruppen archivieren" },
-  "optArchiveForeignHint": { "message": "Aus: von Hand erstellte Gruppen gelten als bewusste Auswahl und werden übersprungen." },
-  "optDiscard": { "message": "Speicher früher freigeben (Entladen)" },
-  "optDiscardHint": { "message": "Auf halbem Weg zur Schwelle wird der Tab entladen, bleibt aber sichtbar. Chromes Energiesparmodus macht dasselbe." },
-  "optAllowlist": { "message": "Diese Websites nie automatisch archivieren" },
-  "optAllowlistHint": { "message": "Eine Domain pro Zeile. Anrufe und Meetings sind vorbelegt - die Tabs-API sieht Kamera und Mikrofon nicht." },
-  "optDays3": { "message": "3 Tage" },
-  "optDays7": { "message": "7 Tage" },
-  "optDays30": { "message": "30 Tage" },
-  "optDays90": { "message": "90 Tage" },
-  "optOff": { "message": "Aus" },
-  "optForever": { "message": "Für immer" },
-
-  "optGroupsHeader": { "message": "Gruppen" },
-  "optGroupAuto": { "message": "Neue Tabs nach Website gruppieren" },
-  "optGroupAutoHint": { "message": "Behutsam: nur neue Tabs werden gruppiert, bestehende nie umsortiert. Ihre eigenen Gruppen bleiben unberührt." },
-  "optCollapse": { "message": "Inaktive Gruppen einklappen nach" },
-
-  "optSmartHeader": { "message": "Smarte Gruppierung (KI)" },
-  "optSmartEngine": { "message": "Nach Thema gruppieren mit" },
-  "optSmartEngineHint": { "message": "Fügt ein „Smart ordnen“ hinzu: Tabs werden nach Bedeutung gebündelt, nicht nur nach Website." },
-  "optSmartBuiltin": { "message": "Integrierte KI (auf dem Gerät)" },
-  "optSmartByok": { "message": "Mein eigener API-Schlüssel" },
-  "optSmartBuiltinStatus": { "message": "Lokales Modell (Gemini Nano)" },
-  "optSmartEnable": { "message": "Aktivieren - Modell laden" },
-  "smartStatusReady": { "message": "Bereit. Alles läuft auf diesem Gerät - Titel verlassen den Browser nie." },
-  "smartStatusDownloadable": { "message": "Chrome lädt das Modell einmalig (ca. 2-4 GB). Startet erst nach Ihrem Klick." },
-  "smartStatusUnavailable": { "message": "Auf diesem Gerät nicht verfügbar (braucht Chrome 138+, 22 GB freien Speicher und 16 GB RAM oder eine 4-GB-GPU). Nutzen Sie einen API-Schlüssel oder die Website-Gruppierung." },
-  "smartDownloading": { "message": "Modell wird geladen…" },
-  "optByokProvider": { "message": "Anbieter" },
-  "optByokCustom": { "message": "Eigener (OpenAI-kompatibel)" },
-  "optByokKey": { "message": "API-Schlüssel" },
-  "optByokModel": { "message": "Modell" },
-  "optByokBaseUrl": { "message": "Endpunkt-URL" },
-  "optByokSave": { "message": "Speichern" },
-  "optByokTest": { "message": "Testen" },
-  "optByokPrivacy": { "message": "Der Schlüssel bleibt nur auf diesem Gerät. In diesem Modus werden Tab-Titel und Domains an den gewählten Anbieter über Ihren Schlüssel gesendet. Zugriff auf die Anbieter-Domain wird beim Speichern angefragt." },
-  "byokSaved": { "message": "Gespeichert." },
-  "byokTesting": { "message": "Wird getestet…" },
-  "byokTestOk": { "message": "Funktioniert." },
-  "byokTestFail": { "message": "Fehlgeschlagen:" },
-  "byokBadUrl": { "message": "Bitte zuerst eine gültige Endpunkt-URL angeben." },
-  "byokPermDenied": { "message": "Zugriff auf den Anbieter wurde nicht gewährt." },
-  "optSmartAssign": { "message": "Neue Tabs automatisch smarten Gruppen zuordnen" },
-  "optSmartAssignHint": { "message": "Ein neuer Tab, der zu einer bestehenden Themengruppe passt, tritt ihr automatisch bei." },
-
-  "optAppearanceHeader": { "message": "Darstellung" },
-  "optTheme": { "message": "Design" },
-  "optThemeAuto": { "message": "Wie System" },
-  "optThemeLight": { "message": "Hell" },
-  "optThemeDark": { "message": "Dunkel" },
-  "optLanguage": { "message": "Sprache" },
-  "optDiag": { "message": "Diagnose kopieren" },
-  "optDiagCopied": { "message": "Kopiert - in Ihren Bericht einfügen. Nur URLs, keine Seiteninhalte." },
-
-  "archiveTitle": { "message": "TrueTabs-Archiv" },
-  "archiveSearch": { "message": "Titel, URL, Website suchen…" },
-  "archiveEmpty": { "message": "Das Archiv ist leer. Alte Tabs landen hier, statt verloren zu gehen." },
-  "archiveToday": { "message": "Heute" },
-  "archiveYesterday": { "message": "Gestern" },
-  "archiveRestore": { "message": "Zurückholen" },
-  "archiveDelete": { "message": "Löschen" },
-  "archiveRestoreAll": { "message": "Alle zurückholen" },
-  "archiveDeleteAll": { "message": "Alle löschen" },
-  "archiveRestoreSel": { "message": "Auswahl zurückholen" },
-  "archiveDeleteSel": { "message": "Auswahl löschen" },
-  "archiveSelected": { "message": "$1 ausgewählt" },
-  "archiveConfirmMany": { "message": "$1 Tabs auf einmal zurückholen?" },
-  "archiveTtlNote": { "message": "Einträge älter als $1 werden automatisch entfernt." }
+  "appDesc": {
+    "message": "Tab-Ordnung wie in Arc: keine Duplikate, alte Tabs wandern ins Archiv (rückgängig machbar), Gruppen nach Website oder Thema."
+  },
+  "tabs_one": {
+    "message": "$1 Tab"
+  },
+  "tabs_few": {
+    "message": "$1 Tabs"
+  },
+  "tabs_many": {
+    "message": "$1 Tabs"
+  },
+  "tabs_other": {
+    "message": "$1 Tabs"
+  },
+  "notifBatchTitle": {
+    "message": "TrueTabs hat alte Tabs archiviert"
+  },
+  "notifBatchMsg": {
+    "message": "$1 Tabs wurden ins Archiv gespeichert und geschlossen. Klicken, um das Archiv zu öffnen."
+  },
+  "notifBreakerTitle": {
+    "message": "TrueTabs hat sich pausiert"
+  },
+  "notifBreakerMsg": {
+    "message": "Zu viele automatische Aktionen in kurzer Zeit - die Automatik pausiert 10 Minuten. Manuelle Aktionen funktionieren weiter."
+  },
+  "undoBtn": {
+    "message": "Rückgängig"
+  },
+  "statTabs": {
+    "message": "Offene Tabs"
+  },
+  "statDupes": {
+    "message": "Duplikate"
+  },
+  "statStale": {
+    "message": "Veraltet"
+  },
+  "statArchivedToday": {
+    "message": "Heute archiviert"
+  },
+  "inWindows": {
+    "message": "in $1 Fenstern"
+  },
+  "actionsHeader": {
+    "message": "Aktionen"
+  },
+  "actOrganize": {
+    "message": "Jetzt ordnen"
+  },
+  "actSweep": {
+    "message": "Duplikate schließen"
+  },
+  "actArchiveNow": {
+    "message": "Alte Tabs archivieren"
+  },
+  "actMerge": {
+    "message": "Alle Fenster vereinen"
+  },
+  "undoRowText": {
+    "message": "$1 Tabs archiviert - zurückholen?"
+  },
+  "automationHeader": {
+    "message": "Automatik"
+  },
+  "toggleDedup": {
+    "message": "Duplikat-Schutz"
+  },
+  "toggleArchive": {
+    "message": "Auto-Archiv alter Tabs"
+  },
+  "toggleGroup": {
+    "message": "Auto-Gruppen nach Website"
+  },
+  "pausedNote": {
+    "message": "Automatik pausiert (Sicherung). Sie startet von selbst wieder."
+  },
+  "warmingNote": {
+    "message": "Aufwärmen - die Automatik startet, sobald die Sitzung ruhig ist."
+  },
+  "statusOrganized": {
+    "message": "$1 Tabs in $2 neue Gruppen sortiert"
+  },
+  "statusSwept": {
+    "message": "$1 Duplikate geschlossen (im Archiv gesichert)"
+  },
+  "statusArchived": {
+    "message": "$1 Tabs archiviert"
+  },
+  "statusMerged": {
+    "message": "$1 Tabs in dieses Fenster verschoben"
+  },
+  "statusRestored": {
+    "message": "$1 Tabs wiederhergestellt"
+  },
+  "footerArchive": {
+    "message": "Archiv öffnen"
+  },
+  "footerGithub": {
+    "message": "Stern auf GitHub"
+  },
+  "footerReview": {
+    "message": "TrueTabs bewerten"
+  },
+  "footerDonate": {
+    "message": "Entwicklung unterstützen"
+  },
+  "optionsLink": {
+    "message": "Einstellungen"
+  },
+  "optDupesHeader": {
+    "message": "Duplikate"
+  },
+  "optDedupAuto": {
+    "message": "Doppelte Tabs verhindern"
+  },
+  "optDedupAutoHint": {
+    "message": "Öffnen Sie eine bereits offene Seite, wird zum bestehenden Tab gewechselt."
+  },
+  "optDedupScope": {
+    "message": "Bestehende Kopie suchen"
+  },
+  "optScopeAll": {
+    "message": "In allen Fenstern"
+  },
+  "optScopeWindow": {
+    "message": "Nur im selben Fenster"
+  },
+  "optArchiveHeader": {
+    "message": "Auto-Archiv"
+  },
+  "optArchiveAfter": {
+    "message": "Tabs archivieren, die unberührt sind seit"
+  },
+  "optArchiveAfterHint": {
+    "message": "Ins Archiv gespeichert, dann geschlossen. Angepinnte, aktive, abspielende und freigegebene Tabs werden nie angefasst."
+  },
+  "optArchiveTtl": {
+    "message": "Archiv-Einträge aufbewahren für"
+  },
+  "optArchiveTtlHint": {
+    "message": "Ältere Einträge werden automatisch entfernt."
+  },
+  "optArchiveNotify": {
+    "message": "Nach jedem Auto-Archiv mit Rückgängig-Knopf benachrichtigen"
+  },
+  "optArchiveForeign": {
+    "message": "Auch innerhalb Ihrer eigenen Tab-Gruppen archivieren"
+  },
+  "optArchiveForeignHint": {
+    "message": "Aus: von Hand erstellte Gruppen gelten als bewusste Auswahl und werden übersprungen."
+  },
+  "optDiscard": {
+    "message": "Speicher früher freigeben (Entladen)"
+  },
+  "optDiscardHint": {
+    "message": "Ein Tab auf halbem Weg zur Archiv-Schwelle wird aus dem Speicher entladen, behält aber seinen Platz in der Tableiste; ein Klick lädt die Seite neu. Spart RAM schon vor dem Archivieren."
+  },
+  "optAllowlist": {
+    "message": "Diese Websites nie automatisch archivieren"
+  },
+  "optAllowlistHint": {
+    "message": "Eine Domain pro Zeile. Anrufe und Meetings sind vorbelegt - die Tabs-API sieht Kamera und Mikrofon nicht."
+  },
+  "optDays3": {
+    "message": "3 Tage"
+  },
+  "optDays7": {
+    "message": "7 Tage"
+  },
+  "optDays30": {
+    "message": "30 Tage"
+  },
+  "optDays90": {
+    "message": "90 Tage"
+  },
+  "optOff": {
+    "message": "Aus"
+  },
+  "optForever": {
+    "message": "Für immer"
+  },
+  "optGroupsHeader": {
+    "message": "Gruppen"
+  },
+  "optGroupAuto": {
+    "message": "Neue Tabs nach Website gruppieren"
+  },
+  "optGroupAutoHint": {
+    "message": "Behutsam: nur neue Tabs werden gruppiert, bestehende nie umsortiert. Ihre eigenen Gruppen bleiben unberührt."
+  },
+  "optCollapse": {
+    "message": "Inaktive Gruppen einklappen nach"
+  },
+  "optSmartHeader": {
+    "message": "Smarte Gruppierung (KI)"
+  },
+  "optSmartEngine": {
+    "message": "Nach Thema gruppieren mit"
+  },
+  "optSmartEngineHint": {
+    "message": "Fügt ein „Smart ordnen“ hinzu: Tabs werden nach Bedeutung gebündelt, nicht nur nach Website."
+  },
+  "optSmartBuiltin": {
+    "message": "Integrierte KI (auf dem Gerät)"
+  },
+  "optSmartByok": {
+    "message": "Mein eigener API-Schlüssel"
+  },
+  "optSmartBuiltinStatus": {
+    "message": "Lokales Modell (Gemini Nano)"
+  },
+  "optSmartEnable": {
+    "message": "Aktivieren - Modell laden"
+  },
+  "smartStatusReady": {
+    "message": "Bereit. Alles läuft auf diesem Gerät - Titel verlassen den Browser nie."
+  },
+  "smartStatusDownloadable": {
+    "message": "Chrome lädt das Modell einmalig (ca. 2-4 GB). Startet erst nach Ihrem Klick."
+  },
+  "smartStatusUnavailable": {
+    "message": "Auf diesem Gerät nicht verfügbar (braucht Chrome 138+, 22 GB freien Speicher und 16 GB RAM oder eine 4-GB-GPU). Nutzen Sie einen API-Schlüssel oder die Website-Gruppierung."
+  },
+  "smartDownloading": {
+    "message": "Modell wird geladen…"
+  },
+  "optByokProvider": {
+    "message": "Anbieter"
+  },
+  "optByokCustom": {
+    "message": "Eigener (OpenAI-kompatibel)"
+  },
+  "optByokKey": {
+    "message": "API-Schlüssel"
+  },
+  "optByokModel": {
+    "message": "Modell"
+  },
+  "optByokBaseUrl": {
+    "message": "Endpunkt-URL"
+  },
+  "optByokTest": {
+    "message": "Testen"
+  },
+  "optByokPrivacy": {
+    "message": "Der Schlüssel bleibt nur auf diesem Gerät. In diesem Modus werden Tab-Titel und Domains an den gewählten Anbieter über Ihren Schlüssel gesendet. Zugriff auf die Anbieter-Domain wird beim Speichern angefragt."
+  },
+  "byokSaved": {
+    "message": "Gespeichert."
+  },
+  "byokTesting": {
+    "message": "Wird getestet…"
+  },
+  "byokTestOk": {
+    "message": "Funktioniert."
+  },
+  "byokTestFail": {
+    "message": "Fehlgeschlagen:"
+  },
+  "byokBadUrl": {
+    "message": "Bitte zuerst eine gültige Endpunkt-URL angeben."
+  },
+  "byokPermDenied": {
+    "message": "Zugriff auf den Anbieter wurde nicht gewährt."
+  },
+  "optSmartAssign": {
+    "message": "Neue Tabs automatisch smarten Gruppen zuordnen"
+  },
+  "optSmartAssignHint": {
+    "message": "Ein neuer Tab, der zu einer bestehenden Themengruppe passt, tritt ihr automatisch bei."
+  },
+  "optAppearanceHeader": {
+    "message": "Darstellung"
+  },
+  "optTheme": {
+    "message": "Design"
+  },
+  "optThemeAuto": {
+    "message": "Wie System"
+  },
+  "optThemeLight": {
+    "message": "Hell"
+  },
+  "optThemeDark": {
+    "message": "Dunkel"
+  },
+  "optLanguage": {
+    "message": "Sprache"
+  },
+  "optDiag": {
+    "message": "Diagnose kopieren"
+  },
+  "optDiagCopied": {
+    "message": "Kopiert - in Ihren Bericht einfügen. Nur URLs, keine Seiteninhalte."
+  },
+  "archiveTitle": {
+    "message": "TrueTabs-Archiv"
+  },
+  "archiveSearch": {
+    "message": "Titel, URL, Website suchen…"
+  },
+  "archiveEmpty": {
+    "message": "Das Archiv ist leer. Alte Tabs landen hier, statt verloren zu gehen."
+  },
+  "archiveToday": {
+    "message": "Heute"
+  },
+  "archiveYesterday": {
+    "message": "Gestern"
+  },
+  "archiveRestore": {
+    "message": "Zurückholen"
+  },
+  "archiveDelete": {
+    "message": "Löschen"
+  },
+  "archiveRestoreAll": {
+    "message": "Alle zurückholen"
+  },
+  "archiveDeleteAll": {
+    "message": "Alle löschen"
+  },
+  "archiveRestoreSel": {
+    "message": "Auswahl zurückholen"
+  },
+  "archiveDeleteSel": {
+    "message": "Auswahl löschen"
+  },
+  "archiveSelected": {
+    "message": "$1 ausgewählt"
+  },
+  "archiveConfirmMany": {
+    "message": "$1 Tabs auf einmal zurückholen?"
+  },
+  "archiveTtlNote": {
+    "message": "Einträge älter als $1 werden automatisch entfernt."
+  },
+  "actSmartOrganize": {
+    "message": "Smart ordnen"
+  },
+  "undoOrgText": {
+    "message": "$1 Gruppen erstellt - auflösen?"
+  },
+  "statusUngrouped": {
+    "message": "$1 Tabs aus Gruppen gelöst"
+  },
+  "groupsHeader": {
+    "message": "Gruppen"
+  },
+  "collapseAll": {
+    "message": "Alle einklappen"
+  },
+  "expandAll": {
+    "message": "Alle ausklappen"
+  },
+  "groupsDragHint": {
+    "message": "Klick - zur Gruppe springen. Ziehen ordnet sie im Fenster neu."
+  },
+  "groupUntitled": {
+    "message": "Ohne Namen"
+  },
+  "groupExpand": {
+    "message": "Gruppe ausklappen"
+  },
+  "groupCollapse": {
+    "message": "Gruppe einklappen"
+  },
+  "optSort": {
+    "message": "Beim Ordnen sortieren"
+  },
+  "optSortHint": {
+    "message": "Nur beim Klick auf Ordnen: Gruppen und lose Tabs erhalten eine feste Reihenfolge. Sortiert nie von selbst um."
+  },
+  "optSortTitle": {
+    "message": "Alphabetisch"
+  },
+  "optSortRecent": {
+    "message": "Zuletzt genutzt zuerst"
+  },
+  "optSortOpened": {
+    "message": "Zuerst geöffnete zuerst"
+  },
+  "optIconStyle": {
+    "message": "Symbolleisten-Icon"
+  },
+  "optIconColor": {
+    "message": "Farbig"
+  },
+  "optIconMono": {
+    "message": "Monochrom (wie Chrome)"
+  },
+  "smartManagedNote": {
+    "message": "Das Modell lädt und verwaltet Chrome selbst. Später entfernen: chrome://on-device-internals."
+  },
+  "byokNoKey": {
+    "message": "Noch kein API-Schlüssel - smarte Gruppierung ist inaktiv, bis einer eingetragen ist."
+  }
 }

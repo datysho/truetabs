@@ -1,125 +1,401 @@
 {
-  "appDesc": { "message": "像 Arc 一样整理标签页：杜绝重复，闲置标签自动归档（可撤销），按网站或按主题分组。" },
-
-  "tabs_one": { "message": "$1 个标签页" },
-  "tabs_few": { "message": "$1 个标签页" },
-  "tabs_many": { "message": "$1 个标签页" },
-  "tabs_other": { "message": "$1 个标签页" },
-
-  "notifBatchTitle": { "message": "TrueTabs 已归档闲置标签页" },
-  "notifBatchMsg": { "message": "$1 个标签页已保存到归档并关闭。点击打开归档。" },
-  "notifBreakerTitle": { "message": "TrueTabs 已自我暂停" },
-  "notifBreakerMsg": { "message": "短时间内自动操作过多——自动化暂停 10 分钟。手动操作不受影响。" },
-  "undoBtn": { "message": "撤销" },
-
-  "statTabs": { "message": "打开的标签页" },
-  "statDupes": { "message": "重复" },
-  "statStale": { "message": "闲置" },
-  "statArchivedToday": { "message": "今日已归档" },
-  "inWindows": { "message": "分布在 $1 个窗口" },
-  "actionsHeader": { "message": "操作" },
-  "actOrganize": { "message": "立即整理" },
-  "actSweep": { "message": "关闭重复项" },
-  "actArchiveNow": { "message": "归档闲置标签" },
-  "actMerge": { "message": "合并所有窗口" },
-  "undoRowText": { "message": "已归档 $1 个标签页——要恢复吗？" },
-  "automationHeader": { "message": "自动化" },
-  "toggleDedup": { "message": "防止重复标签" },
-  "toggleArchive": { "message": "自动归档闲置标签" },
-  "toggleGroup": { "message": "按网站自动分组" },
-  "pausedNote": { "message": "自动化已暂停（熔断保护），稍后自动恢复。" },
-  "warmingNote": { "message": "预热中——会话稳定后自动化才会启动。" },
-  "statusOrganized": { "message": "已将 $1 个标签页整理进 $2 个新分组" },
-  "statusSwept": { "message": "已关闭 $1 个重复项（已存入归档）" },
-  "statusArchived": { "message": "已归档 $1 个标签页" },
-  "statusMerged": { "message": "已将 $1 个标签页移入此窗口" },
-  "statusRestored": { "message": "已恢复 $1 个标签页" },
-  "footerArchive": { "message": "打开归档" },
-  "footerGithub": { "message": "在 GitHub 上加星" },
-  "footerReview": { "message": "为 TrueTabs 评分" },
-  "footerDonate": { "message": "支持开发" },
-  "optionsLink": { "message": "设置" },
-
-  "optDupesHeader": { "message": "重复标签" },
-  "optDedupAuto": { "message": "防止标签页重复" },
-  "optDedupAutoHint": { "message": "打开已存在的页面时，切换到现有标签页。" },
-  "optDedupScope": { "message": "查找现有副本的范围" },
-  "optScopeAll": { "message": "所有窗口" },
-  "optScopeWindow": { "message": "仅当前窗口" },
-
-  "optArchiveHeader": { "message": "自动归档" },
-  "optArchiveAfter": { "message": "归档闲置超过此时长的标签页" },
-  "optArchiveAfterHint": { "message": "先存入归档再关闭。固定的、活动的、正在播放的以及白名单中的标签页绝不处理。" },
-  "optArchiveTtl": { "message": "归档条目保留时长" },
-  "optArchiveTtlHint": { "message": "更早的条目会自动删除。" },
-  "optArchiveNotify": { "message": "每次自动归档后通知并提供撤销按钮" },
-  "optArchiveForeign": { "message": "也归档你自建分组内的标签页" },
-  "optArchiveForeignHint": { "message": "关闭时：手动创建的分组视为有意保留，直接跳过。" },
-  "optDiscard": { "message": "更早释放内存（休眠）" },
-  "optDiscardHint": { "message": "到阈值一半时标签页会被休眠但仍然可见。Chrome 的内存节省程序也是这样做的。" },
-  "optAllowlist": { "message": "永不自动归档这些网站" },
-  "optAllowlistHint": { "message": "每行一个域名。已预置通话和会议网站——标签页 API 看不到摄像头和麦克风。" },
-  "optDays3": { "message": "3 天" },
-  "optDays7": { "message": "7 天" },
-  "optDays30": { "message": "30 天" },
-  "optDays90": { "message": "90 天" },
-  "optOff": { "message": "关闭" },
-  "optForever": { "message": "永久" },
-
-  "optGroupsHeader": { "message": "分组" },
-  "optGroupAuto": { "message": "按网站为新标签页分组" },
-  "optGroupAutoHint": { "message": "温和模式：只对新标签页分组，绝不重排已有标签。你自建的分组不会被动。" },
-  "optCollapse": { "message": "闲置分组折叠时间" },
-
-  "optSmartHeader": { "message": "智能分组（AI）" },
-  "optSmartEngine": { "message": "按主题分组，使用" },
-  "optSmartEngineHint": { "message": "新增“智能整理”：按含义聚类标签页，而不只是按网站。" },
-  "optSmartBuiltin": { "message": "内置 AI（本机运行）" },
-  "optSmartByok": { "message": "我自己的 API 密钥" },
-  "optSmartBuiltinStatus": { "message": "本地模型（Gemini Nano）" },
-  "optSmartEnable": { "message": "启用——下载模型" },
-  "smartStatusReady": { "message": "就绪。全部在本机运行——标题绝不离开浏览器。" },
-  "smartStatusDownloadable": { "message": "Chrome 将一次性下载模型（约 2-4 GB），点击后才开始。" },
-  "smartStatusUnavailable": { "message": "此设备不可用（需要 Chrome 138+、22 GB 磁盘空间和 16 GB 内存或 4 GB 显存的 GPU）。请改用 API 密钥或按网站分组。" },
-  "smartDownloading": { "message": "正在下载模型…" },
-  "optByokProvider": { "message": "服务商" },
-  "optByokCustom": { "message": "自定义（兼容 OpenAI）" },
-  "optByokKey": { "message": "API 密钥" },
-  "optByokModel": { "message": "模型" },
-  "optByokBaseUrl": { "message": "端点 URL" },
-  "optByokSave": { "message": "保存" },
-  "optByokTest": { "message": "测试" },
-  "optByokPrivacy": { "message": "密钥仅保存在本机。此模式下，标签页标题和域名会通过你的密钥发送给所选服务商。保存时会请求访问服务商域名的权限。" },
-  "byokSaved": { "message": "已保存。" },
-  "byokTesting": { "message": "测试中…" },
-  "byokTestOk": { "message": "可用。" },
-  "byokTestFail": { "message": "失败：" },
-  "byokBadUrl": { "message": "请先填写有效的端点 URL。" },
-  "byokPermDenied": { "message": "未授予对服务商的访问权限。" },
-  "optSmartAssign": { "message": "自动把新标签页归入智能分组" },
-  "optSmartAssignHint": { "message": "与现有主题分组匹配的新标签页会自动加入。" },
-
-  "optAppearanceHeader": { "message": "外观" },
-  "optTheme": { "message": "主题" },
-  "optThemeAuto": { "message": "跟随系统" },
-  "optThemeLight": { "message": "浅色" },
-  "optThemeDark": { "message": "深色" },
-  "optLanguage": { "message": "语言" },
-  "optDiag": { "message": "复制诊断信息" },
-  "optDiagCopied": { "message": "已复制——请粘贴到报告中。仅含 URL，不含页面内容。" },
-
-  "archiveTitle": { "message": "TrueTabs 归档" },
-  "archiveSearch": { "message": "搜索标题、URL、网站…" },
-  "archiveEmpty": { "message": "归档为空。闲置标签页会保存到这里，不会丢失。" },
-  "archiveToday": { "message": "今天" },
-  "archiveYesterday": { "message": "昨天" },
-  "archiveRestore": { "message": "恢复" },
-  "archiveDelete": { "message": "删除" },
-  "archiveRestoreAll": { "message": "全部恢复" },
-  "archiveDeleteAll": { "message": "全部删除" },
-  "archiveRestoreSel": { "message": "恢复所选" },
-  "archiveDeleteSel": { "message": "删除所选" },
-  "archiveSelected": { "message": "已选 $1 个" },
-  "archiveConfirmMany": { "message": "一次恢复 $1 个标签页？" },
-  "archiveTtlNote": { "message": "超过 $1 的条目会自动删除。" }
+  "appDesc": {
+    "message": "像 Arc 一样整理标签页：杜绝重复，闲置标签自动归档（可撤销），按网站或按主题分组。"
+  },
+  "tabs_one": {
+    "message": "$1 个标签页"
+  },
+  "tabs_few": {
+    "message": "$1 个标签页"
+  },
+  "tabs_many": {
+    "message": "$1 个标签页"
+  },
+  "tabs_other": {
+    "message": "$1 个标签页"
+  },
+  "notifBatchTitle": {
+    "message": "TrueTabs 已归档闲置标签页"
+  },
+  "notifBatchMsg": {
+    "message": "$1 个标签页已保存到归档并关闭。点击打开归档。"
+  },
+  "notifBreakerTitle": {
+    "message": "TrueTabs 已自我暂停"
+  },
+  "notifBreakerMsg": {
+    "message": "短时间内自动操作过多——自动化暂停 10 分钟。手动操作不受影响。"
+  },
+  "undoBtn": {
+    "message": "撤销"
+  },
+  "statTabs": {
+    "message": "打开的标签页"
+  },
+  "statDupes": {
+    "message": "重复"
+  },
+  "statStale": {
+    "message": "闲置"
+  },
+  "statArchivedToday": {
+    "message": "今日已归档"
+  },
+  "inWindows": {
+    "message": "分布在 $1 个窗口"
+  },
+  "actionsHeader": {
+    "message": "操作"
+  },
+  "actOrganize": {
+    "message": "立即整理"
+  },
+  "actSweep": {
+    "message": "关闭重复项"
+  },
+  "actArchiveNow": {
+    "message": "归档闲置标签"
+  },
+  "actMerge": {
+    "message": "合并所有窗口"
+  },
+  "undoRowText": {
+    "message": "已归档 $1 个标签页——要恢复吗？"
+  },
+  "automationHeader": {
+    "message": "自动化"
+  },
+  "toggleDedup": {
+    "message": "防止重复标签"
+  },
+  "toggleArchive": {
+    "message": "自动归档闲置标签"
+  },
+  "toggleGroup": {
+    "message": "按网站自动分组"
+  },
+  "pausedNote": {
+    "message": "自动化已暂停（熔断保护），稍后自动恢复。"
+  },
+  "warmingNote": {
+    "message": "预热中——会话稳定后自动化才会启动。"
+  },
+  "statusOrganized": {
+    "message": "已将 $1 个标签页整理进 $2 个新分组"
+  },
+  "statusSwept": {
+    "message": "已关闭 $1 个重复项（已存入归档）"
+  },
+  "statusArchived": {
+    "message": "已归档 $1 个标签页"
+  },
+  "statusMerged": {
+    "message": "已将 $1 个标签页移入此窗口"
+  },
+  "statusRestored": {
+    "message": "已恢复 $1 个标签页"
+  },
+  "footerArchive": {
+    "message": "打开归档"
+  },
+  "footerGithub": {
+    "message": "在 GitHub 上加星"
+  },
+  "footerReview": {
+    "message": "为 TrueTabs 评分"
+  },
+  "footerDonate": {
+    "message": "支持开发"
+  },
+  "optionsLink": {
+    "message": "设置"
+  },
+  "optDupesHeader": {
+    "message": "重复标签"
+  },
+  "optDedupAuto": {
+    "message": "防止标签页重复"
+  },
+  "optDedupAutoHint": {
+    "message": "打开已存在的页面时，切换到现有标签页。"
+  },
+  "optDedupScope": {
+    "message": "查找现有副本的范围"
+  },
+  "optScopeAll": {
+    "message": "所有窗口"
+  },
+  "optScopeWindow": {
+    "message": "仅当前窗口"
+  },
+  "optArchiveHeader": {
+    "message": "自动归档"
+  },
+  "optArchiveAfter": {
+    "message": "归档闲置超过此时长的标签页"
+  },
+  "optArchiveAfterHint": {
+    "message": "先存入归档再关闭。固定的、活动的、正在播放的以及白名单中的标签页绝不处理。"
+  },
+  "optArchiveTtl": {
+    "message": "归档条目保留时长"
+  },
+  "optArchiveTtlHint": {
+    "message": "更早的条目会自动删除。"
+  },
+  "optArchiveNotify": {
+    "message": "每次自动归档后通知并提供撤销按钮"
+  },
+  "optArchiveForeign": {
+    "message": "也归档你自建分组内的标签页"
+  },
+  "optArchiveForeignHint": {
+    "message": "关闭时：手动创建的分组视为有意保留，直接跳过。"
+  },
+  "optDiscard": {
+    "message": "更早释放内存（休眠）"
+  },
+  "optDiscardHint": {
+    "message": "闲置达到归档阈值一半的标签页会从内存卸载，但仍保留在标签栏原位；点击即可重新加载。在归档之前就能节省内存。"
+  },
+  "optAllowlist": {
+    "message": "永不自动归档这些网站"
+  },
+  "optAllowlistHint": {
+    "message": "每行一个域名。已预置通话和会议网站——标签页 API 看不到摄像头和麦克风。"
+  },
+  "optDays3": {
+    "message": "3 天"
+  },
+  "optDays7": {
+    "message": "7 天"
+  },
+  "optDays30": {
+    "message": "30 天"
+  },
+  "optDays90": {
+    "message": "90 天"
+  },
+  "optOff": {
+    "message": "关闭"
+  },
+  "optForever": {
+    "message": "永久"
+  },
+  "optGroupsHeader": {
+    "message": "分组"
+  },
+  "optGroupAuto": {
+    "message": "按网站为新标签页分组"
+  },
+  "optGroupAutoHint": {
+    "message": "温和模式：只对新标签页分组，绝不重排已有标签。你自建的分组不会被动。"
+  },
+  "optCollapse": {
+    "message": "闲置分组折叠时间"
+  },
+  "optSmartHeader": {
+    "message": "智能分组（AI）"
+  },
+  "optSmartEngine": {
+    "message": "按主题分组，使用"
+  },
+  "optSmartEngineHint": {
+    "message": "新增“智能整理”：按含义聚类标签页，而不只是按网站。"
+  },
+  "optSmartBuiltin": {
+    "message": "内置 AI（本机运行）"
+  },
+  "optSmartByok": {
+    "message": "我自己的 API 密钥"
+  },
+  "optSmartBuiltinStatus": {
+    "message": "本地模型（Gemini Nano）"
+  },
+  "optSmartEnable": {
+    "message": "启用——下载模型"
+  },
+  "smartStatusReady": {
+    "message": "就绪。全部在本机运行——标题绝不离开浏览器。"
+  },
+  "smartStatusDownloadable": {
+    "message": "Chrome 将一次性下载模型（约 2-4 GB），点击后才开始。"
+  },
+  "smartStatusUnavailable": {
+    "message": "此设备不可用（需要 Chrome 138+、22 GB 磁盘空间和 16 GB 内存或 4 GB 显存的 GPU）。请改用 API 密钥或按网站分组。"
+  },
+  "smartDownloading": {
+    "message": "正在下载模型…"
+  },
+  "optByokProvider": {
+    "message": "服务商"
+  },
+  "optByokCustom": {
+    "message": "自定义（兼容 OpenAI）"
+  },
+  "optByokKey": {
+    "message": "API 密钥"
+  },
+  "optByokModel": {
+    "message": "模型"
+  },
+  "optByokBaseUrl": {
+    "message": "端点 URL"
+  },
+  "optByokTest": {
+    "message": "测试"
+  },
+  "optByokPrivacy": {
+    "message": "密钥仅保存在本机。此模式下，标签页标题和域名会通过你的密钥发送给所选服务商。保存时会请求访问服务商域名的权限。"
+  },
+  "byokSaved": {
+    "message": "已保存。"
+  },
+  "byokTesting": {
+    "message": "测试中…"
+  },
+  "byokTestOk": {
+    "message": "可用。"
+  },
+  "byokTestFail": {
+    "message": "失败："
+  },
+  "byokBadUrl": {
+    "message": "请先填写有效的端点 URL。"
+  },
+  "byokPermDenied": {
+    "message": "未授予对服务商的访问权限。"
+  },
+  "optSmartAssign": {
+    "message": "自动把新标签页归入智能分组"
+  },
+  "optSmartAssignHint": {
+    "message": "与现有主题分组匹配的新标签页会自动加入。"
+  },
+  "optAppearanceHeader": {
+    "message": "外观"
+  },
+  "optTheme": {
+    "message": "主题"
+  },
+  "optThemeAuto": {
+    "message": "跟随系统"
+  },
+  "optThemeLight": {
+    "message": "浅色"
+  },
+  "optThemeDark": {
+    "message": "深色"
+  },
+  "optLanguage": {
+    "message": "语言"
+  },
+  "optDiag": {
+    "message": "复制诊断信息"
+  },
+  "optDiagCopied": {
+    "message": "已复制——请粘贴到报告中。仅含 URL，不含页面内容。"
+  },
+  "archiveTitle": {
+    "message": "TrueTabs 归档"
+  },
+  "archiveSearch": {
+    "message": "搜索标题、URL、网站…"
+  },
+  "archiveEmpty": {
+    "message": "归档为空。闲置标签页会保存到这里，不会丢失。"
+  },
+  "archiveToday": {
+    "message": "今天"
+  },
+  "archiveYesterday": {
+    "message": "昨天"
+  },
+  "archiveRestore": {
+    "message": "恢复"
+  },
+  "archiveDelete": {
+    "message": "删除"
+  },
+  "archiveRestoreAll": {
+    "message": "全部恢复"
+  },
+  "archiveDeleteAll": {
+    "message": "全部删除"
+  },
+  "archiveRestoreSel": {
+    "message": "恢复所选"
+  },
+  "archiveDeleteSel": {
+    "message": "删除所选"
+  },
+  "archiveSelected": {
+    "message": "已选 $1 个"
+  },
+  "archiveConfirmMany": {
+    "message": "一次恢复 $1 个标签页？"
+  },
+  "archiveTtlNote": {
+    "message": "超过 $1 的条目会自动删除。"
+  },
+  "actSmartOrganize": {
+    "message": "智能整理"
+  },
+  "undoOrgText": {
+    "message": "已创建 $1 个分组——要撤销吗？"
+  },
+  "statusUngrouped": {
+    "message": "已解散 $1 个标签页的分组"
+  },
+  "groupsHeader": {
+    "message": "分组"
+  },
+  "collapseAll": {
+    "message": "全部折叠"
+  },
+  "expandAll": {
+    "message": "全部展开"
+  },
+  "groupsDragHint": {
+    "message": "点击跳转到分组，拖动可在窗口内调整顺序。"
+  },
+  "groupUntitled": {
+    "message": "未命名"
+  },
+  "groupExpand": {
+    "message": "展开分组"
+  },
+  "groupCollapse": {
+    "message": "折叠分组"
+  },
+  "optSort": {
+    "message": "整理时排序"
+  },
+  "optSortHint": {
+    "message": "仅在点击“整理”时生效：分组和散落标签页按确定顺序排列，绝不自行重排。"
+  },
+  "optSortTitle": {
+    "message": "按字母"
+  },
+  "optSortRecent": {
+    "message": "最近使用在前"
+  },
+  "optSortOpened": {
+    "message": "最早打开在前"
+  },
+  "optIconStyle": {
+    "message": "工具栏图标"
+  },
+  "optIconColor": {
+    "message": "彩色"
+  },
+  "optIconMono": {
+    "message": "单色（贴合 Chrome）"
+  },
+  "smartManagedNote": {
+    "message": "模型由 Chrome 自行下载和管理。以后删除：chrome://on-device-internals。"
+  },
+  "byokNoKey": {
+    "message": "尚未填写 API 密钥——填写之前智能分组不会工作。"
+  }
 }

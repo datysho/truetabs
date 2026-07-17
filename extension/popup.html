@@ -100,6 +100,104 @@
         padding: 4px 12px;
         font-size: 12px;
       }
+      .groups-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+      .groups-head .mini {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        padding: 2px 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+        border-radius: 6px;
+      }
+      .groups-head .mini:hover {
+        background: var(--hover);
+        color: var(--text);
+      }
+      .group-list {
+        display: flex;
+        flex-direction: column;
+        gap: 1px;
+      }
+      .group-row {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 8px;
+        margin: 0 -8px;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+      .group-row:hover {
+        background: var(--hover);
+      }
+      .group-row.dragging {
+        opacity: 0.4;
+      }
+      .group-row.drop-above {
+        box-shadow: 0 -2px 0 var(--accent);
+      }
+      .group-row .dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+        flex: none;
+      }
+      .group-row .name {
+        flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 500;
+      }
+      .group-row .count {
+        color: var(--muted);
+        font-size: 11.5px;
+        flex: none;
+      }
+      .group-row .fold {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        width: 26px;
+        height: 26px;
+        padding: 0;
+        border-radius: 13px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        flex: none;
+      }
+      .group-row .fold:hover {
+        background: var(--active);
+        color: var(--text);
+      }
+      .group-row .fold svg {
+        width: 14px;
+        height: 14px;
+        display: block;
+        transition: transform 0.15s ease;
+      }
+      .group-row .fold.folded svg {
+        transform: rotate(-90deg);
+      }
+      .gc-grey { background: #5f6368; }
+      .gc-blue { background: #1a73e8; }
+      .gc-red { background: #d93025; }
+      .gc-yellow { background: #f9ab00; }
+      .gc-green { background: #188038; }
+      .gc-pink { background: #d01884; }
+      .gc-purple { background: #a142f4; }
+      .gc-cyan { background: #007b83; }
+      .gc-orange { background: #fa903e; }
       .toggles .row {
         padding: 5px 0;
       }
@@ -155,6 +253,22 @@
           <span class="t" id="undoText"></span>
           <button id="undoBtn" data-i18n="undoBtn"></button>
         </div>
+        <div class="undo-row" id="undoOrgRow" hidden>
+          <span class="t" id="undoOrgText"></span>
+          <button id="undoOrgBtn" data-i18n="undoBtn"></button>
+        </div>
+      </section>
+
+      <section id="groupsSection" hidden>
+        <h3 class="groups-head">
+          <span><span data-i18n="groupsHeader"></span> <span id="groupsCount"></span></span>
+          <span>
+            <button type="button" class="mini" id="collapseAllBtn" data-i18n="collapseAll"></button>
+            <button type="button" class="mini" id="expandAllBtn" data-i18n="expandAll"></button>
+          </span>
+        </h3>
+        <div class="group-list" id="groupList"></div>
+        <p class="muted" id="groupsHint" data-i18n="groupsDragHint" style="margin: 6px 2px 0; font-size: 11px;"></p>
       </section>
 
       <section class="toggles">

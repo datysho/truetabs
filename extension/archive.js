@@ -189,7 +189,8 @@ async function init() {
   await ttI18n.init(state.settings.language);
   localizeDom();
   const ttl = state.settings.archiveTtl;
-  $("ttlNote").textContent = ttl === "forever" ? "" : t("archiveTtlNote", [ttl]);
+  const ttlLabel = { "7d": "optDays7", "30d": "optDays30", "90d": "optDays90" }[ttl];
+  $("ttlNote").textContent = ttlLabel ? t("archiveTtlNote", [t(ttlLabel)]) : "";
 
   $("search").addEventListener("input", render);
   $("restoreSel").addEventListener("click", () => restoreIds([...selected]));

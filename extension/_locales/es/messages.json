@@ -1,125 +1,401 @@
 {
-  "appDesc": { "message": "Pestañas en orden, como en Arc: sin duplicados, las inactivas se archivan solas (reversible), grupos por sitio o por tema." },
-
-  "tabs_one": { "message": "$1 pestaña" },
-  "tabs_few": { "message": "$1 pestañas" },
-  "tabs_many": { "message": "$1 pestañas" },
-  "tabs_other": { "message": "$1 pestañas" },
-
-  "notifBatchTitle": { "message": "TrueTabs archivó pestañas inactivas" },
-  "notifBatchMsg": { "message": "$1 pestañas se guardaron en el archivo y se cerraron. Haz clic para abrir el archivo." },
-  "notifBreakerTitle": { "message": "TrueTabs se puso en pausa" },
-  "notifBreakerMsg": { "message": "Demasiadas acciones automáticas en poco tiempo: la automatización se pausa 10 minutos. Las acciones manuales siguen funcionando." },
-  "undoBtn": { "message": "Deshacer" },
-
-  "statTabs": { "message": "Pestañas abiertas" },
-  "statDupes": { "message": "Duplicadas" },
-  "statStale": { "message": "Inactivas" },
-  "statArchivedToday": { "message": "Archivadas hoy" },
-  "inWindows": { "message": "en $1 ventanas" },
-  "actionsHeader": { "message": "Acciones" },
-  "actOrganize": { "message": "Ordenar ahora" },
-  "actSweep": { "message": "Cerrar duplicadas" },
-  "actArchiveNow": { "message": "Archivar inactivas" },
-  "actMerge": { "message": "Unir todas las ventanas" },
-  "undoRowText": { "message": "$1 pestañas archivadas, ¿restaurarlas?" },
-  "automationHeader": { "message": "Automatización" },
-  "toggleDedup": { "message": "Protección contra duplicadas" },
-  "toggleArchive": { "message": "Autoarchivo de inactivas" },
-  "toggleGroup": { "message": "Grupos automáticos por sitio" },
-  "pausedNote": { "message": "Automatización en pausa (fusible). Se reanudará sola." },
-  "warmingNote": { "message": "Calentando: la automatización arranca cuando la sesión se asiente." },
-  "statusOrganized": { "message": "$1 pestañas ordenadas en $2 grupos nuevos" },
-  "statusSwept": { "message": "$1 duplicadas cerradas (guardadas en el archivo)" },
-  "statusArchived": { "message": "$1 pestañas archivadas" },
-  "statusMerged": { "message": "$1 pestañas movidas a esta ventana" },
-  "statusRestored": { "message": "$1 pestañas restauradas" },
-  "footerArchive": { "message": "Abrir archivo" },
-  "footerGithub": { "message": "Estrella en GitHub" },
-  "footerReview": { "message": "Valorar TrueTabs" },
-  "footerDonate": { "message": "Apoyar el desarrollo" },
-  "optionsLink": { "message": "Ajustes" },
-
-  "optDupesHeader": { "message": "Duplicadas" },
-  "optDedupAuto": { "message": "Evitar pestañas duplicadas" },
-  "optDedupAutoHint": { "message": "Si abres una página que ya está abierta, cambia a la pestaña existente." },
-  "optDedupScope": { "message": "Buscar la copia existente" },
-  "optScopeAll": { "message": "En todas las ventanas" },
-  "optScopeWindow": { "message": "Solo en la misma ventana" },
-
-  "optArchiveHeader": { "message": "Autoarchivo" },
-  "optArchiveAfter": { "message": "Archivar pestañas sin uso durante" },
-  "optArchiveAfterHint": { "message": "Se guardan en el archivo y luego se cierran. Las fijadas, activas, con audio o en la lista blanca nunca se tocan." },
-  "optArchiveTtl": { "message": "Conservar entradas del archivo" },
-  "optArchiveTtlHint": { "message": "Las entradas más antiguas se eliminan automáticamente." },
-  "optArchiveNotify": { "message": "Avisar con botón Deshacer tras cada autoarchivo" },
-  "optArchiveForeign": { "message": "Archivar también dentro de tus propios grupos" },
-  "optArchiveForeignHint": { "message": "Desactivado: los grupos hechos a mano son una elección deliberada y se omiten." },
-  "optDiscard": { "message": "Liberar memoria antes (descargar)" },
-  "optDiscardHint": { "message": "A mitad del umbral, la pestaña se descarga pero sigue visible. El Ahorro de memoria de Chrome hace lo mismo." },
-  "optAllowlist": { "message": "No archivar nunca estos sitios" },
-  "optAllowlistHint": { "message": "Un dominio por línea. Llamadas y reuniones vienen precargadas: la API de pestañas no ve cámara ni micrófono." },
-  "optDays3": { "message": "3 días" },
-  "optDays7": { "message": "7 días" },
-  "optDays30": { "message": "30 días" },
-  "optDays90": { "message": "90 días" },
-  "optOff": { "message": "Desactivado" },
-  "optForever": { "message": "Para siempre" },
-
-  "optGroupsHeader": { "message": "Grupos" },
-  "optGroupAuto": { "message": "Agrupar pestañas nuevas por sitio" },
-  "optGroupAutoHint": { "message": "Con cuidado: solo se agrupan las pestañas nuevas, nunca se reorganizan las existentes. Tus propios grupos no se tocan." },
-  "optCollapse": { "message": "Plegar grupos inactivos tras" },
-
-  "optSmartHeader": { "message": "Agrupación inteligente (IA)" },
-  "optSmartEngine": { "message": "Agrupar por tema con" },
-  "optSmartEngineHint": { "message": "Añade un «Orden inteligente»: las pestañas se agrupan por significado, no solo por sitio." },
-  "optSmartBuiltin": { "message": "IA integrada (en el dispositivo)" },
-  "optSmartByok": { "message": "Mi propia clave API" },
-  "optSmartBuiltinStatus": { "message": "Modelo local (Gemini Nano)" },
-  "optSmartEnable": { "message": "Activar: descargar modelo" },
-  "smartStatusReady": { "message": "Listo. Todo corre en este dispositivo: los títulos nunca salen del navegador." },
-  "smartStatusDownloadable": { "message": "Chrome descargará el modelo una sola vez (unos 2-4 GB). Solo empieza al hacer clic." },
-  "smartStatusUnavailable": { "message": "No disponible en este dispositivo (requiere Chrome 138+, 22 GB de disco y 16 GB de RAM o una GPU de 4 GB). Usa una clave API o la agrupación por sitio." },
-  "smartDownloading": { "message": "Descargando el modelo…" },
-  "optByokProvider": { "message": "Proveedor" },
-  "optByokCustom": { "message": "Personalizado (compatible con OpenAI)" },
-  "optByokKey": { "message": "Clave API" },
-  "optByokModel": { "message": "Modelo" },
-  "optByokBaseUrl": { "message": "URL del endpoint" },
-  "optByokSave": { "message": "Guardar" },
-  "optByokTest": { "message": "Probar" },
-  "optByokPrivacy": { "message": "La clave se guarda solo en este dispositivo. En este modo, los títulos y dominios de las pestañas se envían al proveedor elegido con tu clave. El acceso al dominio del proveedor se solicita al guardar." },
-  "byokSaved": { "message": "Guardado." },
-  "byokTesting": { "message": "Probando…" },
-  "byokTestOk": { "message": "Funciona." },
-  "byokTestFail": { "message": "Falló:" },
-  "byokBadUrl": { "message": "Primero introduce una URL de endpoint válida." },
-  "byokPermDenied": { "message": "No se concedió acceso al proveedor." },
-  "optSmartAssign": { "message": "Asignar pestañas nuevas a grupos inteligentes" },
-  "optSmartAssignHint": { "message": "Una pestaña nueva que encaje en un grupo temático existente se une sola." },
-
-  "optAppearanceHeader": { "message": "Apariencia" },
-  "optTheme": { "message": "Tema" },
-  "optThemeAuto": { "message": "Como el sistema" },
-  "optThemeLight": { "message": "Claro" },
-  "optThemeDark": { "message": "Oscuro" },
-  "optLanguage": { "message": "Idioma" },
-  "optDiag": { "message": "Copiar diagnóstico" },
-  "optDiagCopied": { "message": "Copiado: pégalo en tu informe. Solo URLs, sin contenido de páginas." },
-
-  "archiveTitle": { "message": "Archivo de TrueTabs" },
-  "archiveSearch": { "message": "Buscar título, URL, sitio…" },
-  "archiveEmpty": { "message": "El archivo está vacío. Las pestañas inactivas caerán aquí en vez de perderse." },
-  "archiveToday": { "message": "Hoy" },
-  "archiveYesterday": { "message": "Ayer" },
-  "archiveRestore": { "message": "Restaurar" },
-  "archiveDelete": { "message": "Eliminar" },
-  "archiveRestoreAll": { "message": "Restaurar todo" },
-  "archiveDeleteAll": { "message": "Eliminar todo" },
-  "archiveRestoreSel": { "message": "Restaurar selección" },
-  "archiveDeleteSel": { "message": "Eliminar selección" },
-  "archiveSelected": { "message": "$1 seleccionadas" },
-  "archiveConfirmMany": { "message": "¿Restaurar $1 pestañas de una vez?" },
-  "archiveTtlNote": { "message": "Las entradas de más de $1 se eliminan automáticamente." }
+  "appDesc": {
+    "message": "Pestañas en orden, como en Arc: sin duplicados, las inactivas se archivan solas (reversible), grupos por sitio o por tema."
+  },
+  "tabs_one": {
+    "message": "$1 pestaña"
+  },
+  "tabs_few": {
+    "message": "$1 pestañas"
+  },
+  "tabs_many": {
+    "message": "$1 pestañas"
+  },
+  "tabs_other": {
+    "message": "$1 pestañas"
+  },
+  "notifBatchTitle": {
+    "message": "TrueTabs archivó pestañas inactivas"
+  },
+  "notifBatchMsg": {
+    "message": "$1 pestañas se guardaron en el archivo y se cerraron. Haz clic para abrir el archivo."
+  },
+  "notifBreakerTitle": {
+    "message": "TrueTabs se puso en pausa"
+  },
+  "notifBreakerMsg": {
+    "message": "Demasiadas acciones automáticas en poco tiempo: la automatización se pausa 10 minutos. Las acciones manuales siguen funcionando."
+  },
+  "undoBtn": {
+    "message": "Deshacer"
+  },
+  "statTabs": {
+    "message": "Pestañas abiertas"
+  },
+  "statDupes": {
+    "message": "Duplicadas"
+  },
+  "statStale": {
+    "message": "Inactivas"
+  },
+  "statArchivedToday": {
+    "message": "Archivadas hoy"
+  },
+  "inWindows": {
+    "message": "en $1 ventanas"
+  },
+  "actionsHeader": {
+    "message": "Acciones"
+  },
+  "actOrganize": {
+    "message": "Ordenar ahora"
+  },
+  "actSweep": {
+    "message": "Cerrar duplicadas"
+  },
+  "actArchiveNow": {
+    "message": "Archivar inactivas"
+  },
+  "actMerge": {
+    "message": "Unir todas las ventanas"
+  },
+  "undoRowText": {
+    "message": "$1 pestañas archivadas, ¿restaurarlas?"
+  },
+  "automationHeader": {
+    "message": "Automatización"
+  },
+  "toggleDedup": {
+    "message": "Protección contra duplicadas"
+  },
+  "toggleArchive": {
+    "message": "Autoarchivo de inactivas"
+  },
+  "toggleGroup": {
+    "message": "Grupos automáticos por sitio"
+  },
+  "pausedNote": {
+    "message": "Automatización en pausa (fusible). Se reanudará sola."
+  },
+  "warmingNote": {
+    "message": "Calentando: la automatización arranca cuando la sesión se asiente."
+  },
+  "statusOrganized": {
+    "message": "$1 pestañas ordenadas en $2 grupos nuevos"
+  },
+  "statusSwept": {
+    "message": "$1 duplicadas cerradas (guardadas en el archivo)"
+  },
+  "statusArchived": {
+    "message": "$1 pestañas archivadas"
+  },
+  "statusMerged": {
+    "message": "$1 pestañas movidas a esta ventana"
+  },
+  "statusRestored": {
+    "message": "$1 pestañas restauradas"
+  },
+  "footerArchive": {
+    "message": "Abrir archivo"
+  },
+  "footerGithub": {
+    "message": "Estrella en GitHub"
+  },
+  "footerReview": {
+    "message": "Valorar TrueTabs"
+  },
+  "footerDonate": {
+    "message": "Apoyar el desarrollo"
+  },
+  "optionsLink": {
+    "message": "Ajustes"
+  },
+  "optDupesHeader": {
+    "message": "Duplicadas"
+  },
+  "optDedupAuto": {
+    "message": "Evitar pestañas duplicadas"
+  },
+  "optDedupAutoHint": {
+    "message": "Si abres una página que ya está abierta, cambia a la pestaña existente."
+  },
+  "optDedupScope": {
+    "message": "Buscar la copia existente"
+  },
+  "optScopeAll": {
+    "message": "En todas las ventanas"
+  },
+  "optScopeWindow": {
+    "message": "Solo en la misma ventana"
+  },
+  "optArchiveHeader": {
+    "message": "Autoarchivo"
+  },
+  "optArchiveAfter": {
+    "message": "Archivar pestañas sin uso durante"
+  },
+  "optArchiveAfterHint": {
+    "message": "Se guardan en el archivo y luego se cierran. Las fijadas, activas, con audio o en la lista blanca nunca se tocan."
+  },
+  "optArchiveTtl": {
+    "message": "Conservar entradas del archivo"
+  },
+  "optArchiveTtlHint": {
+    "message": "Las entradas más antiguas se eliminan automáticamente."
+  },
+  "optArchiveNotify": {
+    "message": "Avisar con botón Deshacer tras cada autoarchivo"
+  },
+  "optArchiveForeign": {
+    "message": "Archivar también dentro de tus propios grupos"
+  },
+  "optArchiveForeignHint": {
+    "message": "Desactivado: los grupos hechos a mano son una elección deliberada y se omiten."
+  },
+  "optDiscard": {
+    "message": "Liberar memoria antes (descargar)"
+  },
+  "optDiscardHint": {
+    "message": "Una pestaña a mitad del umbral de archivo se descarga de la memoria pero conserva su sitio en la barra; al hacer clic se recarga la página. Ahorra RAM antes del archivado."
+  },
+  "optAllowlist": {
+    "message": "No archivar nunca estos sitios"
+  },
+  "optAllowlistHint": {
+    "message": "Un dominio por línea. Llamadas y reuniones vienen precargadas: la API de pestañas no ve cámara ni micrófono."
+  },
+  "optDays3": {
+    "message": "3 días"
+  },
+  "optDays7": {
+    "message": "7 días"
+  },
+  "optDays30": {
+    "message": "30 días"
+  },
+  "optDays90": {
+    "message": "90 días"
+  },
+  "optOff": {
+    "message": "Desactivado"
+  },
+  "optForever": {
+    "message": "Para siempre"
+  },
+  "optGroupsHeader": {
+    "message": "Grupos"
+  },
+  "optGroupAuto": {
+    "message": "Agrupar pestañas nuevas por sitio"
+  },
+  "optGroupAutoHint": {
+    "message": "Con cuidado: solo se agrupan las pestañas nuevas, nunca se reorganizan las existentes. Tus propios grupos no se tocan."
+  },
+  "optCollapse": {
+    "message": "Plegar grupos inactivos tras"
+  },
+  "optSmartHeader": {
+    "message": "Agrupación inteligente (IA)"
+  },
+  "optSmartEngine": {
+    "message": "Agrupar por tema con"
+  },
+  "optSmartEngineHint": {
+    "message": "Añade un «Orden inteligente»: las pestañas se agrupan por significado, no solo por sitio."
+  },
+  "optSmartBuiltin": {
+    "message": "IA integrada (en el dispositivo)"
+  },
+  "optSmartByok": {
+    "message": "Mi propia clave API"
+  },
+  "optSmartBuiltinStatus": {
+    "message": "Modelo local (Gemini Nano)"
+  },
+  "optSmartEnable": {
+    "message": "Activar: descargar modelo"
+  },
+  "smartStatusReady": {
+    "message": "Listo. Todo corre en este dispositivo: los títulos nunca salen del navegador."
+  },
+  "smartStatusDownloadable": {
+    "message": "Chrome descargará el modelo una sola vez (unos 2-4 GB). Solo empieza al hacer clic."
+  },
+  "smartStatusUnavailable": {
+    "message": "No disponible en este dispositivo (requiere Chrome 138+, 22 GB de disco y 16 GB de RAM o una GPU de 4 GB). Usa una clave API o la agrupación por sitio."
+  },
+  "smartDownloading": {
+    "message": "Descargando el modelo…"
+  },
+  "optByokProvider": {
+    "message": "Proveedor"
+  },
+  "optByokCustom": {
+    "message": "Personalizado (compatible con OpenAI)"
+  },
+  "optByokKey": {
+    "message": "Clave API"
+  },
+  "optByokModel": {
+    "message": "Modelo"
+  },
+  "optByokBaseUrl": {
+    "message": "URL del endpoint"
+  },
+  "optByokTest": {
+    "message": "Probar"
+  },
+  "optByokPrivacy": {
+    "message": "La clave se guarda solo en este dispositivo. En este modo, los títulos y dominios de las pestañas se envían al proveedor elegido con tu clave. El acceso al dominio del proveedor se solicita al guardar."
+  },
+  "byokSaved": {
+    "message": "Guardado."
+  },
+  "byokTesting": {
+    "message": "Probando…"
+  },
+  "byokTestOk": {
+    "message": "Funciona."
+  },
+  "byokTestFail": {
+    "message": "Falló:"
+  },
+  "byokBadUrl": {
+    "message": "Primero introduce una URL de endpoint válida."
+  },
+  "byokPermDenied": {
+    "message": "No se concedió acceso al proveedor."
+  },
+  "optSmartAssign": {
+    "message": "Asignar pestañas nuevas a grupos inteligentes"
+  },
+  "optSmartAssignHint": {
+    "message": "Una pestaña nueva que encaje en un grupo temático existente se une sola."
+  },
+  "optAppearanceHeader": {
+    "message": "Apariencia"
+  },
+  "optTheme": {
+    "message": "Tema"
+  },
+  "optThemeAuto": {
+    "message": "Como el sistema"
+  },
+  "optThemeLight": {
+    "message": "Claro"
+  },
+  "optThemeDark": {
+    "message": "Oscuro"
+  },
+  "optLanguage": {
+    "message": "Idioma"
+  },
+  "optDiag": {
+    "message": "Copiar diagnóstico"
+  },
+  "optDiagCopied": {
+    "message": "Copiado: pégalo en tu informe. Solo URLs, sin contenido de páginas."
+  },
+  "archiveTitle": {
+    "message": "Archivo de TrueTabs"
+  },
+  "archiveSearch": {
+    "message": "Buscar título, URL, sitio…"
+  },
+  "archiveEmpty": {
+    "message": "El archivo está vacío. Las pestañas inactivas caerán aquí en vez de perderse."
+  },
+  "archiveToday": {
+    "message": "Hoy"
+  },
+  "archiveYesterday": {
+    "message": "Ayer"
+  },
+  "archiveRestore": {
+    "message": "Restaurar"
+  },
+  "archiveDelete": {
+    "message": "Eliminar"
+  },
+  "archiveRestoreAll": {
+    "message": "Restaurar todo"
+  },
+  "archiveDeleteAll": {
+    "message": "Eliminar todo"
+  },
+  "archiveRestoreSel": {
+    "message": "Restaurar selección"
+  },
+  "archiveDeleteSel": {
+    "message": "Eliminar selección"
+  },
+  "archiveSelected": {
+    "message": "$1 seleccionadas"
+  },
+  "archiveConfirmMany": {
+    "message": "¿Restaurar $1 pestañas de una vez?"
+  },
+  "archiveTtlNote": {
+    "message": "Las entradas de más de $1 se eliminan automáticamente."
+  },
+  "actSmartOrganize": {
+    "message": "Orden inteligente"
+  },
+  "undoOrgText": {
+    "message": "$1 grupos creados, ¿deshacerlos?"
+  },
+  "statusUngrouped": {
+    "message": "$1 pestañas desagrupadas"
+  },
+  "groupsHeader": {
+    "message": "Grupos"
+  },
+  "collapseAll": {
+    "message": "Plegar todo"
+  },
+  "expandAll": {
+    "message": "Desplegar todo"
+  },
+  "groupsDragHint": {
+    "message": "Clic: ir al grupo. Arrastra para reordenar en su ventana."
+  },
+  "groupUntitled": {
+    "message": "Sin título"
+  },
+  "groupExpand": {
+    "message": "Desplegar grupo"
+  },
+  "groupCollapse": {
+    "message": "Plegar grupo"
+  },
+  "optSort": {
+    "message": "Ordenar al organizar"
+  },
+  "optSortHint": {
+    "message": "Solo al pulsar Ordenar: grupos y pestañas sueltas toman un orden fijo. Nunca reordena por su cuenta."
+  },
+  "optSortTitle": {
+    "message": "Alfabético"
+  },
+  "optSortRecent": {
+    "message": "Recientes primero"
+  },
+  "optSortOpened": {
+    "message": "Más antiguas primero"
+  },
+  "optIconStyle": {
+    "message": "Icono de la barra"
+  },
+  "optIconColor": {
+    "message": "Color"
+  },
+  "optIconMono": {
+    "message": "Monocromo (estilo Chrome)"
+  },
+  "smartManagedNote": {
+    "message": "El modelo lo descarga y gestiona el propio Chrome. Para quitarlo luego: chrome://on-device-internals."
+  },
+  "byokNoKey": {
+    "message": "Aún no hay clave API: la agrupación inteligente está inactiva hasta que la introduzcas."
+  }
 }

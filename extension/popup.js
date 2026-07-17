@@ -46,6 +46,11 @@ function render() {
   $("archiveToggle").checked = state.settings.archiveAfter !== "off";
   $("groupToggle").checked = !!state.settings.groupAuto;
 
+  // Organize speaks the active engine: with smart grouping on, the button IS
+  // Smart Organize (it falls back to site grouping by itself).
+  $("organizeBtn").textContent =
+    state.settings.smartEngine !== "off" ? t("actSmartOrganize") : t("actOrganize");
+
   const warming = $("warming");
   if (state.paused) warming.textContent = t("pausedNote");
   else if (!state.settled) warming.textContent = t("warmingNote");
@@ -58,6 +63,100 @@ function render() {
   } else {
     undoRow.hidden = true;
   }
+  const undoOrgRow = $("undoOrgRow");
+  if (state.lastOrganize && state.lastOrganize.gids.length > 0) {
+    undoOrgRow.hidden = false;
+    $("undoOrgText").textContent = t("undoOrgText", [state.lastOrganize.gids.length]);
+  } else {
+    undoOrgRow.hidden = true;
+  }
+  renderGroups();
+}
+
+// --- groups section: jump, fold, drag-reorder --------------------------------
+
+let dragGid = null;
+
+function groupRow(group) {
+  const row = document.createElement("div");
+  row.className = "group-row";
+  row.draggable = true;
+
+  const dot = document.createElement("span");
+  dot.className = `dot gc-${group.color}`;
+  row.appendChild(dot);
+
+  const name = document.createElement("span");
+  name.className = "name";
+  name.textContent = group.title || t("groupUntitled");
+  row.appendChild(name);
+
+  const count = document.createElement("span");
+  count.className = "count";
+  count.textContent = ttI18n.tabsCount(group.tabCount);
+  row.appendChild(count);
+
+  const fold = document.createElement("button");
+  fold.className = `fold${group.collapsed ? " folded" : ""}`;
+  fold.title = t(group.collapsed ? "groupExpand" : "groupCollapse");
+  fold.innerHTML =
+    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+    'stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  fold.addEventListener("click", (event) => {
+    event.stopPropagation();
+    send({ type: "ui:groupCollapse", gid: group.id, collapsed: !group.collapsed }).then(refresh);
+  });
+  row.appendChild(fold);
+
+  row.addEventListener("click", () => {
+    send({ type: "ui:groupFocus", gid: group.id }); // sync dispatch; popup may die
+  });
+
+  row.addEventListener("dragstart", () => {
+    dragGid = group.id;
+    row.classList.add("dragging");
+  });
+  row.addEventListener("dragend", () => {
+    dragGid = null;
+    row.classList.remove("dragging");
+  });
+  row.addEventListener("dragover", (event) => {
+    if (dragGid == null || dragGid === group.id) return;
+    event.preventDefault();
+    row.classList.add("drop-above");
+  });
+  row.addEventListener("dragleave", () => row.classList.remove("drop-above"));
+  row.addEventListener("drop", (event) => {
+    event.preventDefault();
+    row.classList.remove("drop-above");
+    if (dragGid == null || dragGid === group.id) return;
+    const source = state.groups.find((g) => g.id === dragGid);
+    if (!source || source.windowId !== group.windowId) return; // same-window reorder only
+    send({
+      type: "ui:groupMove",
+      gid: dragGid,
+      windowId: group.windowId,
+      index: groupStripIndex(group),
+    }).then(refresh);
+  });
+
+  return row;
+}
+
+// Target index for tabGroups.move: the first tab index of the drop target.
+function groupStripIndex(group) {
+  return group.firstTabIndex ?? -1;
+}
+
+function renderGroups() {
+  const section = $("groupsSection");
+  const groups = state.groups || [];
+  section.hidden = groups.length === 0;
+  if (!groups.length) return;
+  $("groupsCount").textContent = groups.length;
+  const list = $("groupList");
+  list.textContent = "";
+  for (const group of groups) list.appendChild(groupRow(group));
 }
 
 async function refresh() {
@@ -117,9 +216,23 @@ async function init() {
   windowId = win.id;
 
   initFooter();
-  wireAction("organizeBtn", { type: "ui:organizeNow", scope: "window" }, (r) =>
-    t("statusOrganized", [r.grouped, r.groupsCreated]),
-  );
+  $("organizeBtn").addEventListener("click", () => {
+    const smart = state && state.settings.smartEngine !== "off";
+    const promise = send({
+      type: smart ? "ui:smartOrganize" : "ui:organizeNow",
+      scope: "window",
+      windowId,
+    });
+    $("organizeBtn").disabled = true;
+    promise
+      .then((r) => {
+        setStatus(t("statusOrganized", [r.grouped, r.groupsCreated]));
+        return refresh();
+      })
+      .finally(() => {
+        $("organizeBtn").disabled = false;
+      });
+  });
   wireAction("sweepBtn", { type: "ui:sweepDupes", scope: "all" }, (r) =>
     t("statusSwept", [r.closed]),
   );
@@ -143,6 +256,18 @@ async function init() {
       setStatus(t("statusRestored", [r.restored]));
       refresh();
     });
+  });
+  $("undoOrgBtn").addEventListener("click", () => {
+    send({ type: "ui:undoOrganize" }).then((r) => {
+      setStatus(t("statusUngrouped", [r.ungrouped]));
+      refresh();
+    });
+  });
+  $("collapseAllBtn").addEventListener("click", () => {
+    send({ type: "ui:groupsCollapseAll", collapsed: true }).then(refresh);
+  });
+  $("expandAllBtn").addEventListener("click", () => {
+    send({ type: "ui:groupsCollapseAll", collapsed: false }).then(refresh);
   });
   wireToggle("dedupToggle", "dedupAuto", (checked) => checked);
   wireToggle("groupToggle", "groupAuto", (checked) => checked);

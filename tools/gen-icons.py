@@ -90,6 +90,45 @@ def write_png(path, size, rows):
         f.write(png)
 
 
+def render_mono(size):
+    """Toolbar-neutral variant: grey tab cards on transparency (no square)."""
+    grey = (95, 99, 104)  # #5f6368 - Chrome's neutral icon grey
+    ss = 4
+    aa = 1.0 / size
+    rows = []
+    for y in range(size):
+        row = bytearray()
+        for x in range(size):
+            r = g = b = a = 0.0
+            for sy in range(ss):
+                for sx in range(ss):
+                    px = (x + (sx + 0.5) / ss) / size
+                    py = (y + (sy + 0.5) / ss) / size
+                    sr = sg = sb = sa = 0.0
+                    for card in CARDS:
+                        cv = coverage(px, py, card, aa) * card[5]
+                        if cv > 0:
+                            sr = grey[0] * cv + sr * (1 - cv)
+                            sg = grey[1] * cv + sg * (1 - cv)
+                            sb = grey[2] * cv + sb * (1 - cv)
+                            sa = cv + sa * (1 - cv)
+                    r += sr
+                    g += sg
+                    b += sb
+                    a += sa
+            n = ss * ss
+            row += bytes(
+                (
+                    min(255, round(r / n)),
+                    min(255, round(g / n)),
+                    min(255, round(b / n)),
+                    min(255, round(a / n * 255) if a / n <= 1 else 255),
+                )
+            )
+        rows.append(bytes(row))
+    return rows
+
+
 def main():
     out_dir = os.path.join(os.path.dirname(__file__), "..", "extension", "icons")
     os.makedirs(out_dir, exist_ok=True)
@@ -97,6 +136,9 @@ def main():
         path = os.path.join(out_dir, f"tt-{size}.png")
         write_png(path, size, render(size))
         print(f"wrote {path}")
+        mono = os.path.join(out_dir, f"tt-mono-{size}.png")
+        write_png(mono, size, render_mono(size))
+        print(f"wrote {mono}")
 
 
 if __name__ == "__main__":

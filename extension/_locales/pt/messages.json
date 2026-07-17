@@ -1,125 +1,401 @@
 {
-  "appDesc": { "message": "Abas em ordem, como no Arc: sem duplicatas, abas paradas vão sozinhas para o arquivo (reversível), grupos por site ou por tema." },
-
-  "tabs_one": { "message": "$1 aba" },
-  "tabs_few": { "message": "$1 abas" },
-  "tabs_many": { "message": "$1 abas" },
-  "tabs_other": { "message": "$1 abas" },
-
-  "notifBatchTitle": { "message": "O TrueTabs arquivou abas paradas" },
-  "notifBatchMsg": { "message": "$1 abas foram salvas no arquivo e fechadas. Clique para abrir o arquivo." },
-  "notifBreakerTitle": { "message": "O TrueTabs se pausou" },
-  "notifBreakerMsg": { "message": "Ações automáticas demais em pouco tempo - a automação fica pausada por 10 minutos. Ações manuais continuam funcionando." },
-  "undoBtn": { "message": "Desfazer" },
-
-  "statTabs": { "message": "Abas abertas" },
-  "statDupes": { "message": "Duplicatas" },
-  "statStale": { "message": "Paradas" },
-  "statArchivedToday": { "message": "Arquivadas hoje" },
-  "inWindows": { "message": "em $1 janelas" },
-  "actionsHeader": { "message": "Ações" },
-  "actOrganize": { "message": "Organizar agora" },
-  "actSweep": { "message": "Fechar duplicatas" },
-  "actArchiveNow": { "message": "Arquivar paradas" },
-  "actMerge": { "message": "Juntar todas as janelas" },
-  "undoRowText": { "message": "$1 abas arquivadas - restaurar?" },
-  "automationHeader": { "message": "Automação" },
-  "toggleDedup": { "message": "Proteção contra duplicatas" },
-  "toggleArchive": { "message": "Autoarquivo de abas paradas" },
-  "toggleGroup": { "message": "Grupos automáticos por site" },
-  "pausedNote": { "message": "Automação pausada (disjuntor). Ela volta sozinha." },
-  "warmingNote": { "message": "Aquecendo - a automação começa quando a sessão assentar." },
-  "statusOrganized": { "message": "$1 abas organizadas em $2 grupos novos" },
-  "statusSwept": { "message": "$1 duplicatas fechadas (guardadas no arquivo)" },
-  "statusArchived": { "message": "$1 abas arquivadas" },
-  "statusMerged": { "message": "$1 abas movidas para esta janela" },
-  "statusRestored": { "message": "$1 abas restauradas" },
-  "footerArchive": { "message": "Abrir arquivo" },
-  "footerGithub": { "message": "Estrela no GitHub" },
-  "footerReview": { "message": "Avaliar o TrueTabs" },
-  "footerDonate": { "message": "Apoiar o desenvolvimento" },
-  "optionsLink": { "message": "Configurações" },
-
-  "optDupesHeader": { "message": "Duplicatas" },
-  "optDedupAuto": { "message": "Impedir abas duplicadas" },
-  "optDedupAutoHint": { "message": "Ao abrir uma página que já está aberta, muda para a aba existente." },
-  "optDedupScope": { "message": "Procurar a cópia existente" },
-  "optScopeAll": { "message": "Em todas as janelas" },
-  "optScopeWindow": { "message": "Só na mesma janela" },
-
-  "optArchiveHeader": { "message": "Autoarquivo" },
-  "optArchiveAfter": { "message": "Arquivar abas sem uso há" },
-  "optArchiveAfterHint": { "message": "São salvas no arquivo e depois fechadas. Abas fixadas, ativas, tocando áudio ou na lista de permissões nunca são tocadas." },
-  "optArchiveTtl": { "message": "Manter entradas do arquivo por" },
-  "optArchiveTtlHint": { "message": "Entradas mais antigas são removidas automaticamente." },
-  "optArchiveNotify": { "message": "Notificar com botão Desfazer após cada autoarquivo" },
-  "optArchiveForeign": { "message": "Arquivar também dentro dos seus próprios grupos" },
-  "optArchiveForeignHint": { "message": "Desligado: grupos feitos à mão são escolha deliberada e são pulados." },
-  "optDiscard": { "message": "Liberar memória mais cedo (descarregar)" },
-  "optDiscardHint": { "message": "Na metade do limite, a aba é descarregada mas continua visível. O Economizador de memória do Chrome faz o mesmo." },
-  "optAllowlist": { "message": "Nunca arquivar estes sites" },
-  "optAllowlistHint": { "message": "Um domínio por linha. Chamadas e reuniões já vêm preenchidas - a API de abas não enxerga câmera nem microfone." },
-  "optDays3": { "message": "3 dias" },
-  "optDays7": { "message": "7 dias" },
-  "optDays30": { "message": "30 dias" },
-  "optDays90": { "message": "90 dias" },
-  "optOff": { "message": "Desligado" },
-  "optForever": { "message": "Para sempre" },
-
-  "optGroupsHeader": { "message": "Grupos" },
-  "optGroupAuto": { "message": "Agrupar abas novas por site" },
-  "optGroupAutoHint": { "message": "Com cuidado: só abas novas são agrupadas, as existentes nunca são remexidas. Seus próprios grupos não são tocados." },
-  "optCollapse": { "message": "Recolher grupos inativos após" },
-
-  "optSmartHeader": { "message": "Agrupamento inteligente (IA)" },
-  "optSmartEngine": { "message": "Agrupar por tema usando" },
-  "optSmartEngineHint": { "message": "Adiciona um \"Organizar inteligente\": abas se agrupam por significado, não só por site." },
-  "optSmartBuiltin": { "message": "IA integrada (no dispositivo)" },
-  "optSmartByok": { "message": "Minha própria chave de API" },
-  "optSmartBuiltinStatus": { "message": "Modelo local (Gemini Nano)" },
-  "optSmartEnable": { "message": "Ativar - baixar modelo" },
-  "smartStatusReady": { "message": "Pronto. Tudo roda neste dispositivo - os títulos nunca saem do navegador." },
-  "smartStatusDownloadable": { "message": "O Chrome baixará o modelo uma única vez (cerca de 2-4 GB). Só começa após o clique." },
-  "smartStatusUnavailable": { "message": "Indisponível neste dispositivo (requer Chrome 138+, 22 GB de disco e 16 GB de RAM ou GPU de 4 GB). Use uma chave de API ou o agrupamento por site." },
-  "smartDownloading": { "message": "Baixando o modelo…" },
-  "optByokProvider": { "message": "Provedor" },
-  "optByokCustom": { "message": "Personalizado (compatível com OpenAI)" },
-  "optByokKey": { "message": "Chave de API" },
-  "optByokModel": { "message": "Modelo" },
-  "optByokBaseUrl": { "message": "URL do endpoint" },
-  "optByokSave": { "message": "Salvar" },
-  "optByokTest": { "message": "Testar" },
-  "optByokPrivacy": { "message": "A chave fica só neste dispositivo. Neste modo, títulos e domínios das abas são enviados ao provedor escolhido com a sua chave. O acesso ao domínio do provedor é pedido ao salvar." },
-  "byokSaved": { "message": "Salvo." },
-  "byokTesting": { "message": "Testando…" },
-  "byokTestOk": { "message": "Funciona." },
-  "byokTestFail": { "message": "Falhou:" },
-  "byokBadUrl": { "message": "Informe primeiro uma URL de endpoint válida." },
-  "byokPermDenied": { "message": "O acesso ao provedor não foi concedido." },
-  "optSmartAssign": { "message": "Atribuir abas novas aos grupos inteligentes" },
-  "optSmartAssignHint": { "message": "Uma aba nova que combine com um grupo temático existente entra nele sozinha." },
-
-  "optAppearanceHeader": { "message": "Aparência" },
-  "optTheme": { "message": "Tema" },
-  "optThemeAuto": { "message": "Como o sistema" },
-  "optThemeLight": { "message": "Claro" },
-  "optThemeDark": { "message": "Escuro" },
-  "optLanguage": { "message": "Idioma" },
-  "optDiag": { "message": "Copiar diagnóstico" },
-  "optDiagCopied": { "message": "Copiado - cole no seu relatório. Só URLs, sem conteúdo de páginas." },
-
-  "archiveTitle": { "message": "Arquivo do TrueTabs" },
-  "archiveSearch": { "message": "Buscar título, URL, site…" },
-  "archiveEmpty": { "message": "O arquivo está vazio. Abas paradas cairão aqui em vez de se perder." },
-  "archiveToday": { "message": "Hoje" },
-  "archiveYesterday": { "message": "Ontem" },
-  "archiveRestore": { "message": "Restaurar" },
-  "archiveDelete": { "message": "Excluir" },
-  "archiveRestoreAll": { "message": "Restaurar tudo" },
-  "archiveDeleteAll": { "message": "Excluir tudo" },
-  "archiveRestoreSel": { "message": "Restaurar selecionadas" },
-  "archiveDeleteSel": { "message": "Excluir selecionadas" },
-  "archiveSelected": { "message": "$1 selecionadas" },
-  "archiveConfirmMany": { "message": "Restaurar $1 abas de uma vez?" },
-  "archiveTtlNote": { "message": "Entradas com mais de $1 são removidas automaticamente." }
+  "appDesc": {
+    "message": "Abas em ordem, como no Arc: sem duplicatas, abas paradas vão sozinhas para o arquivo (reversível), grupos por site ou por tema."
+  },
+  "tabs_one": {
+    "message": "$1 aba"
+  },
+  "tabs_few": {
+    "message": "$1 abas"
+  },
+  "tabs_many": {
+    "message": "$1 abas"
+  },
+  "tabs_other": {
+    "message": "$1 abas"
+  },
+  "notifBatchTitle": {
+    "message": "O TrueTabs arquivou abas paradas"
+  },
+  "notifBatchMsg": {
+    "message": "$1 abas foram salvas no arquivo e fechadas. Clique para abrir o arquivo."
+  },
+  "notifBreakerTitle": {
+    "message": "O TrueTabs se pausou"
+  },
+  "notifBreakerMsg": {
+    "message": "Ações automáticas demais em pouco tempo - a automação fica pausada por 10 minutos. Ações manuais continuam funcionando."
+  },
+  "undoBtn": {
+    "message": "Desfazer"
+  },
+  "statTabs": {
+    "message": "Abas abertas"
+  },
+  "statDupes": {
+    "message": "Duplicatas"
+  },
+  "statStale": {
+    "message": "Paradas"
+  },
+  "statArchivedToday": {
+    "message": "Arquivadas hoje"
+  },
+  "inWindows": {
+    "message": "em $1 janelas"
+  },
+  "actionsHeader": {
+    "message": "Ações"
+  },
+  "actOrganize": {
+    "message": "Organizar agora"
+  },
+  "actSweep": {
+    "message": "Fechar duplicatas"
+  },
+  "actArchiveNow": {
+    "message": "Arquivar paradas"
+  },
+  "actMerge": {
+    "message": "Juntar todas as janelas"
+  },
+  "undoRowText": {
+    "message": "$1 abas arquivadas - restaurar?"
+  },
+  "automationHeader": {
+    "message": "Automação"
+  },
+  "toggleDedup": {
+    "message": "Proteção contra duplicatas"
+  },
+  "toggleArchive": {
+    "message": "Autoarquivo de abas paradas"
+  },
+  "toggleGroup": {
+    "message": "Grupos automáticos por site"
+  },
+  "pausedNote": {
+    "message": "Automação pausada (disjuntor). Ela volta sozinha."
+  },
+  "warmingNote": {
+    "message": "Aquecendo - a automação começa quando a sessão assentar."
+  },
+  "statusOrganized": {
+    "message": "$1 abas organizadas em $2 grupos novos"
+  },
+  "statusSwept": {
+    "message": "$1 duplicatas fechadas (guardadas no arquivo)"
+  },
+  "statusArchived": {
+    "message": "$1 abas arquivadas"
+  },
+  "statusMerged": {
+    "message": "$1 abas movidas para esta janela"
+  },
+  "statusRestored": {
+    "message": "$1 abas restauradas"
+  },
+  "footerArchive": {
+    "message": "Abrir arquivo"
+  },
+  "footerGithub": {
+    "message": "Estrela no GitHub"
+  },
+  "footerReview": {
+    "message": "Avaliar o TrueTabs"
+  },
+  "footerDonate": {
+    "message": "Apoiar o desenvolvimento"
+  },
+  "optionsLink": {
+    "message": "Configurações"
+  },
+  "optDupesHeader": {
+    "message": "Duplicatas"
+  },
+  "optDedupAuto": {
+    "message": "Impedir abas duplicadas"
+  },
+  "optDedupAutoHint": {
+    "message": "Ao abrir uma página que já está aberta, muda para a aba existente."
+  },
+  "optDedupScope": {
+    "message": "Procurar a cópia existente"
+  },
+  "optScopeAll": {
+    "message": "Em todas as janelas"
+  },
+  "optScopeWindow": {
+    "message": "Só na mesma janela"
+  },
+  "optArchiveHeader": {
+    "message": "Autoarquivo"
+  },
+  "optArchiveAfter": {
+    "message": "Arquivar abas sem uso há"
+  },
+  "optArchiveAfterHint": {
+    "message": "São salvas no arquivo e depois fechadas. Abas fixadas, ativas, tocando áudio ou na lista de permissões nunca são tocadas."
+  },
+  "optArchiveTtl": {
+    "message": "Manter entradas do arquivo por"
+  },
+  "optArchiveTtlHint": {
+    "message": "Entradas mais antigas são removidas automaticamente."
+  },
+  "optArchiveNotify": {
+    "message": "Notificar com botão Desfazer após cada autoarquivo"
+  },
+  "optArchiveForeign": {
+    "message": "Arquivar também dentro dos seus próprios grupos"
+  },
+  "optArchiveForeignHint": {
+    "message": "Desligado: grupos feitos à mão são escolha deliberada e são pulados."
+  },
+  "optDiscard": {
+    "message": "Liberar memória mais cedo (descarregar)"
+  },
+  "optDiscardHint": {
+    "message": "Uma aba na metade do limite de arquivamento é descarregada da memória mas mantém o lugar na barra; clicar nela recarrega a página. Economiza RAM antes do arquivamento."
+  },
+  "optAllowlist": {
+    "message": "Nunca arquivar estes sites"
+  },
+  "optAllowlistHint": {
+    "message": "Um domínio por linha. Chamadas e reuniões já vêm preenchidas - a API de abas não enxerga câmera nem microfone."
+  },
+  "optDays3": {
+    "message": "3 dias"
+  },
+  "optDays7": {
+    "message": "7 dias"
+  },
+  "optDays30": {
+    "message": "30 dias"
+  },
+  "optDays90": {
+    "message": "90 dias"
+  },
+  "optOff": {
+    "message": "Desligado"
+  },
+  "optForever": {
+    "message": "Para sempre"
+  },
+  "optGroupsHeader": {
+    "message": "Grupos"
+  },
+  "optGroupAuto": {
+    "message": "Agrupar abas novas por site"
+  },
+  "optGroupAutoHint": {
+    "message": "Com cuidado: só abas novas são agrupadas, as existentes nunca são remexidas. Seus próprios grupos não são tocados."
+  },
+  "optCollapse": {
+    "message": "Recolher grupos inativos após"
+  },
+  "optSmartHeader": {
+    "message": "Agrupamento inteligente (IA)"
+  },
+  "optSmartEngine": {
+    "message": "Agrupar por tema usando"
+  },
+  "optSmartEngineHint": {
+    "message": "Adiciona um \"Organizar inteligente\": abas se agrupam por significado, não só por site."
+  },
+  "optSmartBuiltin": {
+    "message": "IA integrada (no dispositivo)"
+  },
+  "optSmartByok": {
+    "message": "Minha própria chave de API"
+  },
+  "optSmartBuiltinStatus": {
+    "message": "Modelo local (Gemini Nano)"
+  },
+  "optSmartEnable": {
+    "message": "Ativar - baixar modelo"
+  },
+  "smartStatusReady": {
+    "message": "Pronto. Tudo roda neste dispositivo - os títulos nunca saem do navegador."
+  },
+  "smartStatusDownloadable": {
+    "message": "O Chrome baixará o modelo uma única vez (cerca de 2-4 GB). Só começa após o clique."
+  },
+  "smartStatusUnavailable": {
+    "message": "Indisponível neste dispositivo (requer Chrome 138+, 22 GB de disco e 16 GB de RAM ou GPU de 4 GB). Use uma chave de API ou o agrupamento por site."
+  },
+  "smartDownloading": {
+    "message": "Baixando o modelo…"
+  },
+  "optByokProvider": {
+    "message": "Provedor"
+  },
+  "optByokCustom": {
+    "message": "Personalizado (compatível com OpenAI)"
+  },
+  "optByokKey": {
+    "message": "Chave de API"
+  },
+  "optByokModel": {
+    "message": "Modelo"
+  },
+  "optByokBaseUrl": {
+    "message": "URL do endpoint"
+  },
+  "optByokTest": {
+    "message": "Testar"
+  },
+  "optByokPrivacy": {
+    "message": "A chave fica só neste dispositivo. Neste modo, títulos e domínios das abas são enviados ao provedor escolhido com a sua chave. O acesso ao domínio do provedor é pedido ao salvar."
+  },
+  "byokSaved": {
+    "message": "Salvo."
+  },
+  "byokTesting": {
+    "message": "Testando…"
+  },
+  "byokTestOk": {
+    "message": "Funciona."
+  },
+  "byokTestFail": {
+    "message": "Falhou:"
+  },
+  "byokBadUrl": {
+    "message": "Informe primeiro uma URL de endpoint válida."
+  },
+  "byokPermDenied": {
+    "message": "O acesso ao provedor não foi concedido."
+  },
+  "optSmartAssign": {
+    "message": "Atribuir abas novas aos grupos inteligentes"
+  },
+  "optSmartAssignHint": {
+    "message": "Uma aba nova que combine com um grupo temático existente entra nele sozinha."
+  },
+  "optAppearanceHeader": {
+    "message": "Aparência"
+  },
+  "optTheme": {
+    "message": "Tema"
+  },
+  "optThemeAuto": {
+    "message": "Como o sistema"
+  },
+  "optThemeLight": {
+    "message": "Claro"
+  },
+  "optThemeDark": {
+    "message": "Escuro"
+  },
+  "optLanguage": {
+    "message": "Idioma"
+  },
+  "optDiag": {
+    "message": "Copiar diagnóstico"
+  },
+  "optDiagCopied": {
+    "message": "Copiado - cole no seu relatório. Só URLs, sem conteúdo de páginas."
+  },
+  "archiveTitle": {
+    "message": "Arquivo do TrueTabs"
+  },
+  "archiveSearch": {
+    "message": "Buscar título, URL, site…"
+  },
+  "archiveEmpty": {
+    "message": "O arquivo está vazio. Abas paradas cairão aqui em vez de se perder."
+  },
+  "archiveToday": {
+    "message": "Hoje"
+  },
+  "archiveYesterday": {
+    "message": "Ontem"
+  },
+  "archiveRestore": {
+    "message": "Restaurar"
+  },
+  "archiveDelete": {
+    "message": "Excluir"
+  },
+  "archiveRestoreAll": {
+    "message": "Restaurar tudo"
+  },
+  "archiveDeleteAll": {
+    "message": "Excluir tudo"
+  },
+  "archiveRestoreSel": {
+    "message": "Restaurar selecionadas"
+  },
+  "archiveDeleteSel": {
+    "message": "Excluir selecionadas"
+  },
+  "archiveSelected": {
+    "message": "$1 selecionadas"
+  },
+  "archiveConfirmMany": {
+    "message": "Restaurar $1 abas de uma vez?"
+  },
+  "archiveTtlNote": {
+    "message": "Entradas com mais de $1 são removidas automaticamente."
+  },
+  "actSmartOrganize": {
+    "message": "Organizar inteligente"
+  },
+  "undoOrgText": {
+    "message": "$1 grupos criados - desfazer?"
+  },
+  "statusUngrouped": {
+    "message": "$1 abas desagrupadas"
+  },
+  "groupsHeader": {
+    "message": "Grupos"
+  },
+  "collapseAll": {
+    "message": "Recolher tudo"
+  },
+  "expandAll": {
+    "message": "Expandir tudo"
+  },
+  "groupsDragHint": {
+    "message": "Clique - ir ao grupo. Arraste para reordenar na janela."
+  },
+  "groupUntitled": {
+    "message": "Sem título"
+  },
+  "groupExpand": {
+    "message": "Expandir grupo"
+  },
+  "groupCollapse": {
+    "message": "Recolher grupo"
+  },
+  "optSort": {
+    "message": "Ordenar ao organizar"
+  },
+  "optSortHint": {
+    "message": "Só ao clicar em Organizar: grupos e abas soltas ganham ordem fixa. Nunca reordena sozinho."
+  },
+  "optSortTitle": {
+    "message": "Alfabética"
+  },
+  "optSortRecent": {
+    "message": "Recentes primeiro"
+  },
+  "optSortOpened": {
+    "message": "Mais antigas primeiro"
+  },
+  "optIconStyle": {
+    "message": "Ícone da barra"
+  },
+  "optIconColor": {
+    "message": "Colorido"
+  },
+  "optIconMono": {
+    "message": "Monocromático (estilo Chrome)"
+  },
+  "smartManagedNote": {
+    "message": "O modelo é baixado e gerenciado pelo próprio Chrome. Para removê-lo depois: chrome://on-device-internals."
+  },
+  "byokNoKey": {
+    "message": "Ainda sem chave de API - o agrupamento inteligente fica inativo até você inseri-la."
+  }
 }

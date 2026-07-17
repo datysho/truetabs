@@ -1,125 +1,401 @@
 {
-  "appDesc": { "message": "Des onglets rangés comme dans Arc : zéro doublon, les onglets délaissés partent aux archives (annulable), groupes par site ou par thème." },
-
-  "tabs_one": { "message": "$1 onglet" },
-  "tabs_few": { "message": "$1 onglets" },
-  "tabs_many": { "message": "$1 onglets" },
-  "tabs_other": { "message": "$1 onglets" },
-
-  "notifBatchTitle": { "message": "TrueTabs a archivé des onglets délaissés" },
-  "notifBatchMsg": { "message": "$1 onglets ont été enregistrés dans les archives puis fermés. Cliquez pour ouvrir les archives." },
-  "notifBreakerTitle": { "message": "TrueTabs s'est mis en pause" },
-  "notifBreakerMsg": { "message": "Trop d'actions automatiques en peu de temps - l'automatisation est en pause 10 minutes. Les actions manuelles fonctionnent." },
-  "undoBtn": { "message": "Annuler" },
-
-  "statTabs": { "message": "Onglets ouverts" },
-  "statDupes": { "message": "Doublons" },
-  "statStale": { "message": "Délaissés" },
-  "statArchivedToday": { "message": "Archivés aujourd'hui" },
-  "inWindows": { "message": "dans $1 fenêtres" },
-  "actionsHeader": { "message": "Actions" },
-  "actOrganize": { "message": "Ranger maintenant" },
-  "actSweep": { "message": "Fermer les doublons" },
-  "actArchiveNow": { "message": "Archiver les délaissés" },
-  "actMerge": { "message": "Fusionner les fenêtres" },
-  "undoRowText": { "message": "$1 onglets archivés - les restaurer ?" },
-  "automationHeader": { "message": "Automatisation" },
-  "toggleDedup": { "message": "Protection anti-doublons" },
-  "toggleArchive": { "message": "Archivage auto des délaissés" },
-  "toggleGroup": { "message": "Groupes auto par site" },
-  "pausedNote": { "message": "Automatisation en pause (disjoncteur). Elle reprendra d'elle-même." },
-  "warmingNote": { "message": "Mise en route - l'automatisation démarre quand la session se stabilise." },
-  "statusOrganized": { "message": "$1 onglets rangés dans $2 nouveaux groupes" },
-  "statusSwept": { "message": "$1 doublons fermés (gardés aux archives)" },
-  "statusArchived": { "message": "$1 onglets archivés" },
-  "statusMerged": { "message": "$1 onglets déplacés dans cette fenêtre" },
-  "statusRestored": { "message": "$1 onglets restaurés" },
-  "footerArchive": { "message": "Ouvrir les archives" },
-  "footerGithub": { "message": "Étoile sur GitHub" },
-  "footerReview": { "message": "Noter TrueTabs" },
-  "footerDonate": { "message": "Soutenir le développement" },
-  "optionsLink": { "message": "Paramètres" },
-
-  "optDupesHeader": { "message": "Doublons" },
-  "optDedupAuto": { "message": "Empêcher les onglets en double" },
-  "optDedupAutoHint": { "message": "Ouvrir une page déjà ouverte bascule vers l'onglet existant." },
-  "optDedupScope": { "message": "Chercher la copie existante" },
-  "optScopeAll": { "message": "Dans toutes les fenêtres" },
-  "optScopeWindow": { "message": "Dans la même fenêtre uniquement" },
-
-  "optArchiveHeader": { "message": "Archivage auto" },
-  "optArchiveAfter": { "message": "Archiver les onglets inactifs depuis" },
-  "optArchiveAfterHint": { "message": "Enregistrés aux archives, puis fermés. Les onglets épinglés, actifs, en lecture ou en liste blanche ne sont jamais touchés." },
-  "optArchiveTtl": { "message": "Conserver les entrées des archives" },
-  "optArchiveTtlHint": { "message": "Les entrées plus anciennes sont supprimées automatiquement." },
-  "optArchiveNotify": { "message": "Notifier avec un bouton Annuler après chaque archivage auto" },
-  "optArchiveForeign": { "message": "Archiver aussi dans vos propres groupes d'onglets" },
-  "optArchiveForeignHint": { "message": "Désactivé : les groupes créés à la main sont un choix délibéré et sont ignorés." },
-  "optDiscard": { "message": "Libérer la mémoire plus tôt (déchargement)" },
-  "optDiscardHint": { "message": "À mi-chemin du seuil, l'onglet est déchargé mais reste visible. L'Économiseur de mémoire de Chrome fait pareil." },
-  "optAllowlist": { "message": "Ne jamais archiver ces sites" },
-  "optAllowlistHint": { "message": "Un domaine par ligne. Appels et réunions sont préremplis - l'API des onglets ne voit ni caméra ni micro." },
-  "optDays3": { "message": "3 jours" },
-  "optDays7": { "message": "7 jours" },
-  "optDays30": { "message": "30 jours" },
-  "optDays90": { "message": "90 jours" },
-  "optOff": { "message": "Désactivé" },
-  "optForever": { "message": "Toujours" },
-
-  "optGroupsHeader": { "message": "Groupes" },
-  "optGroupAuto": { "message": "Grouper les nouveaux onglets par site" },
-  "optGroupAutoHint": { "message": "En douceur : seuls les nouveaux onglets sont groupés, jamais de réorganisation. Vos propres groupes ne sont pas touchés." },
-  "optCollapse": { "message": "Replier les groupes inactifs après" },
-
-  "optSmartHeader": { "message": "Groupement intelligent (IA)" },
-  "optSmartEngine": { "message": "Grouper par thème via" },
-  "optSmartEngineHint": { "message": "Ajoute un « Rangement intelligent » : les onglets se regroupent par sens, pas seulement par site." },
-  "optSmartBuiltin": { "message": "IA intégrée (sur l'appareil)" },
-  "optSmartByok": { "message": "Ma propre clé API" },
-  "optSmartBuiltinStatus": { "message": "Modèle local (Gemini Nano)" },
-  "optSmartEnable": { "message": "Activer - télécharger le modèle" },
-  "smartStatusReady": { "message": "Prêt. Tout tourne sur cet appareil - les titres ne quittent jamais le navigateur." },
-  "smartStatusDownloadable": { "message": "Chrome téléchargera le modèle une seule fois (environ 2-4 Go). Uniquement après votre clic." },
-  "smartStatusUnavailable": { "message": "Indisponible sur cet appareil (requiert Chrome 138+, 22 Go de disque et 16 Go de RAM ou un GPU 4 Go). Utilisez une clé API ou le groupement par site." },
-  "smartDownloading": { "message": "Téléchargement du modèle…" },
-  "optByokProvider": { "message": "Fournisseur" },
-  "optByokCustom": { "message": "Personnalisé (compatible OpenAI)" },
-  "optByokKey": { "message": "Clé API" },
-  "optByokModel": { "message": "Modèle" },
-  "optByokBaseUrl": { "message": "URL du point d'accès" },
-  "optByokSave": { "message": "Enregistrer" },
-  "optByokTest": { "message": "Tester" },
-  "optByokPrivacy": { "message": "La clé reste uniquement sur cet appareil. Dans ce mode, les titres et domaines des onglets sont envoyés au fournisseur choisi avec votre clé. L'accès au domaine du fournisseur est demandé à l'enregistrement." },
-  "byokSaved": { "message": "Enregistré." },
-  "byokTesting": { "message": "Test en cours…" },
-  "byokTestOk": { "message": "Ça fonctionne." },
-  "byokTestFail": { "message": "Échec :" },
-  "byokBadUrl": { "message": "Indiquez d'abord une URL de point d'accès valide." },
-  "byokPermDenied": { "message": "L'accès au fournisseur n'a pas été accordé." },
-  "optSmartAssign": { "message": "Affecter les nouveaux onglets aux groupes intelligents" },
-  "optSmartAssignHint": { "message": "Un nouvel onglet qui correspond à un groupe thématique existant le rejoint automatiquement." },
-
-  "optAppearanceHeader": { "message": "Apparence" },
-  "optTheme": { "message": "Thème" },
-  "optThemeAuto": { "message": "Système" },
-  "optThemeLight": { "message": "Clair" },
-  "optThemeDark": { "message": "Sombre" },
-  "optLanguage": { "message": "Langue" },
-  "optDiag": { "message": "Copier le diagnostic" },
-  "optDiagCopied": { "message": "Copié - collez-le dans votre rapport. URLs uniquement, aucun contenu de page." },
-
-  "archiveTitle": { "message": "Archives TrueTabs" },
-  "archiveSearch": { "message": "Rechercher titre, URL, site…" },
-  "archiveEmpty": { "message": "Les archives sont vides. Les onglets délaissés atterriront ici au lieu de se perdre." },
-  "archiveToday": { "message": "Aujourd'hui" },
-  "archiveYesterday": { "message": "Hier" },
-  "archiveRestore": { "message": "Restaurer" },
-  "archiveDelete": { "message": "Supprimer" },
-  "archiveRestoreAll": { "message": "Tout restaurer" },
-  "archiveDeleteAll": { "message": "Tout supprimer" },
-  "archiveRestoreSel": { "message": "Restaurer la sélection" },
-  "archiveDeleteSel": { "message": "Supprimer la sélection" },
-  "archiveSelected": { "message": "$1 sélectionnés" },
-  "archiveConfirmMany": { "message": "Restaurer $1 onglets d'un coup ?" },
-  "archiveTtlNote": { "message": "Les entrées de plus de $1 sont supprimées automatiquement." }
+  "appDesc": {
+    "message": "Des onglets rangés comme dans Arc : zéro doublon, les onglets délaissés partent aux archives (annulable), groupes par site ou par thème."
+  },
+  "tabs_one": {
+    "message": "$1 onglet"
+  },
+  "tabs_few": {
+    "message": "$1 onglets"
+  },
+  "tabs_many": {
+    "message": "$1 onglets"
+  },
+  "tabs_other": {
+    "message": "$1 onglets"
+  },
+  "notifBatchTitle": {
+    "message": "TrueTabs a archivé des onglets délaissés"
+  },
+  "notifBatchMsg": {
+    "message": "$1 onglets ont été enregistrés dans les archives puis fermés. Cliquez pour ouvrir les archives."
+  },
+  "notifBreakerTitle": {
+    "message": "TrueTabs s'est mis en pause"
+  },
+  "notifBreakerMsg": {
+    "message": "Trop d'actions automatiques en peu de temps - l'automatisation est en pause 10 minutes. Les actions manuelles fonctionnent."
+  },
+  "undoBtn": {
+    "message": "Annuler"
+  },
+  "statTabs": {
+    "message": "Onglets ouverts"
+  },
+  "statDupes": {
+    "message": "Doublons"
+  },
+  "statStale": {
+    "message": "Délaissés"
+  },
+  "statArchivedToday": {
+    "message": "Archivés aujourd'hui"
+  },
+  "inWindows": {
+    "message": "dans $1 fenêtres"
+  },
+  "actionsHeader": {
+    "message": "Actions"
+  },
+  "actOrganize": {
+    "message": "Ranger maintenant"
+  },
+  "actSweep": {
+    "message": "Fermer les doublons"
+  },
+  "actArchiveNow": {
+    "message": "Archiver les délaissés"
+  },
+  "actMerge": {
+    "message": "Fusionner les fenêtres"
+  },
+  "undoRowText": {
+    "message": "$1 onglets archivés - les restaurer ?"
+  },
+  "automationHeader": {
+    "message": "Automatisation"
+  },
+  "toggleDedup": {
+    "message": "Protection anti-doublons"
+  },
+  "toggleArchive": {
+    "message": "Archivage auto des délaissés"
+  },
+  "toggleGroup": {
+    "message": "Groupes auto par site"
+  },
+  "pausedNote": {
+    "message": "Automatisation en pause (disjoncteur). Elle reprendra d'elle-même."
+  },
+  "warmingNote": {
+    "message": "Mise en route - l'automatisation démarre quand la session se stabilise."
+  },
+  "statusOrganized": {
+    "message": "$1 onglets rangés dans $2 nouveaux groupes"
+  },
+  "statusSwept": {
+    "message": "$1 doublons fermés (gardés aux archives)"
+  },
+  "statusArchived": {
+    "message": "$1 onglets archivés"
+  },
+  "statusMerged": {
+    "message": "$1 onglets déplacés dans cette fenêtre"
+  },
+  "statusRestored": {
+    "message": "$1 onglets restaurés"
+  },
+  "footerArchive": {
+    "message": "Ouvrir les archives"
+  },
+  "footerGithub": {
+    "message": "Étoile sur GitHub"
+  },
+  "footerReview": {
+    "message": "Noter TrueTabs"
+  },
+  "footerDonate": {
+    "message": "Soutenir le développement"
+  },
+  "optionsLink": {
+    "message": "Paramètres"
+  },
+  "optDupesHeader": {
+    "message": "Doublons"
+  },
+  "optDedupAuto": {
+    "message": "Empêcher les onglets en double"
+  },
+  "optDedupAutoHint": {
+    "message": "Ouvrir une page déjà ouverte bascule vers l'onglet existant."
+  },
+  "optDedupScope": {
+    "message": "Chercher la copie existante"
+  },
+  "optScopeAll": {
+    "message": "Dans toutes les fenêtres"
+  },
+  "optScopeWindow": {
+    "message": "Dans la même fenêtre uniquement"
+  },
+  "optArchiveHeader": {
+    "message": "Archivage auto"
+  },
+  "optArchiveAfter": {
+    "message": "Archiver les onglets inactifs depuis"
+  },
+  "optArchiveAfterHint": {
+    "message": "Enregistrés aux archives, puis fermés. Les onglets épinglés, actifs, en lecture ou en liste blanche ne sont jamais touchés."
+  },
+  "optArchiveTtl": {
+    "message": "Conserver les entrées des archives"
+  },
+  "optArchiveTtlHint": {
+    "message": "Les entrées plus anciennes sont supprimées automatiquement."
+  },
+  "optArchiveNotify": {
+    "message": "Notifier avec un bouton Annuler après chaque archivage auto"
+  },
+  "optArchiveForeign": {
+    "message": "Archiver aussi dans vos propres groupes d'onglets"
+  },
+  "optArchiveForeignHint": {
+    "message": "Désactivé : les groupes créés à la main sont un choix délibéré et sont ignorés."
+  },
+  "optDiscard": {
+    "message": "Libérer la mémoire plus tôt (déchargement)"
+  },
+  "optDiscardHint": {
+    "message": "Un onglet à mi-chemin du seuil d'archivage est déchargé de la mémoire mais garde sa place dans la barre ; un clic recharge la page. Économise la RAM avant même l'archivage."
+  },
+  "optAllowlist": {
+    "message": "Ne jamais archiver ces sites"
+  },
+  "optAllowlistHint": {
+    "message": "Un domaine par ligne. Appels et réunions sont préremplis - l'API des onglets ne voit ni caméra ni micro."
+  },
+  "optDays3": {
+    "message": "3 jours"
+  },
+  "optDays7": {
+    "message": "7 jours"
+  },
+  "optDays30": {
+    "message": "30 jours"
+  },
+  "optDays90": {
+    "message": "90 jours"
+  },
+  "optOff": {
+    "message": "Désactivé"
+  },
+  "optForever": {
+    "message": "Toujours"
+  },
+  "optGroupsHeader": {
+    "message": "Groupes"
+  },
+  "optGroupAuto": {
+    "message": "Grouper les nouveaux onglets par site"
+  },
+  "optGroupAutoHint": {
+    "message": "En douceur : seuls les nouveaux onglets sont groupés, jamais de réorganisation. Vos propres groupes ne sont pas touchés."
+  },
+  "optCollapse": {
+    "message": "Replier les groupes inactifs après"
+  },
+  "optSmartHeader": {
+    "message": "Groupement intelligent (IA)"
+  },
+  "optSmartEngine": {
+    "message": "Grouper par thème via"
+  },
+  "optSmartEngineHint": {
+    "message": "Ajoute un « Rangement intelligent » : les onglets se regroupent par sens, pas seulement par site."
+  },
+  "optSmartBuiltin": {
+    "message": "IA intégrée (sur l'appareil)"
+  },
+  "optSmartByok": {
+    "message": "Ma propre clé API"
+  },
+  "optSmartBuiltinStatus": {
+    "message": "Modèle local (Gemini Nano)"
+  },
+  "optSmartEnable": {
+    "message": "Activer - télécharger le modèle"
+  },
+  "smartStatusReady": {
+    "message": "Prêt. Tout tourne sur cet appareil - les titres ne quittent jamais le navigateur."
+  },
+  "smartStatusDownloadable": {
+    "message": "Chrome téléchargera le modèle une seule fois (environ 2-4 Go). Uniquement après votre clic."
+  },
+  "smartStatusUnavailable": {
+    "message": "Indisponible sur cet appareil (requiert Chrome 138+, 22 Go de disque et 16 Go de RAM ou un GPU 4 Go). Utilisez une clé API ou le groupement par site."
+  },
+  "smartDownloading": {
+    "message": "Téléchargement du modèle…"
+  },
+  "optByokProvider": {
+    "message": "Fournisseur"
+  },
+  "optByokCustom": {
+    "message": "Personnalisé (compatible OpenAI)"
+  },
+  "optByokKey": {
+    "message": "Clé API"
+  },
+  "optByokModel": {
+    "message": "Modèle"
+  },
+  "optByokBaseUrl": {
+    "message": "URL du point d'accès"
+  },
+  "optByokTest": {
+    "message": "Tester"
+  },
+  "optByokPrivacy": {
+    "message": "La clé reste uniquement sur cet appareil. Dans ce mode, les titres et domaines des onglets sont envoyés au fournisseur choisi avec votre clé. L'accès au domaine du fournisseur est demandé à l'enregistrement."
+  },
+  "byokSaved": {
+    "message": "Enregistré."
+  },
+  "byokTesting": {
+    "message": "Test en cours…"
+  },
+  "byokTestOk": {
+    "message": "Ça fonctionne."
+  },
+  "byokTestFail": {
+    "message": "Échec :"
+  },
+  "byokBadUrl": {
+    "message": "Indiquez d'abord une URL de point d'accès valide."
+  },
+  "byokPermDenied": {
+    "message": "L'accès au fournisseur n'a pas été accordé."
+  },
+  "optSmartAssign": {
+    "message": "Affecter les nouveaux onglets aux groupes intelligents"
+  },
+  "optSmartAssignHint": {
+    "message": "Un nouvel onglet qui correspond à un groupe thématique existant le rejoint automatiquement."
+  },
+  "optAppearanceHeader": {
+    "message": "Apparence"
+  },
+  "optTheme": {
+    "message": "Thème"
+  },
+  "optThemeAuto": {
+    "message": "Système"
+  },
+  "optThemeLight": {
+    "message": "Clair"
+  },
+  "optThemeDark": {
+    "message": "Sombre"
+  },
+  "optLanguage": {
+    "message": "Langue"
+  },
+  "optDiag": {
+    "message": "Copier le diagnostic"
+  },
+  "optDiagCopied": {
+    "message": "Copié - collez-le dans votre rapport. URLs uniquement, aucun contenu de page."
+  },
+  "archiveTitle": {
+    "message": "Archives TrueTabs"
+  },
+  "archiveSearch": {
+    "message": "Rechercher titre, URL, site…"
+  },
+  "archiveEmpty": {
+    "message": "Les archives sont vides. Les onglets délaissés atterriront ici au lieu de se perdre."
+  },
+  "archiveToday": {
+    "message": "Aujourd'hui"
+  },
+  "archiveYesterday": {
+    "message": "Hier"
+  },
+  "archiveRestore": {
+    "message": "Restaurer"
+  },
+  "archiveDelete": {
+    "message": "Supprimer"
+  },
+  "archiveRestoreAll": {
+    "message": "Tout restaurer"
+  },
+  "archiveDeleteAll": {
+    "message": "Tout supprimer"
+  },
+  "archiveRestoreSel": {
+    "message": "Restaurer la sélection"
+  },
+  "archiveDeleteSel": {
+    "message": "Supprimer la sélection"
+  },
+  "archiveSelected": {
+    "message": "$1 sélectionnés"
+  },
+  "archiveConfirmMany": {
+    "message": "Restaurer $1 onglets d'un coup ?"
+  },
+  "archiveTtlNote": {
+    "message": "Les entrées de plus de $1 sont supprimées automatiquement."
+  },
+  "actSmartOrganize": {
+    "message": "Rangement intelligent"
+  },
+  "undoOrgText": {
+    "message": "$1 groupes créés - les dissoudre ?"
+  },
+  "statusUngrouped": {
+    "message": "$1 onglets dégroupés"
+  },
+  "groupsHeader": {
+    "message": "Groupes"
+  },
+  "collapseAll": {
+    "message": "Tout replier"
+  },
+  "expandAll": {
+    "message": "Tout déplier"
+  },
+  "groupsDragHint": {
+    "message": "Clic : aller au groupe. Glisser pour réordonner dans sa fenêtre."
+  },
+  "groupUntitled": {
+    "message": "Sans titre"
+  },
+  "groupExpand": {
+    "message": "Déplier le groupe"
+  },
+  "groupCollapse": {
+    "message": "Replier le groupe"
+  },
+  "optSort": {
+    "message": "Trier lors du rangement"
+  },
+  "optSortHint": {
+    "message": "Appliqué uniquement au clic sur Ranger : groupes et onglets libres prennent un ordre déterminé. Ne retrie jamais tout seul."
+  },
+  "optSortTitle": {
+    "message": "Alphabétique"
+  },
+  "optSortRecent": {
+    "message": "Récents d'abord"
+  },
+  "optSortOpened": {
+    "message": "Plus anciens d'abord"
+  },
+  "optIconStyle": {
+    "message": "Icône de la barre"
+  },
+  "optIconColor": {
+    "message": "Couleur"
+  },
+  "optIconMono": {
+    "message": "Monochrome (style Chrome)"
+  },
+  "smartManagedNote": {
+    "message": "Le modèle est téléchargé et géré par Chrome lui-même. Pour le retirer : chrome://on-device-internals."
+  },
+  "byokNoKey": {
+    "message": "Pas encore de clé API - le groupement intelligent est inactif tant qu'elle manque."
+  }
 }

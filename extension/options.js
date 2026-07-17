@@ -21,9 +21,11 @@ const SELECTS = [
   "archiveAfter",
   "archiveTtl",
   "groupCollapseAfter",
+  "sortMode",
   "smartEngine",
   "byokProvider",
   "theme",
+  "iconStyle",
   "language",
 ];
 
@@ -79,10 +81,12 @@ async function refreshBuiltinStatus() {
   const status = await send({ type: "ui:smartStatus" });
   const el = $("builtinStatus");
   const availability = status.availability;
+  $("builtinManaged").hidden = true;
   if (availability === "available") {
     el.textContent = t("smartStatusReady");
     el.className = "hint ok";
     $("smartEnableBtn").hidden = true;
+    $("builtinManaged").hidden = false; // model is Chrome's: how to remove it
   } else if (availability === "downloadable" || availability === "downloading") {
     el.textContent = t("smartStatusDownloadable");
     el.className = "hint";
@@ -91,6 +95,18 @@ async function refreshBuiltinStatus() {
     el.textContent = t("smartStatusUnavailable");
     el.className = "hint err";
     $("smartEnableBtn").hidden = true;
+  }
+}
+
+function refreshByokWarning() {
+  const engine = $("smartEngine").value;
+  const el = $("byokStatus");
+  if (engine === "byok" && !byokKeyPresent) {
+    el.textContent = t("byokNoKey");
+    el.className = "byok-note err";
+  } else if (el.textContent === t("byokNoKey")) {
+    el.textContent = "";
+    el.className = "byok-note";
   }
 }
 
@@ -117,18 +133,29 @@ async function ensureByokPermission() {
   return granted;
 }
 
-async function saveByok() {
-  if (!(await ensureByokPermission())) return false;
+// BYOK fields auto-save like every other setting. The one special moment is
+// the key itself: saving it (change/blur = a user gesture) also asks for the
+// single host permission the chosen provider needs.
+let byokKeyPresent = false;
+
+async function saveByokFields() {
   await setSetting("byokProvider", $("byokProvider").value);
   await setSetting("byokModel", $("byokModel").value.trim());
   await setSetting("byokBaseUrl", $("byokBaseUrl").value.trim());
+}
+
+async function saveByokKey() {
   const key = $("byokKey").value.trim();
-  if (key && key !== "********") {
-    await send({ type: "ui:byokSetKey", key });
+  if (!key || key === "********") return;
+  await saveByokFields();
+  await send({ type: "ui:byokSetKey", key });
+  byokKeyPresent = true;
+  refreshByokWarning();
+  const granted = await ensureByokPermission();
+  if (granted) {
+    $("byokStatus").textContent = t("byokSaved");
+    $("byokStatus").className = "byok-note ok";
   }
-  $("byokStatus").textContent = t("byokSaved");
-  $("byokStatus").className = "byok-note ok";
-  return true;
 }
 
 async function init() {
@@ -149,7 +176,10 @@ async function init() {
       await setSetting(id, e.target.value);
       if (id === "theme") applyTheme(e.target.value);
       if (id === "language") location.reload();
-      if (id === "smartEngine" || id === "byokProvider") renderSmartRows();
+      if (id === "smartEngine" || id === "byokProvider") {
+        renderSmartRows();
+        refreshByokWarning();
+      }
       if (id === "smartEngine" && e.target.value === "builtin") refreshBuiltinStatus();
     });
   }
@@ -166,9 +196,19 @@ async function init() {
 
   $("byokModel").value = settings.byokModel || "";
   $("byokBaseUrl").value = settings.byokBaseUrl || "";
+  byokKeyPresent = !!state.byokKeySet;
   if (state.byokKeySet) $("byokKey").value = "********";
   renderSmartRows();
+  refreshByokWarning();
   if (settings.smartEngine === "builtin") refreshBuiltinStatus();
+
+  // Auto-save on change - same contract as every other control on this page.
+  $("byokKey").addEventListener("change", saveByokKey);
+  $("byokModel").addEventListener("change", saveByokFields);
+  $("byokBaseUrl").addEventListener("change", async () => {
+    await saveByokFields();
+    if (byokKeyPresent) await ensureByokPermission();
+  });
 
   $("smartEnableBtn").addEventListener("click", async () => {
     $("smartEnableBtn").disabled = true;
@@ -194,11 +234,12 @@ async function init() {
     }
   });
 
-  $("byokSaveBtn").addEventListener("click", saveByok);
   $("byokTestBtn").addEventListener("click", async () => {
     $("byokStatus").textContent = t("byokTesting");
     $("byokStatus").className = "byok-note";
-    if (!(await saveByok())) return;
+    await saveByokKey(); // also re-requests permission if it was denied
+    await saveByokFields();
+    if (!(await ensureByokPermission())) return;
     const result = await send({ type: "ui:byokTest" });
     if (result.ok) {
       $("byokStatus").textContent = t("byokTestOk");
@@ -212,9 +253,9 @@ async function init() {
   $("diagBtn").addEventListener("click", async () => {
     const dump = await send({ type: "ui:diagnostics" });
     await navigator.clipboard.writeText(JSON.stringify(dump, null, 2));
-    $("diagNote").textContent = t("optDiagCopied");
+    $("diagNote").style.visibility = "visible";
     setTimeout(() => {
-      $("diagNote").textContent = "";
+      $("diagNote").style.visibility = "hidden";
     }, 4000);
   });
 }
