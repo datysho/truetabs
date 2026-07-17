@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>TrueTabs Archive</title>
+    <link rel="stylesheet" href="theme.css" />
+    <style>
+      body {
+        padding: 24px 20px 64px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+      .page {
+        width: 100%;
+        max-width: 720px;
+      }
+      .pagehead {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 4px 2px 16px;
+      }
+      .pagehead img {
+        width: 24px;
+        height: 24px;
+        border-radius: 5px;
+      }
+      .pagehead .name {
+        font-weight: 600;
+        font-size: 16px;
+      }
+      .pagehead input {
+        margin-left: auto;
+        width: 240px;
+      }
+      .day {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        margin-bottom: 14px;
+        overflow: hidden;
+      }
+      .day .dayhead {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .day .dayhead .title {
+        font-weight: 600;
+        flex: 1;
+      }
+      .day .dayhead button {
+        padding: 4px 12px;
+        font-size: 12px;
+      }
+      .entry {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 7px 14px;
+        border-bottom: 1px solid var(--border);
+      }
+      .entry:last-child {
+        border-bottom: none;
+      }
+      .entry:hover {
+        background: var(--hover);
+      }
+      .entry img {
+        width: 16px;
+        height: 16px;
+        border-radius: 3px;
+        flex: none;
+      }
+      .entry .info {
+        flex: 1;
+        min-width: 0;
+        line-height: 1.35;
+      }
+      .entry .t {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        color: inherit;
+        text-decoration: none;
+        font-weight: 500;
+        cursor: pointer;
+      }
+      .entry .u {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        color: var(--muted);
+        font-size: 11.5px;
+      }
+      .entry .chip {
+        flex: none;
+        font-size: 11px;
+        padding: 2px 8px;
+        border-radius: 100px;
+        color: #fff;
+      }
+      .entry button {
+        padding: 3px 10px;
+        font-size: 12px;
+      }
+      .entry .x {
+        border: none;
+        color: var(--muted);
+        min-width: 26px;
+        height: 26px;
+        padding: 0;
+        border-radius: 13px;
+      }
+      .entry .x:hover {
+        background: var(--active);
+        color: var(--text);
+      }
+      .selbar {
+        position: fixed;
+        bottom: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 100px;
+        padding: 8px 16px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+      }
+      .selbar[hidden] {
+        display: none;
+      }
+      .empty {
+        text-align: center;
+        color: var(--muted);
+        padding: 48px 0;
+      }
+      .footnote {
+        color: var(--muted);
+        font-size: 12px;
+        text-align: center;
+        margin-top: 8px;
+      }
+      .gc-grey { background: #5f6368; }
+      .gc-blue { background: #1a73e8; }
+      .gc-red { background: #d93025; }
+      .gc-yellow { background: #f9ab00; }
+      .gc-green { background: #188038; }
+      .gc-pink { background: #d01884; }
+      .gc-purple { background: #a142f4; }
+      .gc-cyan { background: #007b83; }
+      .gc-orange { background: #fa903e; }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="pagehead">
+        <img src="icons/tt-32.png" alt="" />
+        <span class="name" data-i18n="archiveTitle"></span>
+        <input type="text" id="search" data-i18n-placeholder="archiveSearch" />
+      </div>
+      <div id="days"></div>
+      <p class="empty" id="empty" hidden data-i18n="archiveEmpty"></p>
+      <p class="footnote" id="ttlNote"></p>
+    </div>
+    <div class="selbar" id="selbar" hidden>
+      <span id="selCount"></span>
+      <button class="primary" id="restoreSel" data-i18n="archiveRestoreSel"></button>
+      <button id="deleteSel" data-i18n="archiveDeleteSel"></button>
+    </div>
+    <script src="config.js"></script>
+    <script src="i18n.js"></script>
+    <script src="archive.js"></script>
+  </body>
+</html>

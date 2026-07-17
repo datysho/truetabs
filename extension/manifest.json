@@ -1,0 +1,49 @@
+{
+  "manifest_version": 3,
+  "name": "TrueTabs",
+  "description": "__MSG_appDesc__",
+  "default_locale": "en",
+  "version": "1.0.0",
+  "minimum_chrome_version": "121",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2d6eGdhyjkIFr02TONvJk+g5geAImTXVMXRq/yA2duXeqvYq9DlMBfLaWABaLYTixD2l+cNQVwEyecWGsBN9QKnW6pkgivpexA/7JcKLB9oslXV75ya3ck1X2HCqBW6cufZsk2cmUT6JF14zi7G4S6WH0LF4haP54anH/F3W0JgeB0NRRINKIVj8/xq3XJWCmHBGT+rHDywrFsHwVmOzYlrns3NsINa7wRNJlPedTnDUeDPT6w9TSc0fYK53NmX4cXPXpv9NbEUX14WwppWLIwZHrlCsZK5Lca4V2vMzjkjCVz5M9LUQMGV/4wwTQQhEZHUSbLkjYAm4oVxP084F2QIDAQAB",
+  "homepage_url": "https://github.com/datysho/truetabs",
+  "permissions": [
+    "tabs",
+    "tabGroups",
+    "storage",
+    "alarms",
+    "notifications",
+    "favicon",
+    "webNavigation"
+  ],
+  "optional_host_permissions": [
+    "https://api.openai.com/*",
+    "https://generativelanguage.googleapis.com/*",
+    "https://api.x.ai/*",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_icon": {
+      "16": "icons/tt-16.png",
+      "32": "icons/tt-32.png",
+      "48": "icons/tt-48.png",
+      "128": "icons/tt-128.png"
+    },
+    "default_title": "TrueTabs",
+    "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "icons": {
+    "16": "icons/tt-16.png",
+    "32": "icons/tt-32.png",
+    "48": "icons/tt-48.png",
+    "128": "icons/tt-128.png"
+  }
+}

@@ -1,0 +1,266 @@
+/* TrueTabs - shared Material You token set + base components (TruePin family).
+   Three theme layers: system (prefers-color-scheme), then a manual
+   data-theme override that wins in BOTH directions. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --tonal: #f1f3f4;
+  --text: #1f1f1f;
+  --muted: #5f6368;
+  --border: #dadce0;
+  --hover: #f1f3f4;
+  --active: rgba(31, 31, 31, 0.1);
+  --accent: #1a73e8;
+  --on-accent: #ffffff;
+  --track: #c4c7c5;
+  --ok: #188038;
+  --err: #d93025;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #292a2d;
+    --surface: #292a2d;
+    --tonal: #35363a;
+    --text: #e8eaed;
+    --muted: #9aa0a6;
+    --border: #3c4043;
+    --hover: #3c4043;
+    --active: rgba(232, 234, 237, 0.12);
+    --accent: #8ab4f8;
+    --on-accent: #202124;
+    --track: #5f6368;
+    --ok: #81c995;
+    --err: #f28b82;
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --tonal: #f1f3f4;
+  --text: #1f1f1f;
+  --muted: #5f6368;
+  --border: #dadce0;
+  --hover: #f1f3f4;
+  --active: rgba(31, 31, 31, 0.1);
+  --accent: #1a73e8;
+  --on-accent: #ffffff;
+  --track: #c4c7c5;
+  --ok: #188038;
+  --err: #d93025;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #292a2d;
+  --surface: #292a2d;
+  --tonal: #35363a;
+  --text: #e8eaed;
+  --muted: #9aa0a6;
+  --border: #3c4043;
+  --hover: #3c4043;
+  --active: rgba(232, 234, 237, 0.12);
+  --accent: #8ab4f8;
+  --on-accent: #202124;
+  --track: #5f6368;
+  --ok: #81c995;
+  --err: #f28b82;
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+.muted {
+  color: var(--muted);
+  font-size: 12px;
+}
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.switch-label {
+  flex: 1;
+  font-weight: 500;
+}
+
+h3 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+h3 span[id] {
+  font-weight: 500;
+  letter-spacing: 0.3px;
+}
+
+/* Material switch (M3 hover state-layer + 2-layer thumb). */
+input.switch {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 38px;
+  height: 22px;
+  border-radius: 11px;
+  background: var(--track);
+  position: relative;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  flex: none;
+  margin: 0;
+}
+input.switch::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.15);
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.15s ease;
+}
+input.switch:hover::before {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+input.switch:checked {
+  background: var(--accent);
+}
+input.switch:checked::before {
+  transform: translateX(16px);
+}
+input.switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button {
+  font: inherit;
+  font-weight: 500;
+  padding: 6px 16px;
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
+button:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+button.primary:hover {
+  background: color-mix(in srgb, var(--accent) 90%, #000000);
+}
+button:disabled {
+  opacity: 0.38;
+  cursor: default;
+  background: transparent;
+}
+button.primary:disabled {
+  opacity: 1;
+  background: var(--track);
+  border-color: var(--track);
+  color: var(--bg);
+}
+
+select,
+input[type="text"],
+input[type="password"] {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 10px;
+}
+select:focus,
+input[type="text"]:focus,
+input[type="password"]:focus,
+textarea:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: transparent;
+}
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+textarea {
+  font: inherit;
+  color: inherit;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  resize: vertical;
+}
+
+.iconbtn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.iconbtn:hover {
+  background: var(--hover);
+  color: var(--text);
+}
+.iconbtn:active {
+  background: var(--active);
+}
+.iconbtn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.iconbtn[hidden] {
+  display: none;
+}
+.iconbtn svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+#status {
+  min-height: 18px;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--ok);
+}
+#status:empty {
+  display: none;
+}
+#status.err {
+  color: var(--err);
+}
