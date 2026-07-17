@@ -72,7 +72,7 @@
     "message": "自动归档闲置标签"
   },
   "toggleGroup": {
-    "message": "按网站自动分组"
+    "message": "自动为新标签页分组"
   },
   "pausedNote": {
     "message": "自动化已暂停（熔断保护），稍后自动恢复。"
@@ -490,5 +490,20 @@
   },
   "optOtherGroupHint": {
     "message": "没有归属的标签页 - 没有主题、没有网站分组、不匹配你的规则 - 会进入标签栏末尾的灰色「其他」组，而不是散落在外。按网站分组和按主题分组都适用；真正的分组随时会把属于它的标签页从「其他」里收回。"
+  },
+  "toggleGroupAi": {
+    "message": "按主题，使用 AI"
+  },
+  "groupReview": {
+    "message": "重新归类"
+  },
+  "statusReviewSame": {
+    "message": "这里没有新的可归类内容"
+  },
+  "optSortAuto": {
+    "message": "自动保持顺序"
+  },
+  "optSortAutoHint": {
+    "message": "开启：上面的顺序是恒定规则 - 新标签页自动就位，手动拖动会弹回。关闭：仅在点击「整理」时应用，其余时间不会自行移动。"
   }
 }

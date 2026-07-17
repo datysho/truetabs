@@ -72,7 +72,7 @@
     "message": "Auto-Archiv alter Tabs"
   },
   "toggleGroup": {
-    "message": "Auto-Gruppen nach Website"
+    "message": "Neue Tabs automatisch gruppieren"
   },
   "pausedNote": {
     "message": "Automatik pausiert (Sicherung). Sie startet von selbst wieder."
@@ -490,5 +490,20 @@
   },
   "optOtherGroupHint": {
     "message": "Ein Tab ohne Zuhause - kein Thema, keine Website-Gruppe, keine eigene Regel - landet in der grauen Gruppe \"Sonstige\" am Ende der Leiste statt lose herumzuliegen. Gilt für Gruppierung nach Website wie nach Thema; eine echte Gruppe holt sich ihre Tabs immer aus \"Sonstige\" zurück."
+  },
+  "toggleGroupAi": {
+    "message": "Nach Thema, mit KI"
+  },
+  "groupReview": {
+    "message": "Neu sortieren"
+  },
+  "statusReviewSame": {
+    "message": "Hier gibt es nichts Neues zu sortieren"
+  },
+  "optSortAuto": {
+    "message": "Reihenfolge automatisch halten"
+  },
+  "optSortAutoHint": {
+    "message": "An: Die Reihenfolgen oben sind Invarianten - neue Tabs reihen sich ein, manuelles Ziehen springt zurück. Aus: Sie gelten nur beim Klick auf Organisieren, dazwischen bewegt sich nichts von selbst."
   }
 }

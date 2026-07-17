@@ -37,8 +37,8 @@ sidebar, no new-tab page takeover - Chrome stays Chrome, the mess just stops.
 | 3 | **Auto-group** | One selector: new tabs group by *site* (stable colors, clean names) or by *topic* via AI. Idle groups collapse. One-click "Organize now" for everything else. |
 | 3b | **Smart groups (AI)** | Cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / any OpenAI-compatible endpoint like Ollama). Groups appear batch by batch with live progress. With the "Other" catch-all on, nothing is left loose - new tabs that fit no topic join it. |
 | 3c | **My groups (rules)** | Your named groups with routing rules: a site list (deterministic) and/or a plain-language AI hint. Rules outrank every automatic grouping. |
-| 3e | **"Other" catch-all** | With it on, nothing is left loose: a tab that fits no topic, no site group and no rule parks in a grey "Other" at the end. Works with plain site grouping too - no AI required. It is a parking lot, never a decision: a real group always wins its tabs back. |
-| 3d | **Order** | Two maintained axes: group order and tab order (A-Z / recently used / oldest). New tabs slot into place, manual drags snap back, and with *recently used first* the tab you use surfaces instantly - its group rises to the front. |
+| 3e | **"Other" catch-all** | With it on, nothing is left loose: a tab that fits no topic, no site group and no rule parks in a grey "Other" at the end. Works with plain site grouping too - no AI required. It is a parking lot, never a decision: a real group always wins its tabs back, and the parking lot re-empties itself when you add a rule or switch modes. Hover it in the popup for a one-click AI "Re-sort". |
+| 3d | **Order** | Two axes: group order and tab order (A-Z / recently used / oldest). Kept live by default - new tabs slot in, manual drags snap back, and *recently used first* surfaces what you touch. Prefer it on demand? Turn "Keep the order automatically" off and the order applies only when you press Organize. |
 | 4 | **Dashboard** | Live counts (tabs, duplicates, stale, archived today), one-click actions, merge all windows, master switches per automation. |
 
 ## Safety model - why you can trust automation
@@ -123,7 +123,7 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 ```bash
 cd test
 npm install
-npm test          # 64 e2e contracts against a real Chrome for Testing (ONLY="substring" to run one)
+npm test          # 73 e2e contracts against a real Chrome for Testing (ONLY="substring" to run one)
 HEADFUL=1 npm test
 node shots.mjs    # regenerate store screenshots
 ./package.sh      # build the store zip (strips the dev key)

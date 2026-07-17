@@ -49,6 +49,20 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > marked self-ops AFTER the call (moving a tab out of our own group read as a user pull-out and struck
 > grouping session-wide), and the catch-all judged a re-read instead of the commit (a tab still on
 > about:blank got parked, and its real page could then never claim it).
+> v1.12 the parking lot drains itself: `organizePool` is THE deterministic placer (rules -> optional
+> site buckets -> optional park) behind the Organize button AND a background `reviewPlaceable`, which
+> rides the existing 1-min tick on a `placeableGen` counter (bumped by rule/mode changes, resume,
+> merge, restore, settle) - no second alarm, no polling, and it owns no undo slot. THE INVARIANT: an
+> automatic pass never mints a group another automatic pass would dissolve (topic mode -> rules only;
+> explicit passes may). `organizeNow`'s pool becomes `placeable()` - the button could not see inside
+> "Other" before. `pairGrouping` moves into `ui:setSetting` (the rule was owned by the options page
+> while two pages could write it; and engine-on used to resurrect grouping the user had turned off);
+> the handler now answers with the settings it holds and both pages repaint from that. New: `sortAuto`
+> (gate inside `scheduleSortAssert`, the one choke point of all assert paths), popup AI sub-toggle,
+> `ui:reviewOther` (explicit AI re-sort of the catch-all: reuses `smartRunWindow` with
+> `{siteFallback:false}`, the existing lock and keepalive, plus a poolSig so the same question is never
+> asked twice). Fixed: a self-op marker set before a JOIN lingered for its TTL and swallowed the user's
+> next pull-out - the join now burns the marker it produced.
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

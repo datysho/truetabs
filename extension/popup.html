@@ -248,6 +248,18 @@
       .toggles .row {
         padding: 5px 0;
       }
+      /* The AI switch is a child of the grouping switch: meaningless when the
+         parent is off, so it says so instead of pretending. */
+      .toggles .row-sub {
+        padding-left: 14px;
+      }
+      .toggles .row-sub.disabled {
+        opacity: 0.45;
+      }
+      .toggles .row-sub .switch-label {
+        font-weight: 400;
+        font-size: 12.5px;
+      }
       .action-bar {
         flex: none;
         display: flex;
@@ -351,6 +363,10 @@
         <label class="row">
           <span class="switch-label" data-i18n="toggleGroup"></span>
           <input type="checkbox" id="groupToggle" class="switch" />
+        </label>
+        <label class="row row-sub" id="aiRow">
+          <span class="switch-label" data-i18n="toggleGroupAi"></span>
+          <input type="checkbox" id="aiToggle" class="switch" />
         </label>
       </section>
 

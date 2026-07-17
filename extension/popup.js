@@ -46,6 +46,7 @@ function render() {
   $("dedupToggle").checked = !!state.settings.dedupAuto;
   $("archiveToggle").checked = state.settings.archiveAfter !== "off";
   $("groupToggle").checked = state.settings.autoGroup !== "off";
+  paintAiRow(state.settings);
 
   // Organize speaks the active engine: with smart grouping on, the button IS
   // Smart Organize (it falls back to site grouping by itself).
@@ -92,6 +93,16 @@ function render() {
     undoOrgRow.hidden = true;
   }
   renderGroups();
+}
+
+// The AI switch rides under the grouping switch: it is the "AI / no AI" axis,
+// and it is honest because flipping it renames the Organize button to Smart
+// Organize in this very repaint - the consequence is visible in 344px.
+function paintAiRow(settings) {
+  const on = settings.autoGroup !== "off";
+  $("aiToggle").checked = settings.smartEngine !== "off";
+  $("aiToggle").disabled = !on;
+  $("aiRow").classList.toggle("disabled", !on);
 }
 
 // --- groups section: jump, fold, drag-reorder --------------------------------
@@ -171,6 +182,25 @@ function groupRow(group) {
     });
   });
   actions.appendChild(ungroup);
+  // The catch-all earns one more word: ask the AI whether these strays form a
+  // topic TOGETHER. Only where it can do something - a real engine, a real pile.
+  if (group.other && state && state.settings.smartEngine !== "off") {
+    const review = document.createElement("button");
+    review.textContent = t("groupReview");
+    review.addEventListener("click", (event) => {
+      event.stopPropagation();
+      review.disabled = true;
+      send({ type: "ui:reviewOther", windowId: group.windowId }).then((r) => {
+        setStatus(
+          r && r.same
+            ? t("statusReviewSame")
+            : t("statusOrganized", [(r && r.grouped) || 0, (r && r.groupsCreated) || 0]),
+        );
+        refresh();
+      });
+    });
+    actions.appendChild(review);
+  }
   row.appendChild(actions);
 
   row.addEventListener("click", () => {
@@ -374,8 +404,8 @@ async function init() {
     });
   });
   wireToggle("dedupToggle", "dedupAuto", (checked) => checked);
-  // Grouping toggle re-enables the mode the engine can honor: topic when an
-  // AI tier is configured, otherwise by site.
+  // Both switches just state a fact; the engine owns what that implies for
+  // its partner (pairGrouping) - a page must never re-implement that rule.
   $("groupToggle").addEventListener("change", (event) => {
     const value = !event.target.checked
       ? "off"
@@ -383,6 +413,14 @@ async function init() {
         ? "topic"
         : "site";
     send({ type: "ui:setSetting", key: "autoGroup", value }).then(refresh);
+  });
+  $("aiToggle").addEventListener("change", (event) => {
+    const value = !event.target.checked
+      ? "off"
+      : state && state.byokKeySet
+        ? "byok" // a key is already there: use what the user paid for
+        : "builtin";
+    send({ type: "ui:setSetting", key: "smartEngine", value }).then(refresh);
   });
   $("archiveToggle").addEventListener("change", (event) => {
     send({
@@ -427,6 +465,7 @@ async function prePaint() {
   $("dedupToggle").checked = !!s.dedupAuto;
   $("archiveToggle").checked = s.archiveAfter !== "off";
   $("groupToggle").checked = s.autoGroup !== "off";
+  paintAiRow(s);
   $("organizeBtn").textContent =
     s.smartEngine !== "off" ? t("actSmartOrganize") : t("actOrganize");
   const counters = localBag.counters;

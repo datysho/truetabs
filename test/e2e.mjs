@@ -1593,10 +1593,16 @@ async function main() {
     await resetWorld();
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
     await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const made = [];
     for (let i = 0; i < 17; i++) {
-      await createTab({ url: `${baseUrl}/multi${i < 9 ? "Alpha" : "Beta"}${i}` });
+      made.push(await createTab({ url: `${baseUrl}/multi${i < 9 ? "Alpha" : "Beta"}${i}` }));
     }
-    await sleep(700);
+    // Wait for the world, do not hope for it: a tab that has not reported its
+    // URL yet is not in the pool, and the run would legitimately group 15.
+    await waitFor("all 17 tabs carry their url", async () => {
+      const urls = await Promise.all(made.map(async (m) => (await getTab(m.id))?.url || ""));
+      return urls.every((u) => u.includes("multi"));
+    }, 10_000);
     await swEval(() =>
       globalThis.__ttSetMockAi({
         availability: "available",
@@ -2058,6 +2064,236 @@ async function main() {
     const siteGroup = await swEval((g) => chrome.tabGroups.get(g), (await getTab(peer.id)).groupId);
     assert(siteGroup.title !== "Other", `real site group (got "${siteGroup.title}")`);
     assert((await getTab(solo2.id)).groupId === gid, "the other stray stays in Other");
+  });
+
+  await test("organize reclaims Other: the button sees the parking lot", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    // two lone domains park in Other (no site group can form from singletons)
+    const a1 = await openViaCommit(`${baseUrl}/reclaimA`, { active: false });
+    const b1 = await openViaCommit(`${altUrl}/reclaimB`, { active: false });
+    await waitFor("parked", async () => (await getTab(a1.id)).groupId !== -1, 8000);
+    const otherGid = (await getTab(a1.id)).groupId;
+    // a second tab of a1's domain arrives while grouping is OFF: it stays put
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const a2 = await createTab({ url: `${baseUrl}/reclaimA2`, active: false });
+    await sleep(500);
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    // the user presses Organize: it must look INSIDE Other, not past it
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    await waitFor(
+      "site group born out of the catch-all",
+      async () => {
+        const t1 = await getTab(a1.id);
+        const t2 = await getTab(a2.id);
+        return t1.groupId !== -1 && t1.groupId !== otherGid && t1.groupId === t2.groupId;
+      },
+      6000,
+    );
+    assert((await getTab(b1.id)).groupId === otherGid, "the true stray stays parked");
+  });
+
+  await test("AI on never resurrects grouping the user turned off", async () => {
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    const s1 = (await ui({ type: "ui:getState" })).settings;
+    assert(s1.autoGroup === "off", `grouping stays off (got ${s1.autoGroup})`);
+    assert(s1.smartEngine === "builtin", "the engine choice is remembered");
+    // and the pairing itself lives in the engine, with no page open
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "topic" });
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    const s2 = (await ui({ type: "ui:getState" })).settings;
+    assert(s2.autoGroup === "site", `engine off drops grouping to site (got ${s2.autoGroup})`);
+    const back = await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    assert(back.settings.autoGroup === "topic", "engine on flips grouping to topic");
+    assert(back.settings.smartEngine === "builtin", "the answer carries both keys");
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("a new rule drains Other on the next tick, without a click", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    const v1 = await openViaCommit(`${altUrl}/ruleDrain1`, { active: false });
+    const p1 = await openViaCommit(`${baseUrl}/plainStray`, { active: false });
+    await waitFor("parked", async () => (await getTab(v1.id)).groupId !== -1, 8000);
+    const otherGid = (await getTab(v1.id)).groupId;
+    // the user writes a rule that matches one of the parked tabs
+    await ui({
+      type: "ui:customGroups:set",
+      list: [{ id: "rd", name: "Video", domains: ["localhost"], hint: "", on: true }],
+    });
+    await swEval(() => globalThis.__ttTick({}));
+    await waitFor(
+      "the rule reclaims its tab from the parking lot",
+      async () => {
+        const t = await getTab(v1.id);
+        if (t.groupId === -1 || t.groupId === otherGid) return false;
+        const g = await swEval((gid) => chrome.tabGroups.get(gid), t.groupId);
+        return g.title === "Video";
+      },
+      6000,
+    );
+    assert((await getTab(p1.id)).groupId === otherGid, "the unmatched stray stays");
+    await ui({ type: "ui:customGroups:set", list: [] });
+  });
+
+  await test("the review is idempotent and quiet: no work when nothing changed", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    const t1 = await openViaCommit(`${baseUrl}/idemA`, { active: false });
+    const t2 = await openViaCommit(`${baseUrl}/idemB`, { active: false });
+    await waitFor("site group", async () => (await getTab(t2.id)).groupId !== -1);
+    const snap = async () =>
+      JSON.stringify((await queryTabs()).map((t) => [t.id, t.groupId, t.index]).sort());
+    const before = await snap();
+    await swEval(() => globalThis.__ttTick({}));
+    await sleep(400);
+    await swEval(() => globalThis.__ttTick({}));
+    await sleep(400);
+    assert((await snap()) === before, "two ticks moved nothing");
+  });
+
+  await test("topic mode: the automatic review never mints site groups (no churn loop)", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "topic" });
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: () => JSON.stringify({ groups: [] }), // the model declines everything
+      }),
+    );
+    const c1 = await openViaCommit(`${baseUrl}/churnA`, { active: false });
+    const c2 = await openViaCommit(`${baseUrl}/churnB`, { active: false });
+    const c3 = await openViaCommit(`${baseUrl}/churnC`, { active: false });
+    await waitFor("parked in Other", async () => (await getTab(c3.id)).groupId !== -1, 8000);
+    const otherGid = (await getTab(c3.id)).groupId;
+    const g = await swEval((gid) => chrome.tabGroups.get(gid), otherGid);
+    assert(g.title === "Other", `they sit in the catch-all (got "${g.title}")`);
+    // force the review: in topic mode it must do rules only - a site group
+    // here would be dissolved by the next smart run, forever
+    await ui({ type: "ui:setSetting", key: "otherGroup", value: true });
+    await swEval(() => globalThis.__ttTick({}));
+    await sleep(600);
+    for (const t of [c1, c2, c3]) {
+      assert((await getTab(t.id)).groupId === otherGid, "still parked, no site group minted");
+    }
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("the review respects hands-off tabs and stays mute while paused", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    const h1 = await openViaCommit(`${altUrl}/handsA`, { active: false });
+    const h2 = await openViaCommit(`${altUrl}/handsB`, { active: false });
+    await waitFor("grouped", async () => (await getTab(h2.id)).groupId !== -1);
+    // the user pulls h1 out by hand: it must never be re-grouped
+    await swEval((id) => chrome.tabs.ungroup([id]), h1.id);
+    await sleep(500);
+    await swEval(() => globalThis.__ttForceSettle());
+    await ui({ type: "ui:customGroups:set", list: [] }); // bump the generation
+    await swEval(() => globalThis.__ttTick({}));
+    await sleep(700);
+    assert((await getTab(h1.id)).groupId === -1, "hands-off tab left alone by the review");
+    // paused: zero moves
+    await swEval(() => chrome.storage.session.set({ pausedUntil: Date.now() + 60_000 }));
+    const p1 = await openViaCommit(`${baseUrl}/pausedStray1`, { active: false });
+    const p2 = await openViaCommit(`${baseUrl}/pausedStray2`, { active: false });
+    await swEval(() => globalThis.__ttTick({}));
+    await sleep(600);
+    assert((await getTab(p1.id)).groupId === -1 && (await getTab(p2.id)).groupId === -1,
+      "the review is silent while automation is paused");
+    await swEval(() => chrome.storage.session.set({ pausedUntil: 0 }));
+  });
+
+  await test("a background review never clobbers the user's undo", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const u1 = await createTab({ url: `${baseUrl}/undoKeepA`, active: false });
+    const u2 = await createTab({ url: `${baseUrl}/undoKeepB`, active: false });
+    await sleep(500);
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    const mine = (await ui({ type: "ui:getState" })).lastOrganize;
+    assert(mine && mine.gids.length >= 1, "the user's run is remembered");
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" }); // bumps the generation
+    await swEval(() => globalThis.__ttTick({}));
+    await sleep(700);
+    const after = (await ui({ type: "ui:getState" })).lastOrganize;
+    assert(
+      JSON.stringify(after.gids) === JSON.stringify(mine.gids),
+      "the review owns no undo slot - the user's click still does",
+    );
+  });
+
+  await test("Re-sort on Other: one AI question, asked once", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "topic" });
+    await swEval(() => {
+      globalThis.__aiCalls = 0;
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          globalThis.__aiCalls++;
+          if (prompt.includes("Pick the best topic group")) return JSON.stringify({ group: null });
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("catsPage"))
+            .map((line) => parseInt(line, 10));
+          return idx.length
+            ? JSON.stringify({ groups: [{ name: "Cats", tabIndices: idx }] })
+            : JSON.stringify({ groups: [] });
+        },
+      });
+    });
+    const c1 = await openViaCommit(`${baseUrl}/catsPageOne`, { active: false });
+    const c2 = await openViaCommit(`${altUrl}/catsPageTwo`, { active: false });
+    await waitFor("parked in Other", async () => (await getTab(c2.id)).groupId !== -1, 8000);
+    const otherGid = (await getTab(c2.id)).groupId;
+    const winId = (await getTab(c1.id)).windowId;
+    // the question nothing else asks: do these strays form a topic TOGETHER?
+    const res = await ui({ type: "ui:reviewOther", windowId: winId });
+    assert(res.grouped >= 2, `the review pulled them out (${res.grouped})`);
+    const gid = (await getTab(c1.id)).groupId;
+    assert(gid !== -1 && gid !== otherGid, "they left the parking lot");
+    const g = await swEval((id) => chrome.tabGroups.get(id), gid);
+    assert(g.title === "Cats", `a real topic (got "${g.title}")`);
+    // same pool, same topics: the model is not woken again
+    const callsBefore = await swEval(() => globalThis.__aiCalls);
+    const again = await ui({ type: "ui:reviewOther", windowId: winId });
+    assert(again.grouped === 0, "nothing to do the second time");
+    assert(
+      (await swEval(() => globalThis.__aiCalls)) === callsBefore,
+      "the same question is never asked twice",
+    );
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("sortAuto off: a manual drag stays put, Organize still sorts", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "title" });
+    await ui({ type: "ui:setSetting", key: "sortAuto", value: false });
+    const z = await openViaCommit(`${baseUrl}/zzManual`, { active: false });
+    const a = await openViaCommit(`${altUrl}/aaManual`, { active: false });
+    const idx = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
+    await sleep(1200);
+    // nothing maintains the order now: drag zz to the front and it stays
+    await swEval((tid) => chrome.tabs.move(tid, { index: 0 }), z.id);
+    await sleep(1500);
+    assert((await idx(z.id)) < (await idx(a.id)), "no snap-back while sortAuto is off");
+    // but the button still sorts on demand
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    await waitFor("Organize applies the order", async () => (await idx(a.id)) < (await idx(z.id)), 5000);
+    await ui({ type: "ui:setSetting", key: "sortAuto", value: true });
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
   });
 
   await test("service worker: zero unchecked errors across the whole run", async () => {

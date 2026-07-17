@@ -72,7 +72,7 @@
     "message": "Autoarquivo de abas paradas"
   },
   "toggleGroup": {
-    "message": "Grupos automáticos por site"
+    "message": "Agrupar novas guias"
   },
   "pausedNote": {
     "message": "Automação pausada (disjuntor). Ela volta sozinha."
@@ -490,5 +490,20 @@
   },
   "optOtherGroupHint": {
     "message": "Uma guia sem lar - sem tema, sem grupo de site, sem regra sua - entra no grupo cinza \"Outros\" no fim da barra em vez de ficar solta. Funciona tanto com o agrupamento por site quanto por tema; um grupo real sempre recupera suas guias de \"Outros\"."
+  },
+  "toggleGroupAi": {
+    "message": "Por tema, com IA"
+  },
+  "groupReview": {
+    "message": "Reorganizar"
+  },
+  "statusReviewSame": {
+    "message": "Nada de novo para reorganizar aqui"
+  },
+  "optSortAuto": {
+    "message": "Manter a ordem automaticamente"
+  },
+  "optSortAutoHint": {
+    "message": "Ligado: as ordens acima são invariantes - novas guias entram no lugar, arrastes manuais voltam. Desligado: aplicam-se apenas ao clicar em Organizar, e nada se move sozinho nesse meio-tempo."
   }
 }

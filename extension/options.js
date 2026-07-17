@@ -14,6 +14,7 @@ const SWITCHES = [
   "archiveForeignGroups",
   "discardStale",
   "groupsOnTop",
+  "sortAuto",
   "otherGroup",
   "smartRegroupOurs",
 ];
@@ -63,34 +64,18 @@ function localizeDom() {
   }
 }
 
-function setSetting(key, value) {
+// The engine answers with the settings it actually holds: the grouping pair
+// rule may have moved a second key, and a page that repainted from its own
+// optimistic guess would show a state that does not exist.
+async function setSetting(key, value) {
   settings[key] = value;
-  return send({ type: "ui:setSetting", key, value });
-}
-
-// "Group new tabs: by topic" and "Group by topic using: <engine>" are one
-// decision seen from two sides - they move together. Picking an engine turns
-// topic grouping on; turning the engine off drops grouping back to site;
-// choosing topic with no engine auto-picks the built-in one.
-async function syncGroupingPair(changed) {
-  if (changed === "autoGroup") {
-    if ($("autoGroup").value === "topic" && $("smartEngine").value === "off") {
-      $("smartEngine").value = "builtin";
-      await setSetting("smartEngine", "builtin");
-      refreshBuiltinStatus();
-    }
-    return;
+  const res = await send({ type: "ui:setSetting", key, value });
+  if (res && res.settings) {
+    settings = res.settings;
+    for (const id of SELECTS) $(id).value = settings[id];
+    for (const id of SWITCHES) $(id).checked = !!settings[id];
   }
-  if (changed === "smartEngine") {
-    const engine = $("smartEngine").value;
-    if (engine === "off" && $("autoGroup").value === "topic") {
-      $("autoGroup").value = "site";
-      await setSetting("autoGroup", "site");
-    } else if (engine !== "off" && $("autoGroup").value !== "topic") {
-      $("autoGroup").value = "topic";
-      await setSetting("autoGroup", "topic");
-    }
-  }
+  return res;
 }
 
 function renderSmartRows() {
@@ -281,12 +266,11 @@ function paintControls() {
       await setSetting(id, e.target.value);
       if (id === "theme") applyTheme(e.target.value);
       if (id === "language") location.reload();
-      if (id === "smartEngine" || id === "autoGroup") await syncGroupingPair(id);
       if (id === "smartEngine" || id === "byokProvider" || id === "autoGroup") {
         renderSmartRows();
         refreshByokWarning();
       }
-      if (id === "smartEngine" && e.target.value === "builtin") refreshBuiltinStatus();
+      if (settings.smartEngine === "builtin") refreshBuiltinStatus();
     });
   }
 

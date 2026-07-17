@@ -125,6 +125,25 @@ async function getSettings() {
   return normalizeSettings(settings);
 }
 
+// "Group new tabs: by topic" and "Group by topic using: <engine>" are ONE
+// decision seen from two sides, so the rule lives HERE, in the engine, not in
+// a page: two pages can set these keys, and a rule owned by one of them is a
+// rule the other breaks. Picking topic with no engine takes the built-in one;
+// switching the engine moves grouping with it. Grouping turned OFF is
+// orthogonal: the engine choice is remembered, never used to switch grouping
+// back on behind the user's back.
+function pairGrouping(settings, changedKey) {
+  const next = { ...settings };
+  if (next.autoGroup === "off") return next;
+  if (changedKey === "autoGroup" && next.autoGroup === "topic" && next.smartEngine === "off") {
+    next.smartEngine = "builtin";
+  }
+  if (changedKey === "smartEngine") {
+    next.autoGroup = next.smartEngine === "off" ? "site" : "topic";
+  }
+  return next;
+}
+
 // --- custom groups (user rules) ----------------------------------------------
 // The user's own named groups with routing rules: a domain list (deterministic,
 // runs before any automatic grouping) and/or an AI hint (used by topic mode and
@@ -363,6 +382,7 @@ function ensureSettleBootstrap() {
     }
     await readoptGroups();
     await chrome.storage.session.set({ settled: true });
+    await bumpPlaceableGen(); // tabs that landed while we were gated: look now
     traceDiag(`settled at ${lastCount} tabs`);
   }, "settle");
 }
@@ -1018,6 +1038,7 @@ async function undoBatch(batchId, { recordStrikes = true } = {}) {
 }
 
 async function restoreEntries(ids) {
+  await bumpPlaceableGen(); // a restored tab may belong to a rule or a site group
   const archive = await getArchive();
   const wanted = new Set(ids);
   const entries = archive.entries.filter((e) => wanted.has(e.id));
@@ -1433,33 +1454,37 @@ async function groupOnCommit(tabId, st) {
   });
 }
 
-// Explicit command: the user just asked - ungroupedByUser tabs ARE included;
-// members of foreign groups are not loose, pinned never participate.
-async function organizeNow(scope, currentWindowId) {
-  const windows = await normalWindows();
-  const targets = scope === "window" ? windows.filter((w) => w.id === currentWindowId) : windows;
+// Bucket a pool by site. Only real websites qualify - a file:// or an
+// extension page has no domain to name a group after.
+function bucketBySite(pool) {
+  const byDomain = new Map();
+  for (const t of pool) {
+    const domain = registrableDomain(t.url);
+    if (!domain || !normalizeUrl(t.url)) continue;
+    if (!byDomain.has(domain)) byDomain.set(domain, []);
+    byDomain.get(domain).push(t);
+  }
+  return byDomain;
+}
+
+// THE deterministic placer: rules first (a standing order outranks
+// everything), then site buckets, then the catch-all takes what is left.
+// Every caller - the Organize button, the background review - gets the same
+// placement out of it; only the POLICY differs, and policy is an argument:
+//   siteBuckets - may this pass mint site groups?
+//   park        - may this pass park leftovers in "Other"?
+async function organizePool(windowId, pool, { siteBuckets, park, createdGids }) {
   let grouped = 0;
   let groupsCreated = 0;
-  const createdGids = [];
-  for (const win of targets) {
-    const loose = (await chrome.tabs.query({ windowId: win.id, pinned: false })).filter(
-      (t) => (t.groupId === -1 || t.groupId == null) && !isEphemeralUrl(t.url),
-    );
-    // The user's rule groups outrank site grouping: route matches first.
-    const beforeCustom = createdGids.length;
-    const routed = await routeCustoms(loose, win.id, createdGids);
-    grouped += routed.grouped;
-    groupsCreated += createdGids.length - beforeCustom;
-    const byDomain = new Map();
-    for (const t of routed.rest) {
-      const domain = registrableDomain(t.url);
-      if (!domain || !normalizeUrl(t.url)) continue; // a site group needs a site
-      if (!byDomain.has(domain)) byDomain.set(domain, []);
-      byDomain.get(domain).push(t);
-    }
-    for (const [domain, list] of byDomain) {
+  const before = createdGids.length;
+  const routed = await routeCustoms(pool, windowId, createdGids);
+  grouped += routed.grouped;
+  groupsCreated += createdGids.length - before;
+
+  if (siteBuckets) {
+    for (const [domain, list] of bucketBySite(routed.rest)) {
       const ourGroups = await getOurGroups();
-      const existing = findOurGroup(ourGroups, win.id, domain);
+      const existing = findOurGroup(ourGroups, windowId, domain);
       if (existing != null) {
         for (const t of list) {
           if (await addToOurGroup(t.id, existing)) grouped++;
@@ -1467,8 +1492,8 @@ async function organizeNow(scope, currentWindowId) {
       } else if (list.length >= 2) {
         const gid = await createOurGroup(
           list.map((t) => t.id),
-          win.id,
-          { domain, title: groupTitleFor(ourGroups, win.id, domain), color: colorFor(domain) },
+          windowId,
+          { domain, title: groupTitleFor(ourGroups, windowId, domain), color: colorFor(domain) },
         );
         if (gid != null) {
           grouped += list.length;
@@ -1477,26 +1502,97 @@ async function organizeNow(scope, currentWindowId) {
         }
       }
     }
-    const settings = await getSettings();
-    if (settings.otherGroup) {
-      // Whatever the pass could not place goes to the catch-all - the same
-      // promise the smart run keeps, kept by the plain one.
-      const leftovers = (await chrome.tabs.query({ windowId: win.id, pinned: false }))
-        .filter((t) => (t.groupId === -1 || t.groupId == null) && !isEphemeralUrl(t.url) && t.url)
-        .map((t) => t.id);
-      if (leftovers.length) {
-        const res = await ensureOtherGroup(win.id, leftovers);
-        grouped += res.joined;
-        if (res.created != null) {
-          groupsCreated++;
-          createdGids.push(res.created);
-        }
+  }
+
+  if (park) {
+    // Whatever the pass could not place goes to the catch-all. Re-read: the
+    // placement above moved tabs, and only what is STILL loose is a leftover.
+    const leftovers = (await chrome.tabs.query({ windowId, pinned: false }))
+      .filter((t) => (t.groupId === -1 || t.groupId == null) && !isEphemeralUrl(t.url) && t.url)
+      .map((t) => t.id);
+    if (leftovers.length) {
+      const res = await ensureOtherGroup(windowId, leftovers);
+      grouped += res.joined;
+      if (res.created != null) {
+        groupsCreated++;
+        createdGids.push(res.created);
       }
     }
+  }
+  return { grouped, groupsCreated };
+}
+
+// Explicit command: the user just asked - ungroupedByUser tabs ARE included;
+// members of foreign groups are not loose, pinned never participate. The pool
+// is placeable(), not "loose": tabs parked in OUR catch-all are exactly what
+// the user wants sorted out when they press this button.
+async function organizeNow(scope, currentWindowId) {
+  const windows = await normalWindows();
+  const targets = scope === "window" ? windows.filter((w) => w.id === currentWindowId) : windows;
+  let grouped = 0;
+  let groupsCreated = 0;
+  const createdGids = [];
+  const settings = await getSettings();
+  for (const win of targets) {
+    const ourGroups = await getOurGroups();
+    const pool = (await chrome.tabs.query({ windowId: win.id, pinned: false })).filter(
+      (t) => placeable(t, ourGroups) && !isEphemeralUrl(t.url),
+    );
+    const res = await organizePool(win.id, pool, {
+      siteBuckets: true,
+      park: settings.otherGroup,
+      createdGids,
+    });
+    grouped += res.grouped;
+    groupsCreated += res.groupsCreated;
     await applySort(win.id); // the one layout engine: sorts + zones + Other
   }
   await rememberOrganize(createdGids);
   return { grouped, groupsCreated };
+}
+
+// --- the background review --------------------------------------------------
+// "Other" is a parking lot, so what sits in it must be re-asked as the world
+// changes: a rule the user just wrote, a mode they just switched, automation
+// that was paused while tabs piled up loose. This is the deterministic half -
+// rules and site buckets, no model, idempotent, free.
+//
+// It runs on a GENERATION counter, not a timer: only the events that can
+// change the answer bump it, so a quiet browser costs one session read per
+// minute and zero moves.
+//
+// THE INVARIANT: an automatic pass never mints a group another automatic pass
+// would dissolve. In topic mode the AI owns clustering, so this pass does
+// rules only - otherwise it would mint site groups the next smart run would
+// tear back apart. An EXPLICIT pass may (the user asked, and underdelivery
+// must not leave a mess).
+async function bumpPlaceableGen() {
+  const { placeableGen = 0 } = await chrome.storage.session.get("placeableGen");
+  await chrome.storage.session.set({ placeableGen: placeableGen + 1 });
+}
+
+async function reviewPlaceable() {
+  const settings = await getSettings();
+  if (settings.autoGroup === "off") return;
+  for (const win of await normalWindows()) {
+    const ourGroups = await getOurGroups();
+    const pool = [];
+    for (const t of await chrome.tabs.query({ windowId: win.id, pinned: false })) {
+      if (!placeable(t, ourGroups) || isEphemeralUrl(t.url) || !t.url) continue;
+      const st = await getTabState(t.id);
+      if (st && st.ungroupedByUser) continue; // pulled out by hand: hands off
+      pool.push(t);
+    }
+    if (!pool.length) continue;
+    // No rememberOrganize: a background pass owns no undo slot. Overwriting
+    // it would destroy the undo of the user's OWN Organize click.
+    await organizePool(win.id, pool, {
+      siteBuckets: settings.autoGroup === "site",
+      park: settings.otherGroup,
+      createdGids: [],
+    });
+    await applySort(win.id);
+  }
 }
 
 // One-click undo for an Organize: dissolve only the groups THAT RUN created
@@ -1691,6 +1787,11 @@ function scheduleSortAssert(windowId, delay = 300) {
       sortAssertTimers.delete(windowId);
       enqueue(async () => {
         if (!(await isSettled()) || (await isPaused())) return;
+        // sortAuto off: the order is a command, not an invariant - it applies
+        // when the user presses Organize (which calls applySort directly) and
+        // never on its own. This is the one choke point of all nine assert
+        // paths, so the switch is honest by construction.
+        if (!(await getSettings()).sortAuto) return;
         await applySort(windowId);
       }, "sort-assert");
     }, delay),
@@ -1863,6 +1964,7 @@ async function mergeWindows(targetWindowId) {
   await quiet(chrome.windows.update, targetWindowId, { focused: true });
   // Merged material lands at the end: let the layout invariants re-assert.
   await sortAssertIfActive(targetWindowId, 200);
+  await bumpPlaceableGen(); // arrivals from other windows deserve a look
   return { moved, groupsMoved, windowsEmptied, pinnedLeft };
 }
 
@@ -2218,7 +2320,8 @@ async function applySmartBatch(windowId, parsed, batch, themes, customs, setting
   }, "apply-smart");
 }
 
-async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
+async function smartRunWindow(windowId, pool, totalPool, done, run, settings, opts = {}) {
+  const siteFallback = opts.siteFallback !== false;
   // 1) The user's rules route first - deterministic, no model involved.
   const routed = await enqueue(() => routeCustoms(pool, windowId, run.createdGids), "smart-rules");
   run.grouped += routed.grouped;
@@ -2328,7 +2431,10 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
       const live = await quiet(chrome.tabs.get, t.id);
       if (live && !live.pinned && (live.groupId === -1 || live.groupId == null)) loose.push(live);
     }
-    if (aiFailures > 0 || loose.length > rest.length / 2) {
+    // A review is a refinement, not a rescue: it must not invent site groups
+    // the deterministic pass would never make in topic mode (that pair would
+    // fight each other forever). An explicit run may - the user asked.
+    if (siteFallback && (aiFailures > 0 || loose.length > rest.length / 2)) {
       run.fellBack = true;
       const byDomain = new Map();
       const exotic = [];
@@ -2514,6 +2620,17 @@ async function tick() {
     }
   }
   await collapseScan();
+  // The review rides this alarm - no second timer. A quiet browser pays one
+  // session read a minute; the pass only runs when something that could
+  // change the answer happened (a rule, a mode, a resume, a merge).
+  const { placeableGen = 0, placeableGenSeen = -1 } = await chrome.storage.session.get([
+    "placeableGen",
+    "placeableGenSeen",
+  ]);
+  if (placeableGen !== placeableGenSeen) {
+    await chrome.storage.session.set({ placeableGenSeen: placeableGen });
+    await reviewPlaceable();
+  }
 }
 
 function ensureAlarm() {
@@ -2557,6 +2674,7 @@ async function uiGetState(request) {
       tabCount: members.length,
       firstTabIndex: members.length ? Math.min(...members.map((t) => t.index)) : -1,
       ours: !!ourGroups[group.id],
+      other: !!(ourGroups[group.id] && ourGroups[group.id].other),
     });
   }
   groups.sort((a, b) => a.windowId - b.windowId || a.firstTabIndex - b.firstTabIndex);
@@ -2614,6 +2732,7 @@ async function handleUi(request) {
         }
       }
       quiet(chrome.notifications.clear, "tt-breaker");
+      await bumpPlaceableGen(); // retry what was stranded while we were mute
       traceDiag("automation resumed by the user");
       return { ok: true };
     }
@@ -2626,7 +2745,8 @@ async function handleUi(request) {
       settings[request.key] = request.value;
       // Persist the normalized shape: a bad value degrades to the default
       // instead of poisoning storage for every later read.
-      await chrome.storage.sync.set({ settings: normalizeSettings(settings) });
+      const next = normalizeSettings(pairGrouping(settings, request.key));
+      await chrome.storage.sync.set({ settings: next });
       i18nReady = null; // language may have changed
       if (request.key === "iconStyle") applyActionIcon(request.value);
       // Flipping a layout setting re-sorts immediately - these are
@@ -2634,21 +2754,82 @@ async function handleUi(request) {
       if (
         request.key === "sortGroups" ||
         request.key === "sortTabs" ||
-        (request.key === "groupsOnTop" && request.value === true)
+        (request.key === "groupsOnTop" && request.value === true) ||
+        (request.key === "sortAuto" && request.value === true)
       ) {
         for (const win of await normalWindows()) scheduleSortAssert(win.id, 50);
       }
-      return { ok: true };
+      // What can be placed may have changed: let the review look again.
+      if (request.key === "autoGroup" || request.key === "otherGroup") await bumpPlaceableGen();
+      // The pages repaint from THIS answer - the pairing may have moved a
+      // second key, and a page that repainted from its own optimistic guess
+      // would show a state the engine does not have.
+      return { ok: true, settings: next };
     }
     case "ui:customGroups:set": {
       const list = normalizeCustomGroups(request.list);
       // Sync gives one item ~8KB: rules must never be what breaks saving.
       if (JSON.stringify(list).length > 7000) return { ok: false, error: "tooBig" };
       await chrome.storage.sync.set({ customGroups: list });
+      await bumpPlaceableGen(); // a new rule reclaims what is already parked
       return { ok: true, customGroups: list };
     }
     case "ui:organizeNow":
       return organizeNow(request.scope || "window", request.windowId);
+    case "ui:reviewOther": {
+      // The one question nothing else asks: do these strays form a NEW topic
+      // TOGETHER? smartAssign only ever asks "does this one tab fit an
+      // existing group". Explicit, user-pressed - so the busy button and the
+      // progress line are expected, not a surprise.
+      const settings = await getSettings();
+      if (settings.smartEngine === "off") return { grouped: 0, groupsCreated: 0 };
+      const { smartRunning } = await chrome.storage.session.get("smartRunning");
+      if (smartRunning && now() - smartRunning < 10 * 60e3) return { busy: true };
+      const ourGroups = await getOurGroups();
+      const otherEntry = Object.entries(ourGroups).find(
+        ([, g]) => g.other && g.windowId === request.windowId,
+      );
+      if (!otherEntry) return { grouped: 0, groupsCreated: 0 };
+      const pool = [];
+      for (const t of await chrome.tabs.query({ groupId: Number(otherEntry[0]) })) {
+        if (t.pinned || isEphemeralUrl(t.url) || !t.url) continue;
+        const st = await getTabState(t.id);
+        if (st && st.ungroupedByUser) continue;
+        pool.push(t);
+      }
+      if (pool.length < 2) return { grouped: 0, groupsCreated: 0 };
+      // Same pool, same topics on offer - same answer. Do not wake the model
+      // to re-read a question it already answered.
+      const topics = Object.values(ourGroups)
+        .filter((g) => g.smart && !g.other && g.windowId === request.windowId)
+        .map((g) => g.title);
+      const poolSig = fnv1a32(
+        pool
+          .map((t) => dupeKey(t.url) || t.url)
+          .sort()
+          .join("|") +
+          "#" +
+          topics.sort().join(","),
+      );
+      const { lastOtherSig = {} } = await chrome.storage.session.get("lastOtherSig");
+      if (lastOtherSig[request.windowId] === poolSig) return { grouped: 0, groupsCreated: 0, same: true };
+      await chrome.storage.session.set({ smartRunning: now() });
+      startSmartKeepalive();
+      const run = { grouped: 0, groupsCreated: 0, fellBack: false, createdGids: [] };
+      try {
+        await smartRunWindow(request.windowId, pool, pool.length, 0, run, settings, {
+          siteFallback: false,
+        });
+      } finally {
+        await setSmartProgress(0, 0);
+        stopSmartKeepalive();
+        await chrome.storage.session.remove("smartRunning");
+      }
+      lastOtherSig[request.windowId] = poolSig;
+      await chrome.storage.session.set({ lastOtherSig });
+      await rememberOrganize(run.createdGids); // the user pressed it: undoable
+      return { grouped: run.grouped, groupsCreated: run.groupsCreated };
+    }
     case "ui:smartOrganize":
       return smartOrganize(request.scope || "window", request.windowId);
     case "ui:undoOrganize":
@@ -3072,6 +3253,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
         }
         await putTabState(tabId, st);
       } else if (changeInfo.groupId !== -1) {
+        // A marker covers exactly ONE group event, whichever kind. Our own
+        // grouping produces a JOIN, so the join must burn the marker too -
+        // otherwise it lingers for its TTL and swallows the user's next
+        // pull-out, killing the anti-fight rule in the very window where it
+        // matters most: right after we moved something. (A move BETWEEN our
+        // groups fires leave+join; the leave burns the marker and the join
+        // simply records the new owner - no strike logic there.)
+        await consumeSelfOp("tabgroup", tabId);
         const ourGroups = await getOurGroups();
         st.groupedByUs = ourGroups[changeInfo.groupId] ? changeInfo.groupId : null;
         await putTabState(tabId, st);
@@ -3212,6 +3401,7 @@ const OFF_QUEUE_UI = new Set([
   "ui:smartEnable",
   "ui:byokTest",
   "ui:smartOrganize",
+  "ui:reviewOther",
   "ui:getState",
   "ui:smartStatus",
   "ui:ping",

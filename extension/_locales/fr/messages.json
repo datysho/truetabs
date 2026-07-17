@@ -72,7 +72,7 @@
     "message": "Archivage auto des délaissés"
   },
   "toggleGroup": {
-    "message": "Groupes auto par site"
+    "message": "Grouper les nouveaux onglets"
   },
   "pausedNote": {
     "message": "Automatisation en pause (disjoncteur). Elle reprendra d'elle-même."
@@ -490,5 +490,20 @@
   },
   "optOtherGroupHint": {
     "message": "Un onglet sans foyer - ni sujet, ni groupe de site, ni règle à vous - rejoint le groupe gris « Autres » en fin de barre au lieu de traîner. Fonctionne avec le groupement par site comme par sujet ; un vrai groupe récupère toujours ses onglets depuis « Autres »."
+  },
+  "toggleGroupAi": {
+    "message": "Par sujet, via l'IA"
+  },
+  "groupReview": {
+    "message": "Retrier"
+  },
+  "statusReviewSame": {
+    "message": "Rien de nouveau à trier ici"
+  },
+  "optSortAuto": {
+    "message": "Maintenir l'ordre automatiquement"
+  },
+  "optSortAutoHint": {
+    "message": "Activé : les ordres ci-dessus sont des invariants - les nouveaux onglets se rangent, les glissements manuels reviennent. Désactivé : ils ne s'appliquent qu'au clic sur Organiser, et rien ne bouge tout seul entre-temps."
   }
 }

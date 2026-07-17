@@ -72,7 +72,7 @@
     "message": "Autoarchivo de inactivas"
   },
   "toggleGroup": {
-    "message": "Grupos automáticos por sitio"
+    "message": "Agrupar pestañas nuevas"
   },
   "pausedNote": {
     "message": "Automatización en pausa (fusible). Se reanudará sola."
@@ -490,5 +490,20 @@
   },
   "optOtherGroupHint": {
     "message": "Una pestaña sin hogar - sin tema, sin grupo de sitio, sin regla tuya - se une al grupo gris «Otros» al final de la barra en vez de quedar suelta. Funciona con la agrupación por sitio y por tema; un grupo real siempre recupera sus pestañas de «Otros»."
+  },
+  "toggleGroupAi": {
+    "message": "Por tema, con IA"
+  },
+  "groupReview": {
+    "message": "Reordenar"
+  },
+  "statusReviewSame": {
+    "message": "No hay nada nuevo que reordenar"
+  },
+  "optSortAuto": {
+    "message": "Mantener el orden automáticamente"
+  },
+  "optSortAutoHint": {
+    "message": "Activado: los órdenes de arriba son invariantes: las pestañas nuevas se colocan, los arrastres manuales vuelven. Desactivado: solo se aplican al pulsar Organizar, y entre tanto nada se mueve solo."
   }
 }

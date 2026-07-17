@@ -23,6 +23,7 @@ const ttSchema = (() => {
     // drags snap back, "recent" surfaces what you use - instantly.
     sortGroups: "off", // "off" | "title" | "recent" | "opened" - group order
     sortTabs: "off", // same values - tab order (loose + inside our groups)
+    sortAuto: true, // keep the order live; off = apply it only on Organize
     groupsOnTop: false, // keep groups at the front of the strip (applied on Organize + new groups)
     // pillar 3b - smart (AI) grouping
     smartEngine: "off", // "off" | "builtin" | "byok"

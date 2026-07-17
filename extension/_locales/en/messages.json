@@ -72,7 +72,7 @@
     "message": "Auto-archive stale tabs"
   },
   "toggleGroup": {
-    "message": "Auto-group by site"
+    "message": "Group new tabs automatically"
   },
   "pausedNote": {
     "message": "Automation is paused (circuit breaker). It resumes on its own."
@@ -490,5 +490,20 @@
   },
   "optOtherGroupHint": {
     "message": "A tab that found no home - no topic, no site group, no rule of yours - joins a grey \"Other\" group at the end of the strip instead of lying around loose. Works with grouping by site and by topic alike; a real group always wins its tabs back from Other."
+  },
+  "toggleGroupAi": {
+    "message": "By topic, using AI"
+  },
+  "groupReview": {
+    "message": "Re-sort"
+  },
+  "statusReviewSame": {
+    "message": "Nothing new to sort out here"
+  },
+  "optSortAuto": {
+    "message": "Keep the order automatically"
+  },
+  "optSortAutoHint": {
+    "message": "On: the orders above are invariants - new tabs slot in, manual drags snap back. Off: they apply only when you press Organize, and nothing moves on its own in between."
   }
 }
