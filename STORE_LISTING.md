@@ -19,7 +19,22 @@ checklist).
 Live in Chrome long enough and you drown in tabs: the same page opened five
 times, forty tabs you'll "read later", zero structure. Arc solved this at
 the browser level. TrueTabs brings that experience into Chrome's native UI -
-no vertical sidebar, no new-tab takeover, Chrome stays Chrome.
+no sidebar of its own, no new-tab takeover, Chrome stays Chrome.
+
+BEST WITH VERTICAL TABS
+
+Chrome can put the tab strip down the left side: Settings > Appearance >
+Tab position > Vertical. If your Chrome does not show that row yet, it is
+still rolling out.
+
+Turn it on. A horizontal strip at forty tabs is a row of nameless icons -
+titles gone, groups reduced to colour chips, and everything TrueTabs does is
+invisible to you. Down the side, every tab keeps its title and every group
+shows its name and colour, so the structure is finally something you can
+read. Chrome renders the list; TrueTabs decides what is in it - no
+duplicates taking a row, stale tabs leaving on their own, new tabs landing
+in the right group, the order you chose staying put. That is the Arc
+sidebar, in the browser you already use.
 
 WHAT IT DOES
 

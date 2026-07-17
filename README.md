@@ -25,8 +25,31 @@ forty tabs you'll "read later", zero structure. Arc solved this at the
 browser level - duplicates focus the existing tab, untouched tabs move to an
 archive, everything stays organized. Chrome never did.
 
-TrueTabs brings exactly that experience into Chrome's native UI. No vertical
-sidebar, no new-tab page takeover - Chrome stays Chrome, the mess just stops.
+TrueTabs brings exactly that experience into Chrome's native UI. No sidebar of
+its own, no new-tab page takeover - Chrome stays Chrome, the mess just stops.
+
+## Turn on Chrome's vertical tabs. Really.
+
+**This is the setup we recommend, and it is half the product.** Chrome can put
+the tab strip down the left side:
+
+> **Settings → Appearance → Tab position → Vertical**
+>
+> No such row? The rollout is gradual - open `chrome://flags/#vertical-tabs`,
+> set it to **Enabled**, relaunch, and the row appears. (Verified on Chrome
+> 150; `#vertical-tabs-expand-on-hover` is worth a look too.)
+
+Why it matters here: a horizontal strip is where structure goes to die. At
+forty tabs every title is gone, every group is a nameless colour chip, and the
+work TrueTabs does is invisible to you. Down the side, each tab keeps its
+title and each group shows its **name and colour** - so grouping stops being a
+tidy-up you take on faith and becomes an outline of your day you can read.
+
+The two halves fit exactly: Chrome renders the list, TrueTabs decides what is
+in it. Duplicates never take a row. Stale tabs leave on their own. New tabs
+land in the right group instead of at the end. The order you picked is kept,
+so nothing jumps. That combination is the Arc sidebar - in the browser you
+already use.
 
 ## What it does
 
