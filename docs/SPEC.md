@@ -26,6 +26,9 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > onMoved + engine-activity stamp filter, immediate re-sort on setting change); "live" merged into
 > "recent" (instant surfacing, cycling-guard instead of a dwell); options grouping pair synced
 > (engine on = topic, off = site, topic auto-picks built-in); popup grips hide under managed order.
+> v1.8 one layout engine: applySort enforces the whole ordering contract in one pass (zones via
+> groupsOnTop - maintained continuously now, group order into held slots, tab order, Other last of the
+> block / of the window without zones); partial helpers are no longer combined at call sites.
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

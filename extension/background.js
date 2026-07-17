@@ -1372,9 +1372,7 @@ async function organizeNow(scope, currentWindowId) {
         }
       }
     }
-    await applySort(win.id);
-    const settings = await getSettings();
-    if (settings.groupsOnTop) await moveGroupsToFront(win.id);
+    await applySort(win.id); // the one layout engine: sorts + zones + Other
   }
   await rememberOrganize(createdGids);
   return { grouped, groupsCreated };
@@ -1414,18 +1412,31 @@ async function undoOrganize() {
 // and the loose tabs. Modes: title (A-Z), recent (last used first), opened
 // (oldest first); "live" is the continuous surface-on-use behavior and reads
 // as "recent" here.
+// THE layout engine: every ordering feature is enforced here, in one pass,
+// so the features compose instead of colliding. The canonical window layout:
+//   [pinned] [groups] [loose tabs]           - zones, when groupsOnTop is on
+//   group order: OUR sortable groups ranked by sortGroups INTO THE SLOTS they
+//     already hold (foreign groups keep their places); the "Other" catch-all
+//     is always the last group of the block - and, without groupsOnTop, the
+//     very end of the window;
+//   tab order: sortTabs inside each of our groups and among loose tabs.
+// Callers never combine partial helpers - they call this and get the whole
+// contract. Runs on Organize, on every maintenance assert, and is a no-op
+// when nothing is enabled.
 async function applySort(windowId) {
   const settings = await getSettings();
   const groupMode = settings.sortGroups;
   const tabMode = settings.sortTabs;
-  if (groupMode === "off" && tabMode === "off") return;
+  const onTop = settings.groupsOnTop;
+  if (groupMode === "off" && tabMode === "off" && !onTop) return;
   const ourGroups = await getOurGroups();
   const tabs = await chrome.tabs.query({ windowId });
-  const st = new Map();
-  for (const t of tabs) st.set(t.id, await getTabState(t.id));
+  const states = tabs.length
+    ? await chrome.storage.session.get(tabs.map((t) => stateKey(t.id)))
+    : {};
   const metricBy = (mode) => (t) => {
     if (mode === "title") return (t.title || t.url || "").toLowerCase();
-    if (mode === "opened") return (st.get(t.id) && st.get(t.id).firstSeenAt) || 0;
+    if (mode === "opened") return (states[stateKey(t.id)] || {}).firstSeenAt || 0;
     return -(t.lastAccessed || 0); // recent: most recently used first
   };
   const cmpBy = (mode) => {
@@ -1435,8 +1446,8 @@ async function applySort(windowId) {
   const groupIds = [...new Set(tabs.filter((t) => t.groupId !== -1).map((t) => t.groupId))];
   const ourGids = groupIds.filter((gid) => ourGroups[gid]);
 
-  // Tabs inside each of OUR groups: moves stay within the group's span, so
-  // membership is never disturbed.
+  // 1) Tabs inside each of OUR groups: moves stay within the group's span,
+  //    so membership is never disturbed.
   if (tabMode !== "off") {
     const cmp = cmpBy(tabMode);
     for (const gid of ourGids) {
@@ -1450,32 +1461,61 @@ async function applySort(windowId) {
     }
   }
 
-  // OUR groups (never the catch-all, never foreign ones) ranked by their best
-  // member and re-laid sequentially from the block's current start.
+  // 2) The group sequence: current order by position, then OUR sortable
+  //    groups re-ranked into the slots they already occupy (foreign groups
+  //    keep theirs), the catch-all pulled to the back of the block.
+  let seq = groupIds
+    .map((gid) => {
+      const members = tabs.filter((t) => t.groupId === gid);
+      return {
+        id: gid,
+        size: members.length,
+        first: Math.min(...members.map((t) => t.index)),
+        ours: !!ourGroups[gid],
+        other: !!(ourGroups[gid] && ourGroups[gid].other),
+        members,
+      };
+    })
+    .filter((g) => g.size > 0)
+    .sort((a, b) => a.first - b.first);
   if (groupMode !== "off") {
     const cmp = cmpBy(groupMode);
-    const groupBest = new Map();
-    for (const gid of ourGids) {
-      if (ourGroups[gid].other) continue;
-      const members = tabs.filter((t) => t.groupId === gid).sort(cmp);
-      if (members.length) groupBest.set(gid, members[0]);
+    const sortable = seq.filter((g) => g.ours && !g.other);
+    if (sortable.length > 1) {
+      const best = new Map();
+      for (const g of sortable) best.set(g.id, [...g.members].sort(cmp)[0]);
+      const ordered = [...sortable].sort((a, b) => cmp(best.get(a.id), best.get(b.id)));
+      const slots = seq.map((g, i) => (g.ours && !g.other ? i : -1)).filter((i) => i >= 0);
+      slots.forEach((slot, i) => {
+        seq[slot] = ordered[i];
+      });
     }
-    const orderedGids = [...groupBest.keys()].sort((a, b) =>
-      cmp(groupBest.get(a), groupBest.get(b)),
-    );
-    if (orderedGids.length > 1) {
-      const sizeOf = (gid) => tabs.filter((t) => t.groupId === gid).length;
-      let cursor = Math.min(
-        ...orderedGids.map((gid) => Math.min(...tabs.filter((t) => t.groupId === gid).map((t) => t.index))),
-      );
-      for (const gid of orderedGids) {
-        await quiet(chrome.tabGroups.move, gid, { windowId, index: cursor });
-        cursor += sizeOf(gid);
+  }
+  const otherIdx = seq.findIndex((g) => g.other);
+  if (otherIdx >= 0) seq.push(...seq.splice(otherIdx, 1));
+
+  // 3) Lay the block out. With groupsOnTop the whole block packs right after
+  //    the pinned tabs; otherwise only the order inside the block changes,
+  //    the block itself stays where the user keeps it.
+  const pinnedCount = tabs.filter((t) => t.pinned).length;
+  if (onTop && seq.length) {
+    let cursor = pinnedCount;
+    for (const g of seq) {
+      await quiet(chrome.tabGroups.move, g.id, { windowId, index: cursor });
+      cursor += g.size;
+    }
+  } else if (!onTop && groupMode !== "off" && seq.length > 1) {
+    const inBlock = seq.filter((g) => !g.other);
+    if (inBlock.length > 1) {
+      let cursor = Math.min(...inBlock.map((g) => g.first));
+      for (const g of inBlock) {
+        await quiet(chrome.tabGroups.move, g.id, { windowId, index: cursor });
+        cursor += g.size;
       }
     }
   }
 
-  // Loose tabs go after the groups, in order.
+  // 4) Loose tabs go after the groups, in order.
   if (tabMode !== "off") {
     const loose = tabs
       .filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null))
@@ -1485,10 +1525,11 @@ async function applySort(windowId) {
     }
   }
 
-  // The catch-all keeps its contract: the very end of the window.
-  const otherGid = ourGids.find((gid) => ourGroups[gid].other);
-  if (otherGid != null) {
-    await quiet(chrome.tabGroups.move, Number(otherGid), { windowId, index: -1 });
+  // 5) Without zones the catch-all keeps the very end of the window; with
+  //    groupsOnTop it already closes the group block (step 3).
+  if (!onTop) {
+    const other = seq.find((g) => g.other);
+    if (other) await quiet(chrome.tabGroups.move, other.id, { windowId, index: -1 });
   }
 }
 
@@ -1581,7 +1622,7 @@ function scheduleSortAssert(windowId, delay = 300) {
 
 async function sortAssertIfActive(windowId, delay) {
   const settings = await getSettings();
-  if (settings.sortTabs !== "off" || settings.sortGroups !== "off") {
+  if (settings.sortTabs !== "off" || settings.sortGroups !== "off" || settings.groupsOnTop) {
     scheduleSortAssert(windowId, delay);
   }
 }
@@ -1735,6 +1776,8 @@ async function mergeWindows(targetWindowId) {
   }
   await putOurGroups(ourGroups);
   await quiet(chrome.windows.update, targetWindowId, { focused: true });
+  // Merged material lands at the end: let the layout invariants re-assert.
+  await sortAssertIfActive(targetWindowId, 200);
   return { moved, groupsMoved, windowsEmptied, pinnedLeft };
 }
 
@@ -2237,8 +2280,7 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
         }
       }
     }
-    await applySort(windowId);
-    if (settings.groupsOnTop) await moveGroupsToFront(windowId);
+    await applySort(windowId); // the one layout engine: sorts + zones + Other
   }, "smart-tail");
   return done;
 }
@@ -2458,9 +2500,13 @@ async function handleUi(request) {
       await chrome.storage.sync.set({ settings: normalizeSettings(settings) });
       i18nReady = null; // language may have changed
       if (request.key === "iconStyle") applyActionIcon(request.value);
-      // Flipping a sort mode re-sorts immediately - the setting is a
-      // maintained invariant, not a note for the next Organize click.
-      if (request.key === "sortGroups" || request.key === "sortTabs") {
+      // Flipping a layout setting re-sorts immediately - these are
+      // maintained invariants, not notes for the next Organize click.
+      if (
+        request.key === "sortGroups" ||
+        request.key === "sortTabs" ||
+        (request.key === "groupsOnTop" && request.value === true)
+      ) {
         for (const win of await normalWindows()) scheduleSortAssert(win.id, 50);
       }
       return { ok: true };
@@ -2796,7 +2842,7 @@ async function handleCommit(details) {
       }
     }
     // Maintained order: the fresh page slots into its sorted place.
-    if (settings.sortTabs !== "off" || settings.sortGroups !== "off") {
+    if (settings.sortTabs !== "off" || settings.sortGroups !== "off" || settings.groupsOnTop) {
       const live = await quiet(chrome.tabs.get, details.tabId);
       if (live) scheduleSortAssert(live.windowId);
     }

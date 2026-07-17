@@ -1786,6 +1786,43 @@ async function main() {
     await waitFor("regrouped", async () => (await getTab(c4.id)).groupId !== -1);
   });
 
+  await test("zones maintained: the group block packs before loose, composed with A-Z", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "groupsOnTop", value: true });
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "title" });
+    // the keeper blank is the loose tab; two groups get born after it
+    const blank = (await queryTabs()).find((t) => !/^https?:/.test(t.url));
+    const m1 = await openViaCommit(`${baseUrl}/mmZone1`, { active: false });
+    const m2 = await openViaCommit(`${baseUrl}/mmZone2`, { active: false });
+    await waitFor("mm grouped", async () => (await getTab(m2.id)).groupId !== -1);
+    const a1 = await openViaCommit(`${altUrl}/aaZone1`, { active: false });
+    const a2 = await openViaCommit(`${altUrl}/aaZone2`, { active: false });
+    await waitFor("aa grouped", async () => (await getTab(a2.id)).groupId !== -1);
+    const idx = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
+    await waitFor(
+      "aa group first, mm group second, loose tab after the block",
+      async () => {
+        const aFirst = Math.min(await idx(a1.id), await idx(a2.id));
+        const mFirst = Math.min(await idx(m1.id), await idx(m2.id));
+        return aFirst < mFirst && mFirst < (await idx(blank.id));
+      },
+      6000,
+    );
+    // drag the loose tab to the very front by hand: the zone snaps it back
+    await sleep(1400);
+    await swEval((tid) => chrome.tabs.move(tid, { index: 0 }), blank.id);
+    await waitFor(
+      "the zone re-asserts itself",
+      async () => {
+        const aFirst = Math.min(await idx(a1.id), await idx(a2.id));
+        return (await idx(blank.id)) > aFirst;
+      },
+      6000,
+    );
+    await ui({ type: "ui:setSetting", key: "groupsOnTop", value: false });
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
+  });
+
   await test("service worker: zero unchecked errors across the whole run", async () => {
     await sleep(500);
     assert(

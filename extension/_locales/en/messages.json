@@ -396,7 +396,7 @@
     "message": "Keep groups at the front"
   },
   "optGroupsOnTopHint": {
-    "message": "On Organize and when a new group is born, groups line up right after the pinned tabs; loose tabs follow."
+    "message": "Maintained continuously: groups sit right after the pinned tabs, loose tabs follow, and the \"Other\" catch-all closes the group block. Composes with every sort mode."
   },
   "optSmartOther": {
     "message": "Collect leftovers into an \"Other\" group"

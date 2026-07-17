@@ -396,7 +396,7 @@
     "message": "Garder les groupes en tête"
   },
   "optGroupsOnTopHint": {
-    "message": "Au rangement et à la naissance d'un groupe, les groupes se placent juste après les onglets épinglés ; les libres suivent."
+    "message": "Maintenu en continu : les groupes se placent juste après les onglets épinglés, les onglets libres suivent, le groupe « Autres » ferme le bloc. Compatible avec tous les modes de tri."
   },
   "optSmartOther": {
     "message": "Rassembler le reste dans un groupe « Autre »"

@@ -396,7 +396,7 @@
     "message": "Gruppen vorn halten"
   },
   "optGroupsOnTopHint": {
-    "message": "Beim Ordnen und bei neuen Gruppen reihen sich Gruppen direkt hinter den angepinnten Tabs ein; lose Tabs folgen."
+    "message": "Wird laufend gehalten: Gruppen stehen direkt hinter den angehefteten Tabs, lose Tabs folgen, die Sammelgruppe schließt den Block ab. Verträgt sich mit jedem Sortiermodus."
   },
   "optSmartOther": {
     "message": "Reste in einer Gruppe „Sonstiges“ sammeln"

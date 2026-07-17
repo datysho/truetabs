@@ -396,7 +396,7 @@
     "message": "Manter grupos à frente"
   },
   "optGroupsOnTopHint": {
-    "message": "Ao organizar e quando um grupo nasce, os grupos ficam logo após as abas fixadas; as soltas vêm depois."
+    "message": "Mantido continuamente: os grupos ficam logo após as guias fixadas, as soltas vêm em seguida, e o grupo \"Outros\" fecha o bloco. Combina com qualquer modo de ordenação."
   },
   "optSmartOther": {
     "message": "Reunir o restante num grupo \"Outros\""

@@ -396,7 +396,7 @@
     "message": "Mantener grupos al frente"
   },
   "optGroupsOnTopHint": {
-    "message": "Al organizar y al nacer un grupo, los grupos se colocan justo tras las pestañas fijadas; las sueltas van después."
+    "message": "Se mantiene continuamente: los grupos van justo después de las pestañas fijadas, las sueltas siguen, y el grupo «Otros» cierra el bloque. Se combina con cualquier modo de orden."
   },
   "optSmartOther": {
     "message": "Reunir lo restante en un grupo «Otros»"
