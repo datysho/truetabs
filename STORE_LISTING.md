@@ -29,11 +29,19 @@ WHAT IT DOES
 - Auto-archive: tabs untouched for 24 hours (configurable 6h-7d, or off) are
   saved to a local archive and closed. Searchable archive page, one-click
   restore, a notification with Undo after every batch.
-- Auto-groups: new tabs group by site with stable colors and clean names;
-  idle groups collapse; "Organize now" tidies a whole window at once.
-- Smart groups (optional): cluster tabs by TOPIC using Chrome's built-in
-  on-device AI (free, no keys, nothing leaves your machine) - or your own
-  API key (OpenAI, Gemini, Grok, or any OpenAI-compatible endpoint).
+- Auto-groups: new tabs group by site (stable colors, clean names) or by
+  TOPIC via AI - one selector; idle groups collapse; "Organize now" tidies
+  a whole window at once.
+- Smart groups: topic clustering runs on Chrome's built-in on-device AI
+  (free, no keys, nothing leaves your machine) - or your own API key
+  (OpenAI, Gemini, Grok, or any OpenAI-compatible endpoint). Groups appear
+  batch by batch with live progress.
+- My groups: your own named groups with routing rules - list the sites that
+  always belong there, or describe the topic in plain words for the AI.
+  Rules outrank all automatic grouping.
+- Order, your way: group order and tab order (A-Z, recent, oldest) applied
+  when you click Organize - or a live mode where the tab you use surfaces
+  in its group and the group rises to the front.
 - Dashboard popup: live counts, one-click actions, merge all windows.
 
 WHY YOU CAN TRUST THE AUTOMATION

@@ -185,12 +185,6 @@
   "optGroupsHeader": {
     "message": "Groups"
   },
-  "optGroupAuto": {
-    "message": "Group new tabs by site"
-  },
-  "optGroupAutoHint": {
-    "message": "Gentle: only new tabs are grouped, existing tabs are never re-shuffled. Groups you made yourself are never touched."
-  },
   "optCollapse": {
     "message": "Collapse idle groups after"
   },
@@ -265,12 +259,6 @@
   },
   "byokPermDenied": {
     "message": "Access to the provider was not granted."
-  },
-  "optSmartAssign": {
-    "message": "Auto-assign new tabs to smart groups"
-  },
-  "optSmartAssignHint": {
-    "message": "A new tab that fits an existing topic group joins it automatically."
   },
   "optAppearanceHeader": {
     "message": "Appearance"
@@ -368,12 +356,6 @@
   "groupCollapse": {
     "message": "Fold"
   },
-  "optSort": {
-    "message": "Sort on Organize"
-  },
-  "optSortHint": {
-    "message": "Applied only when you click Organize: groups and loose tabs get a deterministic order. Never re-sorts on its own."
-  },
   "optSortTitle": {
     "message": "Alphabetical"
   },
@@ -433,5 +415,71 @@
   },
   "smartWorking": {
     "message": "Grouping by topic… $1 of $2 tabs"
+  },
+  "optAutoGroup": {
+    "message": "Group new tabs"
+  },
+  "optAutoGroupHint": {
+    "message": "Gentle: only new tabs are grouped, existing tabs are never re-shuffled. By site: a group per site, born at the second tab. By topic: AI picks a matching topic group for each new tab."
+  },
+  "optAutoGroupSite": {
+    "message": "By site"
+  },
+  "optAutoGroupTopic": {
+    "message": "By topic (AI)"
+  },
+  "optAutoGroupNeedsAi": {
+    "message": "Topic mode needs an AI engine - pick one in Smart grouping below. Until then new tabs group by site."
+  },
+  "optSortGroups": {
+    "message": "Order of groups"
+  },
+  "optSortGroupsHint": {
+    "message": "How TrueTabs groups line up in the strip. A-Z, recent and oldest apply once, when you click Organize. Live: the group you are using rises to the front after a 3-second dwell."
+  },
+  "optSortTabs": {
+    "message": "Order of tabs"
+  },
+  "optSortTabsHint": {
+    "message": "Order inside each TrueTabs group and among loose tabs. A-Z, recent and oldest apply once, on Organize. Live: the tab you are using moves to the front of its group after a 3-second dwell."
+  },
+  "optSortLiveGroups": {
+    "message": "Active group first (live)"
+  },
+  "optSortLiveTabs": {
+    "message": "Active tab first (live)"
+  },
+  "optCustomHeader": {
+    "message": "My groups"
+  },
+  "optCustomHint": {
+    "message": "Your named groups with routing rules: list the sites that always belong there, describe the topic for the AI - or both. Rules run before any automatic grouping; two tabs pulled out by hand retire a rule for the session."
+  },
+  "customAdd": {
+    "message": "Add group"
+  },
+  "customRemove": {
+    "message": "Remove"
+  },
+  "customNamePh": {
+    "message": "Group name"
+  },
+  "customDomainsPh": {
+    "message": "Sites, comma-separated: youtube.com, twitch.tv"
+  },
+  "customHintPh": {
+    "message": "AI rule (optional): e.g. anything about GPU prices"
+  },
+  "customTooBig": {
+    "message": "Too much for sync storage - shorten the domain lists or hints."
+  },
+  "engineDownTitle": {
+    "message": "The engine is not responding"
+  },
+  "engineDownBody": {
+    "message": "Live state can't load right now. If TrueTabs was just updated, reload it on chrome://extensions and reopen this page. Your tabs and archive are safe."
+  },
+  "engineReset": {
+    "message": "Reset all settings"
   }
 }

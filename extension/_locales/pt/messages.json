@@ -185,12 +185,6 @@
   "optGroupsHeader": {
     "message": "Grupos"
   },
-  "optGroupAuto": {
-    "message": "Agrupar abas novas por site"
-  },
-  "optGroupAutoHint": {
-    "message": "Com cuidado: só abas novas são agrupadas, as existentes nunca são remexidas. Seus próprios grupos não são tocados."
-  },
   "optCollapse": {
     "message": "Recolher grupos inativos após"
   },
@@ -265,12 +259,6 @@
   },
   "byokPermDenied": {
     "message": "O acesso ao provedor não foi concedido."
-  },
-  "optSmartAssign": {
-    "message": "Atribuir abas novas aos grupos inteligentes"
-  },
-  "optSmartAssignHint": {
-    "message": "Uma aba nova que combine com um grupo temático existente entra nele sozinha."
   },
   "optAppearanceHeader": {
     "message": "Aparência"
@@ -368,12 +356,6 @@
   "groupCollapse": {
     "message": "Recolher"
   },
-  "optSort": {
-    "message": "Ordenar ao organizar"
-  },
-  "optSortHint": {
-    "message": "Só ao clicar em Organizar: grupos e abas soltas ganham ordem fixa. Nunca reordena sozinho."
-  },
   "optSortTitle": {
     "message": "Alfabética"
   },
@@ -433,5 +415,71 @@
   },
   "smartWorking": {
     "message": "Agrupando por tema… $1 de $2 abas"
+  },
+  "optAutoGroup": {
+    "message": "Agrupar novas guias"
+  },
+  "optAutoGroupHint": {
+    "message": "Com cuidado: apenas as novas guias são agrupadas, as existentes nunca são reorganizadas. Por site: um grupo por site, nasce na segunda guia. Por tema: a IA escolhe um grupo temático adequado para cada nova guia."
+  },
+  "optAutoGroupSite": {
+    "message": "Por site"
+  },
+  "optAutoGroupTopic": {
+    "message": "Por tema (IA)"
+  },
+  "optAutoGroupNeedsAi": {
+    "message": "O modo por tema precisa de um mecanismo de IA - escolha um abaixo no agrupamento inteligente. Até lá, as novas guias são agrupadas por site."
+  },
+  "optSortGroups": {
+    "message": "Ordem dos grupos"
+  },
+  "optSortGroupsHint": {
+    "message": "Como os grupos do TrueTabs se alinham na barra. A-Z, recentes e antigos aplicam-se uma vez, ao clicar em Organizar. Ao vivo: o grupo que você usa sobe para a frente após 3 segundos na guia."
+  },
+  "optSortTabs": {
+    "message": "Ordem das guias"
+  },
+  "optSortTabsHint": {
+    "message": "Ordem dentro de cada grupo do TrueTabs e entre guias soltas. A-Z, recentes e antigos aplicam-se uma vez, ao Organizar. Ao vivo: a guia que você usa vai para a frente do seu grupo após 3 segundos."
+  },
+  "optSortLiveGroups": {
+    "message": "Grupo ativo primeiro (ao vivo)"
+  },
+  "optSortLiveTabs": {
+    "message": "Guia ativa primeiro (ao vivo)"
+  },
+  "optCustomHeader": {
+    "message": "Meus grupos"
+  },
+  "optCustomHint": {
+    "message": "Seus grupos nomeados com regras: liste os sites que sempre pertencem a eles, descreva o tema para a IA - ou ambos. As regras agem antes de qualquer automação; duas guias retiradas à mão suspendem a regra na sessão."
+  },
+  "customAdd": {
+    "message": "Adicionar grupo"
+  },
+  "customRemove": {
+    "message": "Remover"
+  },
+  "customNamePh": {
+    "message": "Nome do grupo"
+  },
+  "customDomainsPh": {
+    "message": "Sites separados por vírgula: youtube.com, twitch.tv"
+  },
+  "customHintPh": {
+    "message": "Regra de IA (opcional): por ex., tudo sobre preços de GPU"
+  },
+  "customTooBig": {
+    "message": "Grande demais para o armazenamento sincronizado - encurte as listas de sites ou as descrições."
+  },
+  "engineDownTitle": {
+    "message": "O mecanismo não responde"
+  },
+  "engineDownBody": {
+    "message": "O estado ao vivo não pode ser carregado agora. Se o TrueTabs acabou de ser atualizado, recarregue-o em chrome://extensions e reabra esta página. Suas guias e arquivo estão seguros."
+  },
+  "engineReset": {
+    "message": "Redefinir todas as configurações"
   }
 }

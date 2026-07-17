@@ -129,11 +129,15 @@
         flex-direction: column;
         gap: 1px;
       }
+      /* Fixed height + overlay actions: hovering or dragging never changes
+         the row's box, so the list sits pixel-still. */
       .group-row {
+        position: relative;
         display: flex;
         align-items: center;
         gap: 8px;
-        padding: 5px 8px 5px 2px;
+        height: 30px;
+        padding: 0 8px 0 2px;
         margin: 0 -8px 0 -2px;
         border-radius: 8px;
         cursor: pointer;
@@ -141,11 +145,16 @@
       .group-row:hover {
         background: var(--hover);
       }
+      /* Live drag: the list reorders under the cursor; the picked row stays
+         visible as a lifted card, dimmed in its slot. */
       .group-row.dragging {
-        opacity: 0.4;
+        opacity: 0.45;
+        outline: 1.5px dashed var(--accent);
+        outline-offset: -1.5px;
+        background: var(--hover);
       }
-      .group-row.drop-above {
-        box-shadow: 0 -2px 0 var(--accent);
+      .group-list.drag-live .group-row {
+        cursor: grabbing;
       }
       .group-row .grip {
         flex: none;
@@ -179,17 +188,26 @@
         font-size: 11.5px;
         flex: none;
       }
-      /* Row actions replace the count on hover: words, not glyphs. */
+      /* Row actions overlay the count on hover: words, not glyphs. Absolute
+         positioning keeps them out of layout - zero shift. */
       .group-row .row-actions {
-        display: none;
+        position: absolute;
+        right: 2px;
+        top: 50%;
+        transform: translateY(-50%);
+        display: flex;
         gap: 2px;
-        flex: none;
+        padding-left: 10px;
+        background: linear-gradient(90deg, transparent, var(--hover) 10px);
+        opacity: 0;
+        pointer-events: none;
       }
       .group-row:hover .row-actions {
-        display: flex;
+        opacity: 1;
+        pointer-events: auto;
       }
       .group-row:hover .count {
-        display: none;
+        visibility: hidden;
       }
       .group-row .row-actions button {
         border: none;
@@ -232,6 +250,14 @@
       .groups-head .mini.confirm {
         color: var(--err);
       }
+      .engine-down {
+        margin: 10px;
+        padding: 8px 12px;
+        border-radius: 8px;
+        background: color-mix(in srgb, var(--err) 10%, transparent);
+        color: var(--err);
+        font-size: 12px;
+      }
     </style>
   </head>
   <body>
@@ -241,6 +267,7 @@
     </header>
 
     <div class="scroll">
+      <div class="engine-down" id="engineDown" hidden></div>
       <section class="hero-section">
         <div class="hero">
           <div class="stat">

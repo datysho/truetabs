@@ -185,9 +185,7 @@ async function refresh() {
 
 async function init() {
   const state = await send({ type: "ui:getState" });
-  applyTheme(state.settings.theme);
-  await ttI18n.init(state.settings.language);
-  localizeDom();
+  if (!state || !state.settings) throw new Error("engine did not respond");
   const ttl = state.settings.archiveTtl;
   const ttlLabel = { "7d": "optDays7", "30d": "optDays30", "90d": "optDays90" }[ttl];
   $("ttlNote").textContent = ttlLabel ? t("archiveTtlNote", [t(ttlLabel)]) : "";
@@ -199,4 +197,24 @@ async function init() {
   await refresh();
 }
 
-init();
+// Two-stage boot (same contract as the popup and options): the page localizes
+// itself straight from storage first, so a stale or dead service worker
+// (mid-update) still leaves a readable page, not a blank skeleton.
+async function boot() {
+  try {
+    const { settings: stored } = await chrome.storage.sync.get("settings");
+    applyTheme((stored && stored.theme) || "auto");
+    await ttI18n.init((stored && stored.language) || "auto");
+  } catch {
+    await ttI18n.init("auto");
+  }
+  localizeDom();
+  try {
+    await init();
+  } catch (err) {
+    $("ttlNote").textContent = t("engineDownBody");
+    console.error("TrueTabs archive init failed:", err);
+  }
+}
+
+boot();

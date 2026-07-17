@@ -34,8 +34,10 @@ sidebar, no new-tab page takeover - Chrome stays Chrome, the mess just stops.
 |---|---|---|
 | 1 | **Duplicate prevention** | Opening a URL you already have focuses the existing tab and closes the new one. Manual "Sweep duplicates" for the pile you already have (victims land in the archive - free undo). |
 | 2 | **Auto-archive** | A tab untouched for 24h (configurable 6h-7d, or off) is saved to a local archive and closed. Searchable archive page, restore in one click, notification with Undo after every batch. |
-| 3 | **Auto-group by site** | New tabs group by domain with stable colors and clean names. Idle groups collapse. One-click "Organize now" for everything else. |
-| 3b | **Smart groups (AI)** | Optional: cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / any OpenAI-compatible endpoint like Ollama). |
+| 3 | **Auto-group** | One selector: new tabs group by *site* (stable colors, clean names) or by *topic* via AI. Idle groups collapse. One-click "Organize now" for everything else. |
+| 3b | **Smart groups (AI)** | Cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / any OpenAI-compatible endpoint like Ollama). Groups appear batch by batch with live progress. |
+| 3c | **My groups (rules)** | Your named groups with routing rules: a site list (deterministic) and/or a plain-language AI hint. Rules outrank every automatic grouping. |
+| 3d | **Order** | Two axes, applied on Organize: group order and tab order (A-Z / recent / oldest) - plus a *live* mode where the tab you use surfaces in its group, and its group rises to the front. |
 | 4 | **Dashboard** | Live counts (tabs, duplicates, stale, archived today), one-click actions, merge all windows, master switches per automation. |
 
 ## Safety model - why you can trust automation
@@ -95,6 +97,9 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 - Smart group names come out in the dominant language of your tab titles.
 - If TruePin's "move locked tabs to front" (`always` mode) is on, it may pull
   a locked tab out of a group; TrueTabs backs off after two strikes.
+- Live sort surfaces only groups TrueTabs made (groups you arranged yourself
+  stay where you put them), and the "Other" catch-all keeps the end of the
+  strip.
 
 ## Install (until the Web Store listing is live)
 

@@ -185,12 +185,6 @@
   "optGroupsHeader": {
     "message": "Groupes"
   },
-  "optGroupAuto": {
-    "message": "Grouper les nouveaux onglets par site"
-  },
-  "optGroupAutoHint": {
-    "message": "En douceur : seuls les nouveaux onglets sont groupés, jamais de réorganisation. Vos propres groupes ne sont pas touchés."
-  },
   "optCollapse": {
     "message": "Replier les groupes inactifs après"
   },
@@ -265,12 +259,6 @@
   },
   "byokPermDenied": {
     "message": "L'accès au fournisseur n'a pas été accordé."
-  },
-  "optSmartAssign": {
-    "message": "Affecter les nouveaux onglets aux groupes intelligents"
-  },
-  "optSmartAssignHint": {
-    "message": "Un nouvel onglet qui correspond à un groupe thématique existant le rejoint automatiquement."
   },
   "optAppearanceHeader": {
     "message": "Apparence"
@@ -368,12 +356,6 @@
   "groupCollapse": {
     "message": "Replier"
   },
-  "optSort": {
-    "message": "Trier lors du rangement"
-  },
-  "optSortHint": {
-    "message": "Appliqué uniquement au clic sur Ranger : groupes et onglets libres prennent un ordre déterminé. Ne retrie jamais tout seul."
-  },
   "optSortTitle": {
     "message": "Alphabétique"
   },
@@ -433,5 +415,71 @@
   },
   "smartWorking": {
     "message": "Groupement par thème… $1 sur $2 onglets"
+  },
+  "optAutoGroup": {
+    "message": "Grouper les nouveaux onglets"
+  },
+  "optAutoGroupHint": {
+    "message": "En douceur : seuls les nouveaux onglets sont groupés, les onglets existants ne sont jamais réorganisés. Par site : un groupe par site, créé au deuxième onglet. Par sujet : l'IA choisit un groupe thématique adapté à chaque nouvel onglet."
+  },
+  "optAutoGroupSite": {
+    "message": "Par site"
+  },
+  "optAutoGroupTopic": {
+    "message": "Par sujet (IA)"
+  },
+  "optAutoGroupNeedsAi": {
+    "message": "Le mode par sujet nécessite un moteur d'IA - choisissez-le ci-dessous dans le regroupement intelligent. En attendant, les nouveaux onglets sont groupés par site."
+  },
+  "optSortGroups": {
+    "message": "Ordre des groupes"
+  },
+  "optSortGroupsHint": {
+    "message": "Comment les groupes TrueTabs s'alignent dans la barre. A-Z, récents et anciens s'appliquent une fois, au clic sur Organiser. En direct : le groupe que vous utilisez remonte en tête après 3 secondes."
+  },
+  "optSortTabs": {
+    "message": "Ordre des onglets"
+  },
+  "optSortTabsHint": {
+    "message": "Ordre au sein de chaque groupe TrueTabs et parmi les onglets libres. A-Z, récents et anciens s'appliquent une fois, à Organiser. En direct : l'onglet utilisé passe en tête de son groupe après 3 secondes."
+  },
+  "optSortLiveGroups": {
+    "message": "Groupe actif en premier (direct)"
+  },
+  "optSortLiveTabs": {
+    "message": "Onglet actif en premier (direct)"
+  },
+  "optCustomHeader": {
+    "message": "Mes groupes"
+  },
+  "optCustomHint": {
+    "message": "Vos groupes nommés avec des règles : listez les sites qui y vont toujours, décrivez le sujet pour l'IA - ou les deux. Les règles passent avant toute automatisation ; deux onglets retirés à la main suspendent une règle pour la session."
+  },
+  "customAdd": {
+    "message": "Ajouter un groupe"
+  },
+  "customRemove": {
+    "message": "Supprimer"
+  },
+  "customNamePh": {
+    "message": "Nom du groupe"
+  },
+  "customDomainsPh": {
+    "message": "Sites séparés par des virgules : youtube.com, twitch.tv"
+  },
+  "customHintPh": {
+    "message": "Règle IA (facultatif) : par ex. tout sur les prix des GPU"
+  },
+  "customTooBig": {
+    "message": "Trop volumineux pour le stockage synchronisé - raccourcissez les listes de sites ou les descriptions."
+  },
+  "engineDownTitle": {
+    "message": "Le moteur ne répond pas"
+  },
+  "engineDownBody": {
+    "message": "L'état en direct ne peut pas se charger. Si TrueTabs vient d'être mis à jour, rechargez-le sur chrome://extensions et rouvrez cette page. Vos onglets et archives sont intacts."
+  },
+  "engineReset": {
+    "message": "Réinitialiser tous les réglages"
   }
 }

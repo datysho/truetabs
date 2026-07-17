@@ -142,6 +142,62 @@
         font-size: 12px;
         color: var(--muted);
       }
+      /* Custom rule groups: one bordered item per rule. */
+      .custom-item {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 10px 12px;
+        margin-bottom: 8px;
+        display: grid;
+        grid-template-columns: 1fr auto auto;
+        gap: 8px 10px;
+        align-items: center;
+      }
+      .custom-item input[type="text"] {
+        width: 100%;
+      }
+      .custom-item .full {
+        grid-column: 1 / -1;
+      }
+      .custom-item .c-name {
+        font-weight: 500;
+      }
+      .custom-item .linklike {
+        border: none;
+        background: transparent;
+        color: var(--muted);
+        padding: 2px 6px;
+        font-size: 12px;
+      }
+      .custom-item .linklike:hover {
+        color: var(--err);
+      }
+      .custom-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      /* Engine-down notice: the page must read even when the service worker
+         is stale or dead (mid-update) - never a blank skeleton. */
+      .engine-down {
+        background: color-mix(in srgb, var(--err) 10%, transparent);
+        border: 1px solid color-mix(in srgb, var(--err) 35%, transparent);
+        border-radius: 12px;
+        padding: 14px 16px;
+        margin-bottom: 16px;
+      }
+      .engine-down .title {
+        font-weight: 600;
+        color: var(--err);
+        margin-bottom: 4px;
+      }
+      .engine-down .body {
+        font-size: 13px;
+        margin-bottom: 10px;
+      }
+      .engine-down[hidden] {
+        display: none !important;
+      }
       .ok {
         color: var(--ok);
       }
@@ -156,6 +212,12 @@
         <img src="icons/tt-32.png" alt="" />
         <span class="name">TrueTabs</span>
         <span class="headver" id="version"></span>
+      </div>
+
+      <div class="engine-down" id="engineDown" hidden>
+        <div class="title" data-i18n="engineDownTitle"></div>
+        <div class="body" data-i18n="engineDownBody"></div>
+        <button id="engineResetBtn" data-i18n="engineReset"></button>
       </div>
 
       <div class="card">
@@ -235,10 +297,15 @@
         <h3 data-i18n="optGroupsHeader"></h3>
         <div class="setting">
           <div class="info">
-            <div class="label" data-i18n="optGroupAuto"></div>
-            <div class="hint" data-i18n="optGroupAutoHint"></div>
+            <div class="label" data-i18n="optAutoGroup"></div>
+            <div class="hint" data-i18n="optAutoGroupHint"></div>
+            <div class="hint err" id="autoGroupNeedsAi" data-i18n="optAutoGroupNeedsAi" hidden></div>
           </div>
-          <input type="checkbox" class="switch" id="groupAuto" />
+          <select id="autoGroup">
+            <option value="off" data-i18n="optOff"></option>
+            <option value="site" data-i18n="optAutoGroupSite"></option>
+            <option value="topic" data-i18n="optAutoGroupTopic"></option>
+          </select>
         </div>
         <div class="setting">
           <div class="info">
@@ -253,14 +320,28 @@
         </div>
         <div class="setting">
           <div class="info">
-            <div class="label" data-i18n="optSort"></div>
-            <div class="hint" data-i18n="optSortHint"></div>
+            <div class="label" data-i18n="optSortGroups"></div>
+            <div class="hint" data-i18n="optSortGroupsHint"></div>
           </div>
-          <select id="sortMode">
+          <select id="sortGroups">
             <option value="off" data-i18n="optOff"></option>
             <option value="title" data-i18n="optSortTitle"></option>
             <option value="recent" data-i18n="optSortRecent"></option>
             <option value="opened" data-i18n="optSortOpened"></option>
+            <option value="live" data-i18n="optSortLiveGroups"></option>
+          </select>
+        </div>
+        <div class="setting">
+          <div class="info">
+            <div class="label" data-i18n="optSortTabs"></div>
+            <div class="hint" data-i18n="optSortTabsHint"></div>
+          </div>
+          <select id="sortTabs">
+            <option value="off" data-i18n="optOff"></option>
+            <option value="title" data-i18n="optSortTitle"></option>
+            <option value="recent" data-i18n="optSortRecent"></option>
+            <option value="opened" data-i18n="optSortOpened"></option>
+            <option value="live" data-i18n="optSortLiveTabs"></option>
           </select>
         </div>
         <div class="setting">
@@ -269,6 +350,18 @@
             <div class="hint" data-i18n="optGroupsOnTopHint"></div>
           </div>
           <input type="checkbox" class="switch" id="groupsOnTop" />
+        </div>
+
+        <h3 data-i18n="optCustomHeader"></h3>
+        <div class="setting stack">
+          <div class="info">
+            <div class="hint" data-i18n="optCustomHint"></div>
+          </div>
+          <div id="customList"></div>
+          <div class="custom-actions">
+            <button id="customAddBtn" data-i18n="customAdd"></button>
+            <span class="byok-note err" id="customNote"></span>
+          </div>
         </div>
 
         <h3 data-i18n="optSmartHeader"></h3>
@@ -317,13 +410,6 @@
             <span class="byok-note" id="byokStatus"></span>
           </div>
           <div class="byok-note" data-i18n="optByokPrivacy"></div>
-        </div>
-        <div class="setting" id="smartAssignRow" hidden>
-          <div class="info">
-            <div class="label" data-i18n="optSmartAssign"></div>
-            <div class="hint" data-i18n="optSmartAssignHint"></div>
-          </div>
-          <input type="checkbox" class="switch" id="smartAutoAssign" />
         </div>
         <div class="setting" id="smartOtherRow" hidden>
           <div class="info">

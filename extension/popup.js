@@ -45,7 +45,7 @@ function render() {
 
   $("dedupToggle").checked = !!state.settings.dedupAuto;
   $("archiveToggle").checked = state.settings.archiveAfter !== "off";
-  $("groupToggle").checked = !!state.settings.groupAuto;
+  $("groupToggle").checked = state.settings.autoGroup !== "off";
 
   // Organize speaks the active engine: with smart grouping on, the button IS
   // Smart Organize (it falls back to site grouping by itself).
@@ -81,12 +81,18 @@ function render() {
 }
 
 // --- groups section: jump, fold, drag-reorder --------------------------------
+// Dragging reorders the LIST LIVE under the cursor (the row follows the
+// pointer, others give way); the drop commits the final order to the strip.
 
 let dragGid = null;
+let dragWindowId = null;
+let dragDropped = false;
 
 function groupRow(group) {
   const row = document.createElement("div");
   row.className = "group-row";
+  row.dataset.gid = String(group.id);
+  row.dataset.windowId = String(group.windowId);
 
   // Drag by the grip only: a row click means "jump to the group".
   const grip = document.createElement("span");
@@ -97,11 +103,19 @@ function groupRow(group) {
   grip.addEventListener("dragstart", (event) => {
     event.stopPropagation();
     dragGid = group.id;
+    dragWindowId = group.windowId;
+    dragDropped = false;
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setDragImage(row, 16, 15); // the whole row travels, not the grip
     row.classList.add("dragging");
+    $("groupList").classList.add("drag-live");
   });
   grip.addEventListener("dragend", () => {
-    dragGid = null;
     row.classList.remove("dragging");
+    $("groupList").classList.remove("drag-live");
+    dragGid = null;
+    dragWindowId = null;
+    if (!dragDropped) refresh(); // dropped outside: snap the list back
   });
   row.appendChild(grip);
 
@@ -145,32 +159,49 @@ function groupRow(group) {
     send({ type: "ui:groupFocus", gid: group.id }); // sync dispatch; popup may die
   });
 
-  row.addEventListener("dragover", (event) => {
-    if (dragGid == null || dragGid === group.id) return;
-    event.preventDefault();
-    row.classList.add("drop-above");
-  });
-  row.addEventListener("dragleave", () => row.classList.remove("drop-above"));
-  row.addEventListener("drop", (event) => {
-    event.preventDefault();
-    row.classList.remove("drop-above");
-    if (dragGid == null || dragGid === group.id) return;
-    const source = state.groups.find((g) => g.id === dragGid);
-    if (!source || source.windowId !== group.windowId) return; // same-window reorder only
-    send({
-      type: "ui:groupMove",
-      gid: dragGid,
-      windowId: group.windowId,
-      index: groupStripIndex(group),
-    }).then(refresh);
-  });
-
   return row;
 }
 
-// Target index for tabGroups.move: the first tab index of the drop target.
-function groupStripIndex(group) {
-  return group.firstTabIndex ?? -1;
+// Live reorder: as the cursor moves over the list, the dragged row slots in
+// where it would land - within its own window's cluster only.
+function onListDragOver(event) {
+  if (dragGid == null) return;
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  const list = $("groupList");
+  const dragging = list.querySelector(".group-row.dragging");
+  if (!dragging) return;
+  const siblings = [...list.querySelectorAll(".group-row:not(.dragging)")].filter(
+    (r) => Number(r.dataset.windowId) === dragWindowId,
+  );
+  if (!siblings.length) return;
+  let before = null;
+  for (const row of siblings) {
+    const rect = row.getBoundingClientRect();
+    if (event.clientY < rect.top + rect.height / 2) {
+      before = row;
+      break;
+    }
+  }
+  if (before) {
+    if (before !== dragging.nextElementSibling) list.insertBefore(dragging, before);
+  } else {
+    const last = siblings[siblings.length - 1];
+    if (dragging !== last.nextElementSibling && dragging.previousElementSibling !== last) {
+      list.insertBefore(dragging, last.nextSibling);
+    }
+  }
+}
+
+function onListDrop(event) {
+  if (dragGid == null) return;
+  event.preventDefault();
+  dragDropped = true;
+  const windowId = dragWindowId;
+  const gids = [...$("groupList").querySelectorAll(".group-row")]
+    .filter((r) => Number(r.dataset.windowId) === windowId)
+    .map((r) => Number(r.dataset.gid));
+  send({ type: "ui:groupReorder", windowId, gids }).then(refresh);
 }
 
 function renderGroups() {
@@ -180,13 +211,17 @@ function renderGroups() {
   if (!groups.length) return;
   $("groupsCount").textContent = groups.length;
   const list = $("groupList");
+  if (list.querySelector(".group-row.dragging")) return; // never repaint mid-drag
   list.textContent = "";
   for (const group of groups) list.appendChild(groupRow(group));
 }
 
 async function refresh() {
-  state = await send({ type: "ui:getState", windowId });
-  render();
+  const next = await send({ type: "ui:getState", windowId });
+  if (next && next.settings) {
+    state = next;
+    render();
+  }
 }
 
 // Action buttons: dispatch first, then refresh on the response promise.
@@ -232,15 +267,15 @@ function initFooter() {
 }
 
 async function init() {
-  const settings = (await send({ type: "ui:getState" })).settings;
-  applyTheme(settings.theme);
-  await ttI18n.init(settings.language);
-  localizeDom();
+  const first = await send({ type: "ui:getState" });
+  if (!first || !first.settings) throw new Error("engine did not respond");
 
   const win = await chrome.windows.getCurrent();
   windowId = win.id;
 
   initFooter();
+  $("groupList").addEventListener("dragover", onListDragOver);
+  $("groupList").addEventListener("drop", onListDrop);
   $("organizeBtn").addEventListener("click", () => {
     const smart = state && state.settings.smartEngine !== "off";
     const promise = send({
@@ -315,7 +350,16 @@ async function init() {
     });
   });
   wireToggle("dedupToggle", "dedupAuto", (checked) => checked);
-  wireToggle("groupToggle", "groupAuto", (checked) => checked);
+  // Grouping toggle re-enables the mode the engine can honor: topic when an
+  // AI tier is configured, otherwise by site.
+  $("groupToggle").addEventListener("change", (event) => {
+    const value = !event.target.checked
+      ? "off"
+      : state && state.settings.smartEngine !== "off"
+        ? "topic"
+        : "site";
+    send({ type: "ui:setSetting", key: "autoGroup", value }).then(refresh);
+  });
   $("archiveToggle").addEventListener("change", (event) => {
     send({
       type: "ui:setSetting",
@@ -333,4 +377,27 @@ async function init() {
   });
 }
 
-init();
+// Two-stage boot. Theme and language come straight from storage, so the page
+// reads even when the engine is stale or dead (a mid-update service worker);
+// only then the engine state is fetched - and a failure shows a plain,
+// localized notice instead of a blank skeleton.
+async function boot() {
+  try {
+    const { settings } = await chrome.storage.sync.get("settings");
+    applyTheme((settings && settings.theme) || "auto");
+    await ttI18n.init((settings && settings.language) || "auto");
+  } catch {
+    await ttI18n.init("auto");
+  }
+  localizeDom();
+  try {
+    await init();
+  } catch (err) {
+    const down = $("engineDown");
+    down.hidden = false;
+    down.textContent = t("engineDownBody");
+    console.error("TrueTabs popup init failed:", err);
+  }
+}
+
+boot();

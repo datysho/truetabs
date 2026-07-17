@@ -185,12 +185,6 @@
   "optGroupsHeader": {
     "message": "Grupos"
   },
-  "optGroupAuto": {
-    "message": "Agrupar pestañas nuevas por sitio"
-  },
-  "optGroupAutoHint": {
-    "message": "Con cuidado: solo se agrupan las pestañas nuevas, nunca se reorganizan las existentes. Tus propios grupos no se tocan."
-  },
   "optCollapse": {
     "message": "Plegar grupos inactivos tras"
   },
@@ -265,12 +259,6 @@
   },
   "byokPermDenied": {
     "message": "No se concedió acceso al proveedor."
-  },
-  "optSmartAssign": {
-    "message": "Asignar pestañas nuevas a grupos inteligentes"
-  },
-  "optSmartAssignHint": {
-    "message": "Una pestaña nueva que encaje en un grupo temático existente se une sola."
   },
   "optAppearanceHeader": {
     "message": "Apariencia"
@@ -368,12 +356,6 @@
   "groupCollapse": {
     "message": "Plegar"
   },
-  "optSort": {
-    "message": "Ordenar al organizar"
-  },
-  "optSortHint": {
-    "message": "Solo al pulsar Ordenar: grupos y pestañas sueltas toman un orden fijo. Nunca reordena por su cuenta."
-  },
   "optSortTitle": {
     "message": "Alfabético"
   },
@@ -433,5 +415,71 @@
   },
   "smartWorking": {
     "message": "Agrupando por tema… $1 de $2 pestañas"
+  },
+  "optAutoGroup": {
+    "message": "Agrupar pestañas nuevas"
+  },
+  "optAutoGroupHint": {
+    "message": "Con cuidado: solo se agrupan las pestañas nuevas, las existentes nunca se reordenan. Por sitio: un grupo por sitio, nace con la segunda pestaña. Por tema: la IA elige un grupo temático adecuado para cada pestaña nueva."
+  },
+  "optAutoGroupSite": {
+    "message": "Por sitio"
+  },
+  "optAutoGroupTopic": {
+    "message": "Por tema (IA)"
+  },
+  "optAutoGroupNeedsAi": {
+    "message": "El modo por tema necesita un motor de IA: elígelo abajo en la agrupación inteligente. Mientras tanto, las pestañas nuevas se agrupan por sitio."
+  },
+  "optSortGroups": {
+    "message": "Orden de los grupos"
+  },
+  "optSortGroupsHint": {
+    "message": "Cómo se alinean los grupos de TrueTabs en la barra. A-Z, recientes y antiguos se aplican una vez, al pulsar Organizar. En vivo: el grupo que usas sube al frente tras 3 segundos en la pestaña."
+  },
+  "optSortTabs": {
+    "message": "Orden de las pestañas"
+  },
+  "optSortTabsHint": {
+    "message": "Orden dentro de cada grupo de TrueTabs y entre pestañas sueltas. A-Z, recientes y antiguos se aplican una vez, al Organizar. En vivo: la pestaña que usas pasa al frente de su grupo tras 3 segundos."
+  },
+  "optSortLiveGroups": {
+    "message": "Grupo activo primero (en vivo)"
+  },
+  "optSortLiveTabs": {
+    "message": "Pestaña activa primero (en vivo)"
+  },
+  "optCustomHeader": {
+    "message": "Mis grupos"
+  },
+  "optCustomHint": {
+    "message": "Tus grupos con nombre y reglas: enumera los sitios que siempre van ahí, describe el tema para la IA, o ambas cosas. Las reglas actúan antes que cualquier automatización; dos pestañas sacadas a mano suspenden la regla durante la sesión."
+  },
+  "customAdd": {
+    "message": "Añadir grupo"
+  },
+  "customRemove": {
+    "message": "Eliminar"
+  },
+  "customNamePh": {
+    "message": "Nombre del grupo"
+  },
+  "customDomainsPh": {
+    "message": "Sitios separados por comas: youtube.com, twitch.tv"
+  },
+  "customHintPh": {
+    "message": "Regla de IA (opcional): p. ej., todo sobre precios de GPU"
+  },
+  "customTooBig": {
+    "message": "Demasiado para el almacenamiento sincronizado: acorta las listas de sitios o las descripciones."
+  },
+  "engineDownTitle": {
+    "message": "El motor no responde"
+  },
+  "engineDownBody": {
+    "message": "El estado en vivo no se puede cargar ahora. Si TrueTabs se acaba de actualizar, recárgalo en chrome://extensions y vuelve a abrir esta página. Tus pestañas y archivo están a salvo."
+  },
+  "engineReset": {
+    "message": "Restablecer todos los ajustes"
   }
 }

@@ -46,13 +46,13 @@ const DEFAULTS = {
   discardStale: false, // free memory at half-threshold (Chrome has Memory Saver)
   archiveAllowlist: ["meet.google.com", "zoom.us", "teams.microsoft.com"],
   // pillar 3 - groups
-  groupAuto: true, // group new tabs by site on their first commit
+  autoGroup: "site", // "off" | "site" | "topic" - how NEW tabs are grouped on first commit
   groupCollapseAfter: "10m", // "off" | "5m" | "10m" | "30m"
-  sortMode: "off", // "off" | "title" | "recent" | "opened" - applied on Organize now
+  sortGroups: "off", // "off" | "title" | "recent" | "opened" | "live" - group order
+  sortTabs: "off", // same values - tab order (loose + inside our groups); live = active surfaces
   groupsOnTop: false, // keep groups at the front of the strip (applied on Organize + new groups)
   // pillar 3b - smart (AI) grouping
   smartEngine: "off", // "off" | "builtin" | "byok"
-  smartAutoAssign: false, // classify new loose tabs into existing smart groups
   smartOther: true, // collect unassigned tabs into an "Other" group, always last
   smartRegroupOurs: true, // Smart Organize may rebuild OUR auto groups (hand-made never)
   byokProvider: "openai", // "openai" | "gemini" | "grok" | "custom"
@@ -93,7 +93,7 @@ const FRESH_COMMIT_LIMIT = 1; // dedup victims: only a tab's FIRST committed pag
 const ARCHIVE_CAP = 5000; // FIFO
 const ARCHIVE_BATCH_MAX = 20; // per tick - gradual, keeps notifications sane
 const SIG_TTL_MS = 30 * 86400e3; // group signatures wait this long for their window
-const SMART_BATCH = 30; // tabs per AI call
+const SMART_BATCH = 15; // tabs per AI call: finer progress, themes still merge across batches
 
 const TRACKING_PARAMS = /^(utm_|__hs|_hs)/;
 const TRACKING_EXACT = new Set([
@@ -138,9 +138,111 @@ function enqueue(job, label = "job") {
 let clockOverride = null;
 const now = () => clockOverride ?? Date.now();
 
+// Every stored value is validated against DEFAULTS on EVERY read: an update
+// must survive whatever an older version (or a sync conflict) left behind -
+// wrong types, retired keys, unknown enum values. Old keys are mapped to
+// their successors first, so an upgrade carries the user's choices over.
+const SETTING_ENUMS = {
+  dedupScope: ["window", "all"],
+  archiveAfter: ["6h", "12h", "24h", "3d", "7d", "off"],
+  archiveTtl: ["7d", "30d", "90d", "forever"],
+  autoGroup: ["off", "site", "topic"],
+  groupCollapseAfter: ["off", "5m", "10m", "30m"],
+  sortGroups: ["off", "title", "recent", "opened", "live"],
+  sortTabs: ["off", "title", "recent", "opened", "live"],
+  smartEngine: ["off", "builtin", "byok"],
+  byokProvider: ["openai", "gemini", "grok", "custom"],
+  theme: ["auto", "light", "dark"],
+  iconStyle: ["color", "mono"],
+};
+
+function normalizeSettings(raw) {
+  const src = raw && typeof raw === "object" ? { ...raw } : {};
+  // v1.3 -> v1.4 renames (idempotent: old keys only apply while new ones are absent).
+  if (!("autoGroup" in src)) {
+    if (src.groupAuto === false) src.autoGroup = "off";
+    else if (src.smartAutoAssign === true && src.smartEngine && src.smartEngine !== "off") {
+      src.autoGroup = "topic";
+    }
+  }
+  if (!("sortTabs" in src) && typeof src.sortMode === "string") src.sortTabs = src.sortMode;
+  if (!("sortGroups" in src) && typeof src.sortMode === "string") src.sortGroups = src.sortMode;
+  const out = { ...DEFAULTS };
+  for (const key of Object.keys(DEFAULTS)) {
+    const value = src[key];
+    const def = DEFAULTS[key];
+    if (typeof def === "boolean") {
+      if (typeof value === "boolean") out[key] = value;
+    } else if (Array.isArray(def)) {
+      if (Array.isArray(value)) {
+        out[key] = value.filter((v) => typeof v === "string").slice(0, 200);
+      }
+    } else if (SETTING_ENUMS[key]) {
+      if (SETTING_ENUMS[key].includes(value)) out[key] = value;
+    } else if (typeof value === "string") {
+      out[key] = value.slice(0, 500);
+    }
+  }
+  return out;
+}
+
 async function getSettings() {
   const { settings } = await chrome.storage.sync.get("settings");
-  return { ...DEFAULTS, ...(settings || {}) };
+  return normalizeSettings(settings);
+}
+
+// --- custom groups (user rules) ----------------------------------------------
+// The user's own named groups with routing rules: a domain list (deterministic,
+// runs before any automatic grouping) and/or an AI hint (used by topic mode and
+// Smart Organize). Stored under their own sync key with hard caps - sync gives
+// one item ~8KB and rules must never be the thing that breaks saving settings.
+const CUSTOM_CAPS = { groups: 10, name: 40, domains: 12, domain: 60, hint: 140 };
+
+function normalizeCustomGroups(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const g of raw.slice(0, CUSTOM_CAPS.groups)) {
+    if (!g || typeof g !== "object" || typeof g.name !== "string") continue;
+    const name = g.name.trim().slice(0, CUSTOM_CAPS.name);
+    if (!name) continue;
+    const domains = (Array.isArray(g.domains) ? g.domains : [])
+      .filter((d) => typeof d === "string")
+      .map((d) => d.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, ""))
+      .filter(Boolean)
+      .slice(0, CUSTOM_CAPS.domains)
+      .map((d) => d.slice(0, CUSTOM_CAPS.domain));
+    out.push({
+      id: typeof g.id === "string" && g.id ? g.id.slice(0, 40) : `c${fnv1a32(name)}`,
+      name,
+      color: GROUP_COLORS.includes(g.color) ? g.color : colorFor(name),
+      domains,
+      hint: typeof g.hint === "string" ? g.hint.trim().slice(0, CUSTOM_CAPS.hint) : "",
+      on: g.on !== false,
+    });
+  }
+  return out;
+}
+
+async function getCustomGroups() {
+  const { customGroups } = await chrome.storage.sync.get("customGroups");
+  return normalizeCustomGroups(customGroups);
+}
+
+function customRuleFor(customs, url) {
+  let host = "";
+  try {
+    host = new URL(url).hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+  const reg = registrableDomain(url);
+  for (const c of customs) {
+    if (!c.on) continue;
+    for (const d of c.domains) {
+      if (host === d || host.endsWith(`.${d}`) || reg === d) return c;
+    }
+  }
+  return null;
 }
 
 const archiveAfterMs = (settings) => AFTER_MS[settings.archiveAfter] || null;
@@ -865,7 +967,7 @@ async function undoBatch(batchId, { recordStrikes = true } = {}) {
       if (!tab) continue;
       restored++;
       const settings = await getSettings();
-      if (entry.groupTitle && settings.groupAuto) {
+      if (entry.groupTitle && settings.autoGroup !== "off") {
         await regroupRestored(tab, entry);
       }
       if (recordStrikes) await strike("archive", dupeKey(entry.url));
@@ -900,7 +1002,7 @@ async function restoreEntries(ids) {
       if (!tab) continue;
       restored++;
       const settings = await getSettings();
-      if (entry.groupTitle && settings.groupAuto) await regroupRestored(tab, entry);
+      if (entry.groupTitle && settings.autoGroup !== "off") await regroupRestored(tab, entry);
     }
   });
   await archiveRMW((a) => {
@@ -978,7 +1080,11 @@ async function readoptGroups() {
   await putOurGroups(ourGroups);
 }
 
-async function createOurGroup(tabIds, windowId, { domain, title, color, smart = false, other = false }) {
+async function createOurGroup(
+  tabIds,
+  windowId,
+  { domain, title, color, smart = false, other = false, customId = null },
+) {
   const gid = await quiet(chrome.tabs.group, {
     tabIds,
     createProperties: { windowId },
@@ -988,7 +1094,7 @@ async function createOurGroup(tabIds, windowId, { domain, title, color, smart = 
   await quiet(chrome.tabGroups.update, gid, { title, color });
   const ourGroups = await getOurGroups();
   ourGroups[gid] = {
-    domain: smart ? null : domain,
+    domain: smart || customId ? null : domain,
     title,
     color,
     windowId,
@@ -997,9 +1103,10 @@ async function createOurGroup(tabIds, windowId, { domain, title, color, smart = 
     collapsedByUs: false,
     smart,
     other,
+    customId,
   };
   await putOurGroups(ourGroups);
-  if (!smart) await upsertGroupSig({ domain, title, color, smart: false });
+  if (!smart && !customId) await upsertGroupSig({ domain, title, color, smart: false });
   for (const id of tabIds) {
     const st = await getTabState(id);
     if (st) {
@@ -1044,10 +1151,99 @@ function groupTitleFor(ourGroups, windowId, domain) {
   return label;
 }
 
+// The user's rule group in a window: reuse the registered one, adopt an
+// existing group with the exact rule name (post-restart continuity - the
+// rule IS the user's intent for that name), or mint it around the tabs.
+async function ensureCustomGroup(rule, windowId, tabIds) {
+  const ourGroups = await getOurGroups();
+  const registered = Object.entries(ourGroups).find(
+    ([, g]) => g.customId === rule.id && g.windowId === windowId,
+  );
+  let gid = registered ? Number(registered[0]) : null;
+  if (gid != null && !(await quiet(chrome.tabGroups.get, gid))) gid = null;
+  if (gid == null) {
+    const sameTitle = ((await quiet(chrome.tabGroups.query, { windowId })) || []).find(
+      (g) => (g.title || "").toLowerCase() === rule.name.toLowerCase(),
+    );
+    if (sameTitle) {
+      gid = sameTitle.id;
+      ourGroups[gid] = {
+        domain: null,
+        title: sameTitle.title,
+        color: sameTitle.color, // adopted: keep the user's paint
+        windowId,
+        createdAt: now(),
+        lastTouchedAt: now(),
+        collapsedByUs: false,
+        smart: false,
+        other: false,
+        customId: rule.id,
+      };
+      await putOurGroups(ourGroups);
+    }
+  }
+  if (gid != null) {
+    for (const id of tabIds) await addToOurGroup(id, gid);
+    return gid;
+  }
+  // Rule groups are explicit intent: min size 1, unlike auto site groups.
+  return createOurGroup(tabIds, windowId, {
+    title: rule.name,
+    color: rule.color,
+    customId: rule.id,
+  });
+}
+
+// Deterministic rule routing for one freshly-committed tab. Returns true when
+// the tab was taken. Runs before site/topic auto-grouping and regardless of
+// the autoGroup mode - a rule is the user's standing order.
+async function customAssign(tabId, st) {
+  if (!(await isSettled()) || (await isPaused())) return false;
+  const customs = await getCustomGroups();
+  if (!customs.length) return false;
+  const tab = await quiet(chrome.tabs.get, tabId);
+  if (!tab || tab.pinned || tab.incognito) return false;
+  if (tab.groupId !== -1 && tab.groupId != null) return false;
+  if (st.ungroupedByUser) return false;
+  const win = await quiet(chrome.windows.get, tab.windowId);
+  if (!win || win.type !== "normal") return false;
+  const rule = customRuleFor(customs, tab.url);
+  if (!rule) return false;
+  if (await isStruck("group", `custom:${rule.id}`)) return false;
+  return (await ensureCustomGroup(rule, tab.windowId, [tab.id])) != null;
+}
+
+// Rule pre-pass over a pool of tabs (Organize / Smart Organize): domain-rule
+// matches leave the pool and land in their rule groups first.
+async function routeCustoms(pool, windowId, createdGids) {
+  const customs = await getCustomGroups();
+  const rest = [];
+  const byRule = new Map();
+  let grouped = 0;
+  for (const t of pool) {
+    const rule = customs.length ? customRuleFor(customs, t.url) : null;
+    if (rule && !(await isStruck("group", `custom:${rule.id}`))) {
+      if (!byRule.has(rule.id)) byRule.set(rule.id, { rule, ids: [] });
+      byRule.get(rule.id).ids.push(t.id);
+    } else {
+      rest.push(t);
+    }
+  }
+  for (const { rule, ids } of byRule.values()) {
+    const before = new Set(Object.keys(await getOurGroups()));
+    const gid = await ensureCustomGroup(rule, windowId, ids);
+    if (gid != null) {
+      grouped += ids.length;
+      if (!before.has(String(gid))) createdGids.push(gid);
+    }
+  }
+  return { rest, grouped };
+}
+
 // Continuous mode: gentle - only a tab's FIRST commit, never a re-shuffle.
+// The autoGroup gate lives in the caller (handleCommit routes off/site/topic).
 async function groupOnCommit(tabId, st) {
-  const settings = await getSettings();
-  if (!settings.groupAuto || !(await isSettled()) || (await isPaused())) return;
+  if (!(await isSettled()) || (await isPaused())) return;
   const tab = await quiet(chrome.tabs.get, tabId);
   if (!tab || tab.pinned || tab.incognito) return;
   const win = await quiet(chrome.windows.get, tab.windowId);
@@ -1098,8 +1294,13 @@ async function organizeNow(scope, currentWindowId) {
     const loose = (await chrome.tabs.query({ windowId: win.id, pinned: false })).filter(
       (t) => (t.groupId === -1 || t.groupId == null) && !isEphemeralUrl(t.url),
     );
+    // The user's rule groups outrank site grouping: route matches first.
+    const beforeCustom = createdGids.length;
+    const routed = await routeCustoms(loose, win.id, createdGids);
+    grouped += routed.grouped;
+    groupsCreated += createdGids.length - beforeCustom;
     const byDomain = new Map();
-    for (const t of loose) {
+    for (const t of routed.rest) {
       const domain = registrableDomain(t.url);
       if (!domain || !dupeKey(t.url)) continue;
       if (!byDomain.has(domain)) byDomain.set(domain, []);
@@ -1161,40 +1362,150 @@ async function undoOrganize() {
   return { ungrouped };
 }
 
-// Optional deterministic order, applied only on explicit Organize: sort loose
-// tabs and OUR groups (foreign groups keep their place relative to pins).
-// Modes: title (A-Z), recent (last used first), opened (oldest first).
+// Optional deterministic order, applied only on explicit Organize. Two axes:
+// sortGroups orders OUR groups among themselves (in place - foreign groups and
+// the block's position stay), sortTabs orders tabs inside each of our groups
+// and the loose tabs. Modes: title (A-Z), recent (last used first), opened
+// (oldest first); "live" is the continuous surface-on-use behavior and reads
+// as "recent" here.
 async function applySort(windowId) {
   const settings = await getSettings();
-  if (settings.sortMode === "off") return;
+  const groupMode = settings.sortGroups === "live" ? "recent" : settings.sortGroups;
+  const tabMode = settings.sortTabs === "live" ? "recent" : settings.sortTabs;
+  if (groupMode === "off" && tabMode === "off") return;
   const ourGroups = await getOurGroups();
   const tabs = await chrome.tabs.query({ windowId });
   const st = new Map();
   for (const t of tabs) st.set(t.id, await getTabState(t.id));
-  const metric = (t) => {
-    if (settings.sortMode === "title") return (t.title || t.url || "").toLowerCase();
-    if (settings.sortMode === "opened") return (st.get(t.id) && st.get(t.id).firstSeenAt) || 0;
+  const metricBy = (mode) => (t) => {
+    if (mode === "title") return (t.title || t.url || "").toLowerCase();
+    if (mode === "opened") return (st.get(t.id) && st.get(t.id).firstSeenAt) || 0;
     return -(t.lastAccessed || 0); // recent: most recently used first
   };
-  const cmp = (a, b) => (metric(a) < metric(b) ? -1 : metric(a) > metric(b) ? 1 : 0);
-
-  // Group order: our groups sorted by their best member's metric.
+  const cmpBy = (mode) => {
+    const metric = metricBy(mode);
+    return (a, b) => (metric(a) < metric(b) ? -1 : metric(a) > metric(b) ? 1 : 0);
+  };
   const groupIds = [...new Set(tabs.filter((t) => t.groupId !== -1).map((t) => t.groupId))];
   const ourGids = groupIds.filter((gid) => ourGroups[gid]);
-  const groupBest = new Map();
-  for (const gid of ourGids) {
-    const members = tabs.filter((t) => t.groupId === gid).sort(cmp);
-    if (members.length) groupBest.set(gid, members[0]);
+
+  // Tabs inside each of OUR groups: moves stay within the group's span, so
+  // membership is never disturbed.
+  if (tabMode !== "off") {
+    const cmp = cmpBy(tabMode);
+    for (const gid of ourGids) {
+      const members = tabs.filter((t) => t.groupId === gid);
+      if (members.length < 2) continue;
+      const first = Math.min(...members.map((t) => t.index));
+      const sorted = [...members].sort(cmp);
+      for (let i = 0; i < sorted.length; i++) {
+        await quiet(chrome.tabs.move, sorted[i].id, { index: first + i });
+      }
+    }
   }
-  const orderedGids = [...groupBest.keys()].sort((a, b) => cmp(groupBest.get(a), groupBest.get(b)));
-  for (const gid of orderedGids) {
-    await quiet(chrome.tabGroups.move, gid, { windowId, index: -1 });
+
+  // OUR groups (never the catch-all, never foreign ones) ranked by their best
+  // member and re-laid sequentially from the block's current start.
+  if (groupMode !== "off") {
+    const cmp = cmpBy(groupMode);
+    const groupBest = new Map();
+    for (const gid of ourGids) {
+      if (ourGroups[gid].other) continue;
+      const members = tabs.filter((t) => t.groupId === gid).sort(cmp);
+      if (members.length) groupBest.set(gid, members[0]);
+    }
+    const orderedGids = [...groupBest.keys()].sort((a, b) =>
+      cmp(groupBest.get(a), groupBest.get(b)),
+    );
+    if (orderedGids.length > 1) {
+      const sizeOf = (gid) => tabs.filter((t) => t.groupId === gid).length;
+      let cursor = Math.min(
+        ...orderedGids.map((gid) => Math.min(...tabs.filter((t) => t.groupId === gid).map((t) => t.index))),
+      );
+      for (const gid of orderedGids) {
+        await quiet(chrome.tabGroups.move, gid, { windowId, index: cursor });
+        cursor += sizeOf(gid);
+      }
+    }
   }
+
   // Loose tabs go after the groups, in order.
-  const loose = tabs.filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null)).sort(cmp);
-  for (const t of loose) {
-    await markSelfOp("tabgroup", t.id);
-    await quiet(chrome.tabs.move, t.id, { windowId, index: -1 });
+  if (tabMode !== "off") {
+    const loose = tabs
+      .filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null))
+      .sort(cmpBy(tabMode));
+    for (const t of loose) {
+      await quiet(chrome.tabs.move, t.id, { windowId, index: -1 });
+    }
+  }
+
+  // The catch-all keeps its contract: the very end of the window.
+  const otherGid = ourGids.find((gid) => ourGroups[gid].other);
+  if (otherGid != null) {
+    await quiet(chrome.tabGroups.move, Number(otherGid), { windowId, index: -1 });
+  }
+}
+
+// --- live sort (MRU): the tab you use surfaces ---------------------------------
+// sortTabs="live": after a short dwell on a tab it moves to the front of its
+// container (its group, or the loose block). sortGroups="live": its group
+// rises to the front of the strip. The dwell keeps Ctrl+Tab cycling and quick
+// glances from churning the strip; only one pending surface at a time.
+let mruTimer = null;
+
+function scheduleMruSurface(tabId) {
+  clearTimeout(mruTimer);
+  const dwell = globalThis.__ttMruDwellMs ?? 3000;
+  mruTimer = setTimeout(() => {
+    enqueue(() => mruSurface(tabId), "mru");
+  }, dwell);
+}
+
+async function mruSurface(tabId) {
+  const settings = await getSettings();
+  const liveTabs = settings.sortTabs === "live";
+  const liveGroups = settings.sortGroups === "live";
+  if (!liveTabs && !liveGroups) return;
+  if (!(await isSettled()) || (await isPaused())) return;
+  const tab = await quiet(chrome.tabs.get, tabId);
+  if (!tab || !tab.active || tab.pinned) return;
+  const win = await quiet(chrome.windows.get, tab.windowId);
+  if (!win || win.type !== "normal" || win.incognito) return;
+  const inGroup = tab.groupId !== -1 && tab.groupId != null;
+  const ourGroups = await getOurGroups();
+
+  if (liveTabs) {
+    if (inGroup) {
+      const members = await chrome.tabs.query({ groupId: tab.groupId });
+      const first = Math.min(...members.map((m) => m.index));
+      if (tab.index !== first) await quiet(chrome.tabs.move, tab.id, { index: first });
+    } else {
+      // Front of the LOOSE block, wherever it starts: groups are not shoved.
+      const all = await chrome.tabs.query({ windowId: tab.windowId });
+      const loose = all.filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null));
+      const first = Math.min(...loose.map((t) => t.index));
+      if (tab.index !== first) await quiet(chrome.tabs.move, tab.id, { index: first });
+    }
+  }
+
+  if (liveGroups && inGroup) {
+    const ours = ourGroups[tab.groupId];
+    // Only OUR groups surface (foreign layout is not ours to touch), and the
+    // catch-all never leaves the back of the strip.
+    if (ours && !ours.other) {
+      const all = await chrome.tabs.query({ windowId: tab.windowId });
+      const pinnedCount = all.filter((t) => t.pinned).length;
+      const members = all.filter((t) => t.groupId === tab.groupId);
+      const first = Math.min(...members.map((m) => m.index));
+      if (first !== pinnedCount) {
+        await quiet(chrome.tabGroups.move, tab.groupId, {
+          windowId: tab.windowId,
+          index: pinnedCount,
+        });
+      }
+      ours.lastTouchedAt = now();
+      await putOurGroups(ourGroups);
+    }
   }
 }
 
@@ -1420,10 +1731,35 @@ const SMART_SCHEMA = {
   required: ["groups"],
 };
 
-async function smartCallBuiltin(promptText) {
-  if (globalThis.__ttMockAi) return globalThis.__ttMockAi.respond(promptText);
+async function smartCallBuiltin(promptText, onChunk) {
+  if (globalThis.__ttMockAi) {
+    const mock = globalThis.__ttMockAi;
+    if (onChunk && mock.respondStream) return mock.respondStream(promptText, onChunk);
+    return mock.respond(promptText);
+  }
   const session = await LanguageModel.create({ temperature: 0, topK: 1 });
   try {
+    // Streaming when the caller wants progress: the answer is watched as it
+    // is generated, so a slow on-device model still shows per-tab movement.
+    if (onChunk && session.promptStreaming) {
+      try {
+        let text = "";
+        const stream = session.promptStreaming(promptText, {
+          responseConstraint: SMART_SCHEMA,
+        });
+        for await (const chunk of stream) {
+          // Older Chrome builds stream the full text so far, newer ones deltas.
+          text =
+            chunk.length >= text.length && chunk.startsWith(text.slice(0, 40))
+              ? chunk
+              : text + chunk;
+          onChunk(text);
+        }
+        return text;
+      } catch {
+        // fall through to the plain path
+      }
+    }
     try {
       return await session.prompt(promptText, { responseConstraint: SMART_SCHEMA });
     } catch {
@@ -1481,9 +1817,9 @@ async function smartCallByok(promptText, settings) {
   return text;
 }
 
-async function smartCall(promptText) {
+async function smartCall(promptText, onChunk) {
   const settings = await getSettings();
-  if (settings.smartEngine === "builtin") return smartCallBuiltin(promptText);
+  if (settings.smartEngine === "builtin") return smartCallBuiltin(promptText, onChunk);
   if (settings.smartEngine === "byok") {
     try {
       return await smartCallByok(promptText, settings);
@@ -1525,190 +1861,299 @@ function parseSmartResponse(text, itemCount) {
   return groups.length ? groups : null;
 }
 
-// Smart Organize runs in two phases so a slow model never freezes the
-// engine or the popup:
-//   1) COLLECT (off the mutation queue): read the pool, call the AI batch by
-//      batch with live progress in storage.session; themes merge by name
-//      across batches and later batches see the names already minted.
-//   2) APPLY (one queued job): create the groups atomically, with liveness
-//      re-checks - the world may have moved while the model was thinking.
-// Quality guard: if the model dumps more than half the pool into "no topic",
-// the tail is grouped BY SITE instead, and only the true leftovers land in
-// "Other" - a 51-tab Other is a failure mode, not a result.
+// Smart Organize v3. The run itself stays OFF the mutation queue (a slow model
+// must never freeze the engine or the popup); every mutation goes through the
+// queue as its own small job. Per window:
+//   1) rule pre-pass - the user's domain rules route deterministically;
+//   2) AI batches with per-tab progress (streamed token counting on the
+//      built-in tier), each parsed batch APPLIED IMMEDIATELY - groups appear
+//      while the model keeps thinking, one undo record covers the whole run;
+//      themes merge by name across batches and later batches see the names
+//      already minted (the user's rule names are reserved topics);
+//   3) a refinement call gives the leftovers a second chance to form NEW
+//      specific topics before any of them is written off;
+//   4) the tail: if the model dumped over half the pool, it is grouped BY
+//      SITE; only true singletons land in the localized "Other" (always last).
 
 async function setSmartProgress(done, total) {
   if (total > 0) await chrome.storage.session.set({ smartProgress: { done, total } });
   else await chrome.storage.session.remove("smartProgress");
 }
 
-async function smartCollectPlan(scope, currentWindowId) {
-  const settings = await getSettings();
-  const windows = await normalWindows();
-  const targets = scope === "window" ? windows.filter((w) => w.id === currentWindowId) : windows;
-  const ourGroups = await getOurGroups();
-  const pools = [];
-  let totalPool = 0;
-  for (const win of targets) {
-    const all = await chrome.tabs.query({ windowId: win.id, pinned: false });
-    // Loose tabs + members of OUR auto groups when the user allows rebuilds;
-    // hand-made groups are never touched. Sorted by site so batches keep
-    // natural clusters together.
-    const pool = all
-      .filter((t) => {
-        if (!dupeKey(t.url)) return false;
-        if (t.groupId === -1 || t.groupId == null) return true;
-        return settings.smartRegroupOurs && !!ourGroups[t.groupId];
-      })
-      .sort((a, b) => registrableDomain(a.url).localeCompare(registrableDomain(b.url)));
-    if (pool.length >= 2) {
-      pools.push({ windowId: win.id, pool });
-      totalPool += pool.length;
-    }
-  }
-  await setSmartProgress(0, totalPool);
-  let done = 0;
-  const plans = [];
-  try {
-    for (const { windowId, pool } of pools) {
-      const themes = new Map(); // lower(name) -> {name, ids}
-      const unassigned = [];
-      let aiFailures = 0;
-      const existingNames = Object.values(ourGroups)
-        .filter((g) => g.smart && !g.other && g.windowId === windowId)
-        .map((g) => g.title);
-      for (let offset = 0; offset < pool.length; offset += SMART_BATCH) {
-        const batch = pool.slice(offset, offset + SMART_BATCH);
-        const items = batch.map((t) => ({
-          domain: registrableDomain(t.url),
-          title: (t.title || t.url).slice(0, 120),
-        }));
-        const topics = [...new Set([...existingNames, ...[...themes.values()].map((t) => t.name)])];
-        let groups = null;
-        try {
-          groups = parseSmartResponse(await smartCall(smartPrompt(items, topics)), items.length);
-        } catch (err) {
-          traceDiag(`smart call failed: ${err && err.message}`);
-        }
-        if (!groups) {
-          aiFailures++;
-          unassigned.push(...batch.map((t) => t.id)); // the site fallback will catch these
-        } else {
-          const assigned = new Set();
-          for (const g of groups) {
-            const key = g.name.toLowerCase();
-            if (!themes.has(key)) themes.set(key, { name: g.name, ids: [] });
-            themes.get(key).ids.push(...g.tabIndices.map((i) => batch[i].id));
-            for (const i of g.tabIndices) assigned.add(i);
-          }
-          batch.forEach((t, i) => {
-            if (!assigned.has(i)) unassigned.push(t.id);
-          });
-        }
-        done += batch.length;
-        await setSmartProgress(done, totalPool);
-      }
-      plans.push({ windowId, themes: [...themes.values()], unassigned, poolSize: pool.length, aiFailures });
-    }
-  } finally {
-    await setSmartProgress(0, 0);
-  }
-  return plans;
+function refinePrompt(items, existingTopics) {
+  const list = items.map((it, i) => `${i}. [${it.domain}] ${it.title}`).join("\n");
+  const topics = existingTopics.length
+    ? `Existing group names - REUSE these when a tab fits:\n${existingTopics
+        .map((t) => `- ${t}`)
+        .join("\n")}\n\n`
+    : "";
+  return (
+    "You organize browser tabs into topic groups.\n" +
+    "These tabs did not fit the big groups. Find SPECIFIC new topics that " +
+    "connect 2-4 of them, or match an existing name below.\n" +
+    "Rules:\n" +
+    "- Only group tabs that genuinely share a topic; a tab with no clear " +
+    "partner must be LEFT OUT.\n" +
+    "- Group names: 1-3 words, at most 25 characters, in the dominant " +
+    "language of the titles.\n" +
+    'Answer with ONLY JSON: {"groups":[{"name":"...","tabIndices":[0,2]}]}\n\n' +
+    topics +
+    `Tabs:\n${list}`
+  );
 }
 
-async function applySmartPlan(plans) {
-  const settings = await getSettings();
-  let grouped = 0;
-  let groupsCreated = 0;
-  let fellBack = false;
-  const smartCreatedGids = [];
-  for (const plan of plans) {
-    const win = await quiet(chrome.windows.get, plan.windowId);
-    if (!win) continue;
-    for (const theme of plan.themes) {
+// The topic list a batch sees: names already live in this run + the user's
+// rule groups (with their hints, so the model knows what belongs there).
+function smartTopicLines(themes, customs) {
+  const lines = new Map();
+  for (const t of themes.values()) lines.set(t.name.toLowerCase(), t.name);
+  for (const c of customs) {
+    if (c.on) lines.set(c.name.toLowerCase(), c.hint ? `${c.name} (${c.hint})` : c.name);
+  }
+  return [...lines.values()];
+}
+
+// Apply one parsed batch as a queued job: extend live themes, honor the
+// user's rule names, mint new groups. Returns the claimed indices and the
+// ids the model claimed but the world no longer allows (bounced).
+async function applySmartBatch(windowId, parsed, batch, themes, customs, settings, run) {
+  return enqueue(async () => {
+    const assigned = new Set();
+    const bounced = [];
+    const customByLower = new Map(
+      customs.filter((c) => c.on).map((c) => [c.name.toLowerCase(), c]),
+    );
+    for (const g of parsed) {
+      const key = g.name.toLowerCase();
+      const ourGroupsNow = await getOurGroups();
       const live = [];
-      for (const id of theme.ids) {
-        const t = await quiet(chrome.tabs.get, id);
-        if (t && !t.pinned && t.windowId === plan.windowId) live.push(id);
+      for (const i of g.tabIndices) {
+        assigned.add(i);
+        const t = await quiet(chrome.tabs.get, batch[i].id);
+        if (!t || t.pinned || t.windowId !== windowId) continue;
+        const inGroup = t.groupId !== -1 && t.groupId != null;
+        if (inGroup) {
+          const owner = ourGroupsNow[t.groupId];
+          const known = themes.get(key);
+          if (known && known.gid === t.groupId) continue; // already where it belongs
+          if (!owner || owner.customId || !settings.smartRegroupOurs) continue; // not ours to move
+        }
+        live.push(t.id);
       }
-      if (live.length < 2) {
-        plan.unassigned.push(...live);
+      if (!live.length) continue;
+      const known = themes.get(key);
+      if (known && known.gid != null && (await quiet(chrome.tabGroups.get, known.gid))) {
+        for (const id of live) {
+          if (await addToOurGroup(id, known.gid)) run.grouped++;
+        }
         continue;
       }
-      const gid = await createOurGroup(live, plan.windowId, {
-        title: theme.name,
-        color: colorFor(theme.name),
+      const custom = customByLower.get(key);
+      if (custom) {
+        const before = new Set(Object.keys(await getOurGroups()));
+        const gid = await ensureCustomGroup(custom, windowId, live);
+        if (gid != null) {
+          run.grouped += live.length;
+          if (!before.has(String(gid))) {
+            run.groupsCreated++;
+            run.createdGids.push(gid);
+          }
+          themes.set(key, { name: custom.name, gid });
+        } else {
+          bounced.push(...live);
+        }
+        continue;
+      }
+      if (live.length < 2) {
+        bounced.push(...live);
+        continue;
+      }
+      const gid = await createOurGroup(live, windowId, {
+        title: g.name,
+        color: colorFor(g.name),
         smart: true,
       });
       if (gid != null) {
-        grouped += live.length;
-        groupsCreated++;
-        smartCreatedGids.push(gid);
+        run.grouped += live.length;
+        run.groupsCreated++;
+        run.createdGids.push(gid);
+        themes.set(key, { name: g.name, gid });
+      } else {
+        bounced.push(...live);
       }
     }
-    // The tail. A huge "no topic" pile means the model underdelivered -
-    // group the tail BY SITE; only what stays loose after that is "Other".
-    let leftovers = [];
-    for (const id of plan.unassigned) {
-      const t = await quiet(chrome.tabs.get, id);
-      if (t && !t.pinned && (t.groupId === -1 || t.groupId == null)) leftovers.push(t);
+    return { assigned, bounced };
+  }, "apply-smart");
+}
+
+async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
+  // 1) The user's rules route first - deterministic, no model involved.
+  const routed = await enqueue(() => routeCustoms(pool, windowId, run.createdGids), "smart-rules");
+  run.grouped += routed.grouped;
+  done += pool.length - routed.rest.length;
+  await setSmartProgress(done, totalPool);
+  const rest = routed.rest;
+
+  const customs = await getCustomGroups();
+  const themes = new Map(); // lower(name) -> { name, gid }
+  for (const [gid, g] of Object.entries(await getOurGroups())) {
+    if (g.smart && !g.other && g.windowId === windowId) {
+      themes.set(g.title.toLowerCase(), { name: g.title, gid: Number(gid) });
     }
-    if (plan.aiFailures > 0 || leftovers.length > plan.poolSize / 2) {
-      fellBack = true;
+  }
+
+  // 2) AI batches, applied as they land.
+  const unassigned = [];
+  let aiFailures = 0;
+  for (let offset = 0; offset < rest.length; offset += SMART_BATCH) {
+    const batch = rest.slice(offset, offset + SMART_BATCH);
+    const items = batch.map((t) => ({
+      domain: registrableDomain(t.url),
+      title: (t.title || t.url).slice(0, 120),
+    }));
+    let lastWrite = 0;
+    const doneSoFar = done;
+    const onChunk = (text) => {
+      // Cosmetic per-tab progress inside a batch: distinct indices already
+      // visible in the streamed JSON, throttled to ~6 writes a second.
+      const at = Date.now();
+      if (at - lastWrite < 150) return;
+      lastWrite = at;
+      const seen = new Set(
+        (text.match(/\d+/g) || []).map(Number).filter((n) => n >= 0 && n < batch.length),
+      );
+      setSmartProgress(doneSoFar + Math.min(seen.size, batch.length - 1), totalPool);
+    };
+    let parsed = null;
+    try {
+      parsed = parseSmartResponse(
+        await smartCall(smartPrompt(items, smartTopicLines(themes, customs)), onChunk),
+        items.length,
+      );
+    } catch (err) {
+      traceDiag(`smart call failed: ${err && err.message}`);
+    }
+    if (!parsed) {
+      aiFailures++;
+      unassigned.push(...batch.map((t) => t.id));
+    } else {
+      const { assigned, bounced } = await applySmartBatch(
+        windowId,
+        parsed,
+        batch,
+        themes,
+        customs,
+        settings,
+        run,
+      );
+      unassigned.push(...bounced);
+      batch.forEach((t, i) => {
+        if (!assigned.has(i)) unassigned.push(t.id);
+      });
+    }
+    done += batch.length;
+    await setSmartProgress(done, totalPool);
+  }
+
+  // 3) Refinement: leftovers get one focused second chance before the tail.
+  let leftovers = [];
+  for (const id of unassigned) {
+    const t = await quiet(chrome.tabs.get, id);
+    if (t && !t.pinned && (t.groupId === -1 || t.groupId == null)) leftovers.push(t);
+  }
+  if (!aiFailures && leftovers.length >= 6) {
+    const items = leftovers.map((t) => ({
+      domain: registrableDomain(t.url),
+      title: (t.title || t.url).slice(0, 120),
+    }));
+    try {
+      const parsed = parseSmartResponse(
+        await smartCall(refinePrompt(items, smartTopicLines(themes, customs))),
+        items.length,
+      );
+      if (parsed) {
+        const { assigned, bounced } = await applySmartBatch(
+          windowId,
+          parsed,
+          leftovers,
+          themes,
+          customs,
+          settings,
+          run,
+        );
+        const bouncedSet = new Set(bounced);
+        leftovers = leftovers.filter((t, i) => !assigned.has(i) || bouncedSet.has(t.id));
+      }
+    } catch (err) {
+      traceDiag(`smart refine failed: ${err && err.message}`);
+    }
+  }
+
+  // 4) The tail, one queued job: site fallback, then the catch-all.
+  await enqueue(async () => {
+    let loose = [];
+    for (const t of leftovers) {
+      const live = await quiet(chrome.tabs.get, t.id);
+      if (live && !live.pinned && (live.groupId === -1 || live.groupId == null)) loose.push(live);
+    }
+    if (aiFailures > 0 || loose.length > rest.length / 2) {
+      run.fellBack = true;
       const byDomain = new Map();
-      for (const t of leftovers) {
+      for (const t of loose) {
         const domain = registrableDomain(t.url);
         if (!byDomain.has(domain)) byDomain.set(domain, []);
         byDomain.get(domain).push(t);
       }
-      leftovers = [];
+      loose = [];
       for (const [domain, list] of byDomain) {
         if (list.length >= 2) {
           const ourGroups = await getOurGroups();
           const gid = await createOurGroup(
             list.map((t) => t.id),
-            plan.windowId,
-            { domain, title: groupTitleFor(ourGroups, plan.windowId, domain), color: colorFor(domain) },
+            windowId,
+            {
+              domain,
+              title: groupTitleFor(ourGroups, windowId, domain),
+              color: colorFor(domain),
+            },
           );
           if (gid != null) {
-            grouped += list.length;
-            groupsCreated++;
-            smartCreatedGids.push(gid);
+            run.grouped += list.length;
+            run.groupsCreated++;
+            run.createdGids.push(gid);
           }
         } else {
-          leftovers.push(...list);
+          loose.push(...list);
         }
       }
     }
-    if (settings.smartOther && leftovers.length >= 2) {
+    if (settings.smartOther && loose.length >= 2) {
       await ensureI18n();
       const existingOther = Object.entries(await getOurGroups()).find(
-        ([, g]) => g.other && g.windowId === plan.windowId,
+        ([, g]) => g.other && g.windowId === windowId,
       );
       if (existingOther) {
-        for (const t of leftovers) await addToOurGroup(t.id, Number(existingOther[0]));
-        await quiet(chrome.tabGroups.move, Number(existingOther[0]), {
-          windowId: plan.windowId,
-          index: -1,
-        });
-        grouped += leftovers.length;
+        for (const t of loose) {
+          if (await addToOurGroup(t.id, Number(existingOther[0]))) run.grouped++;
+        }
+        await quiet(chrome.tabGroups.move, Number(existingOther[0]), { windowId, index: -1 });
       } else {
         const gid = await createOurGroup(
-          leftovers.map((t) => t.id),
-          plan.windowId,
+          loose.map((t) => t.id),
+          windowId,
           { title: ttI18n.t("smartOtherName"), color: "grey", smart: true, other: true },
         );
         if (gid != null) {
-          grouped += leftovers.length;
-          groupsCreated++;
-          smartCreatedGids.push(gid);
+          run.grouped += loose.length;
+          run.groupsCreated++;
+          run.createdGids.push(gid);
         }
       }
     }
-    await applySort(plan.windowId);
-    if (settings.groupsOnTop) await moveGroupsToFront(plan.windowId);
-  }
-  await rememberOrganize(smartCreatedGids);
-  return { grouped, groupsCreated, fellBack };
+    await applySort(windowId);
+    if (settings.groupsOnTop) await moveGroupsToFront(windowId);
+  }, "smart-tail");
+  return done;
 }
 
 async function smartOrganize(scope, currentWindowId) {
@@ -1718,46 +2163,97 @@ async function smartOrganize(scope, currentWindowId) {
   if (smartRunning && now() - smartRunning < 10 * 60e3) return { busy: true };
   await chrome.storage.session.set({ smartRunning: now() });
   try {
-    const plans = await smartCollectPlan(scope, currentWindowId);
-    if (!plans.length) return { grouped: 0, groupsCreated: 0, fellBack: false };
-    return await enqueue(() => applySmartPlan(plans), "apply-smart");
+    const windows = await normalWindows();
+    const targets = scope === "window" ? windows.filter((w) => w.id === currentWindowId) : windows;
+    const ourGroups = await getOurGroups();
+    const pools = [];
+    let totalPool = 0;
+    for (const win of targets) {
+      const all = await chrome.tabs.query({ windowId: win.id, pinned: false });
+      // Loose tabs + members of OUR auto groups when the user allows rebuilds;
+      // hand-made and rule groups are never re-pooled. Sorted by site so
+      // batches keep natural clusters together.
+      const pool = all
+        .filter((t) => {
+          if (!dupeKey(t.url)) return false;
+          if (t.groupId === -1 || t.groupId == null) return true;
+          const owner = ourGroups[t.groupId];
+          return !!owner && !owner.customId && settings.smartRegroupOurs;
+        })
+        .sort((a, b) => registrableDomain(a.url).localeCompare(registrableDomain(b.url)));
+      if (pool.length >= 2) {
+        pools.push({ windowId: win.id, pool });
+        totalPool += pool.length;
+      }
+    }
+    if (!totalPool) return { grouped: 0, groupsCreated: 0, fellBack: false };
+    const run = { grouped: 0, groupsCreated: 0, fellBack: false, createdGids: [] };
+    let done = 0;
+    try {
+      for (const { windowId, pool } of pools) {
+        done = await smartRunWindow(windowId, pool, totalPool, done, run, settings);
+      }
+    } finally {
+      await setSmartProgress(0, 0);
+    }
+    await rememberOrganize(run.createdGids);
+    return { grouped: run.grouped, groupsCreated: run.groupsCreated, fellBack: run.fellBack };
   } finally {
     await chrome.storage.session.remove("smartRunning");
   }
 }
 
-// Lazy classification of one new tab into an existing smart group.
+// Lazy classification of one new tab (autoGroup = "topic"): existing smart
+// groups plus the user's rule groups with hints are the candidates. Returns
+// "fallback" when the tier is structurally unavailable (no model, no key) -
+// the caller then groups by site, so topic mode never silently does nothing.
 async function smartAssign(tabId, st) {
   const settings = await getSettings();
-  if (!settings.smartAutoAssign || settings.smartEngine === "off") return;
-  if (!(await isSettled()) || (await isPaused())) return;
+  if (settings.smartEngine === "off") return "fallback";
+  if (settings.smartEngine === "builtin" && (await smartAvailability()) !== "available") {
+    return "fallback";
+  }
+  if (settings.smartEngine === "byok" && !(await getByokKey()) && !globalThis.__ttMockAi) {
+    return "fallback";
+  }
+  if (!(await isSettled()) || (await isPaused())) return false;
   const tab = await quiet(chrome.tabs.get, tabId);
-  if (!tab || tab.pinned || (tab.groupId !== -1 && tab.groupId != null)) return;
-  if (st.ungroupedByUser) return;
+  if (!tab || tab.pinned || (tab.groupId !== -1 && tab.groupId != null)) return false;
+  if (st.ungroupedByUser) return false;
   const ourGroups = await getOurGroups();
-  const smartGroups = Object.entries(ourGroups).filter(
-    ([, g]) => g.smart && g.windowId === tab.windowId,
-  );
-  if (!smartGroups.length) return;
-  const options = smartGroups.map(([, g]) => g.title);
+  const candidates = [];
+  for (const [gid, g] of Object.entries(ourGroups)) {
+    if (g.smart && !g.other && g.windowId === tab.windowId) {
+      candidates.push({ label: g.title, gid: Number(gid) });
+    }
+  }
+  for (const c of await getCustomGroups()) {
+    if (!c.on || !c.hint) continue;
+    if (candidates.some((x) => x.label.toLowerCase() === c.name.toLowerCase())) continue;
+    if (await isStruck("group", `custom:${c.id}`)) continue;
+    candidates.push({ label: `${c.name} - ${c.hint}`, custom: c });
+  }
+  if (!candidates.length) return false;
   const promptText =
     "Pick the best topic group for this browser tab, or none.\n" +
     `Tab: [${st.domain}] ${(tab.title || tab.url).slice(0, 120)}\n` +
-    `Groups: ${options.map((t, i) => `${i}. ${t}`).join(", ")}\n` +
+    `Groups: ${candidates.map((c, i) => `${i}. ${c.label}`).join(", ")}\n` +
     'Answer with ONLY JSON: {"group": <index or null>}';
   let idx = null;
   try {
     const data = JSON.parse(
       String(await smartCall(promptText)).replace(/^```(?:json)?\s*|\s*```$/g, ""),
     );
-    if (Number.isInteger(data.group) && data.group >= 0 && data.group < smartGroups.length) {
+    if (Number.isInteger(data.group) && data.group >= 0 && data.group < candidates.length) {
       idx = data.group;
     }
   } catch {
-    return; // silent: assignment is best-effort sugar
+    return false; // silent: assignment is best-effort sugar
   }
-  if (idx == null) return;
-  await addToOurGroup(tab.id, Number(smartGroups[idx][0]));
+  if (idx == null) return false;
+  const pick = candidates[idx];
+  if (pick.custom) return (await ensureCustomGroup(pick.custom, tab.windowId, [tab.id])) != null;
+  return addToOurGroup(tab.id, pick.gid);
 }
 
 // --- alarm tick -----------------------------------------------------------------------
@@ -1844,6 +2340,7 @@ async function uiGetState(request) {
       archiveTotal: archive.entries.length,
     },
     settings,
+    customGroups: await getCustomGroups(),
     groups,
     lastBatch,
     lastOrganize,
@@ -1856,6 +2353,7 @@ async function uiGetState(request) {
 }
 
 async function handleUi(request) {
+  if (globalThis.__ttFailUi) throw new Error("simulated engine failure"); // test hook
   switch (request.type) {
     case "ui:getState":
       return uiGetState(request);
@@ -1863,10 +2361,19 @@ async function handleUi(request) {
       if (!(request.key in DEFAULTS)) return { ok: false };
       const { settings = {} } = await chrome.storage.sync.get("settings");
       settings[request.key] = request.value;
-      await chrome.storage.sync.set({ settings });
+      // Persist the normalized shape: a bad value degrades to the default
+      // instead of poisoning storage for every later read.
+      await chrome.storage.sync.set({ settings: normalizeSettings(settings) });
       i18nReady = null; // language may have changed
       if (request.key === "iconStyle") applyActionIcon(request.value);
       return { ok: true };
+    }
+    case "ui:customGroups:set": {
+      const list = normalizeCustomGroups(request.list);
+      // Sync gives one item ~8KB: rules must never be what breaks saving.
+      if (JSON.stringify(list).length > 7000) return { ok: false, error: "tooBig" };
+      await chrome.storage.sync.set({ customGroups: list });
+      return { ok: true, customGroups: list };
     }
     case "ui:organizeNow":
       return organizeNow(request.scope || "window", request.windowId);
@@ -1933,14 +2440,27 @@ async function handleUi(request) {
     }
     case "ui:groupsUngroupAll":
       return ungroupAll();
-    case "ui:groupMove": {
-      // Popup drag-reorder within a window: index is the target position in
-      // the tab strip. A user command, not automation.
-      const moved = await quiet(chrome.tabGroups.move, request.gid, {
-        windowId: request.windowId,
-        index: request.index,
-      });
-      return { ok: moved != null };
+    case "ui:groupReorder": {
+      // Popup drag-reorder: the popup sends the FINAL order of a window's
+      // groups; they are laid out sequentially from the block's current
+      // start. A user command, not automation. Boundary-safe by walking:
+      // each placement lands on the edge left by the previous one.
+      const tabs = await chrome.tabs.query({ windowId: request.windowId });
+      const sizes = new Map();
+      for (const t of tabs) {
+        if (t.groupId === -1 || t.groupId == null) continue;
+        sizes.set(t.groupId, (sizes.get(t.groupId) || 0) + 1);
+      }
+      const wanted = (request.gids || []).filter((gid) => sizes.get(gid) > 0);
+      if (wanted.length < 2) return { ok: false };
+      let cursor = Math.min(
+        ...tabs.filter((t) => wanted.includes(t.groupId)).map((t) => t.index),
+      );
+      for (const gid of wanted) {
+        await quiet(chrome.tabGroups.move, gid, { windowId: request.windowId, index: cursor });
+        cursor += sizes.get(gid);
+      }
+      return { ok: true };
     }
     case "ui:sweepDupes":
       return sweepDuplicates(request.scope || "window", request.windowId);
@@ -2096,6 +2616,12 @@ async function handleUi(request) {
 chrome.runtime.onInstalled.addListener(() => {
   ensureAlarm();
   ensureSettleBootstrap();
+  // Settle stored state into the current shape once per install/update.
+  // Reads are normalized anyway; this write-back prunes retired keys.
+  enqueue(async () => {
+    const { settings } = await chrome.storage.sync.get("settings");
+    if (settings) await chrome.storage.sync.set({ settings: normalizeSettings(settings) });
+  }, "migrate-settings");
 });
 chrome.runtime.onStartup.addListener(() => {
   ensureAlarm();
@@ -2138,11 +2664,24 @@ async function handleCommit(details) {
   if (kind) await dedupOnCommit(details.tabId, details.url, kind, st);
 
   // The tab may be gone (dedup closed it); grouping re-checks liveness.
+  // Routing order: the user's rules first (a standing order, active in every
+  // mode), then the autoGroup mode - by site, or by topic with a site
+  // fallback while the AI tier is structurally unavailable.
   const after = await getTabState(details.tabId);
   if (after) {
-    await groupOnCommit(details.tabId, after);
-    const post = await getTabState(details.tabId);
-    if (post && !post.groupedByUs) await smartAssign(details.tabId, post);
+    const settings = await getSettings();
+    const taken = await customAssign(details.tabId, after);
+    if (!taken) {
+      const post = await getTabState(details.tabId);
+      if (post && !post.groupedByUs) {
+        if (settings.autoGroup === "site") {
+          await groupOnCommit(details.tabId, post);
+        } else if (settings.autoGroup === "topic") {
+          const assigned = await smartAssign(details.tabId, post);
+          if (assigned === "fallback") await groupOnCommit(details.tabId, post);
+        }
+      }
+    }
   }
 }
 
@@ -2172,10 +2711,21 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
       if (changeInfo.groupId === -1 && wasOurs != null) {
         st.groupedByUs = null;
         if (!(await consumeSelfOp("tabgroup", tabId))) {
-          // The user pulled this tab out of our group: hands off, and two
-          // pulled-out tabs of one domain retire auto-grouping that domain.
-          st.ungroupedByUser = true;
-          await strike("group", st.domain);
+          // CLOSING a grouped tab also fires groupId=-1 before the removal.
+          // By the time this queued job runs the removal has landed - a tab
+          // that is gone was closed, not pulled out: never a strike.
+          const live = await quiet(chrome.tabs.get, tabId);
+          if (live) {
+            // The user pulled this tab out of our group: hands off, and two
+            // pulled-out tabs of one domain (or one rule group) retire that
+            // auto-grouping key for the session.
+            st.ungroupedByUser = true;
+            const owner = (await getOurGroups())[wasOurs];
+            await strike(
+              "group",
+              owner && owner.customId ? `custom:${owner.customId}` : st.domain,
+            );
+          }
         }
         await putTabState(tabId, st);
       } else if (changeInfo.groupId !== -1) {
@@ -2188,6 +2738,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 
 chrome.tabs.onActivated.addListener(({ tabId }) => {
+  scheduleMruSurface(tabId); // live sort: acts only after the dwell, if enabled
   enqueue(async () => {
     const tab = await quiet(chrome.tabs.get, tabId);
     if (!tab || tab.groupId === -1 || tab.groupId == null) return;
@@ -2300,12 +2851,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!request || typeof request.type !== "string" || !request.type.startsWith("ui:")) {
     return false;
   }
+  // Both branches answer with {error} on failure: a page must always get a
+  // response it can judge, never a hung port or an unhandled rejection.
   if (OFF_QUEUE_UI.has(request.type)) {
     handleUi(request).then(sendResponse, (err) =>
       sendResponse({ error: String((err && err.message) || err) }),
     );
   } else {
-    enqueue(() => handleUi(request), `ui ${request.type}`).then(sendResponse);
+    enqueue(() => handleUi(request), `ui ${request.type}`).then(sendResponse, (err) =>
+      sendResponse({ error: String((err && err.message) || err) }),
+    );
   }
   return true;
 });

@@ -13,9 +13,7 @@ const SWITCHES = [
   "archiveNotify",
   "archiveForeignGroups",
   "discardStale",
-  "groupAuto",
   "groupsOnTop",
-  "smartAutoAssign",
   "smartOther",
   "smartRegroupOurs",
 ];
@@ -23,8 +21,10 @@ const SELECTS = [
   "dedupScope",
   "archiveAfter",
   "archiveTtl",
+  "autoGroup",
   "groupCollapseAfter",
-  "sortMode",
+  "sortGroups",
+  "sortTabs",
   "smartEngine",
   "byokProvider",
   "theme",
@@ -72,14 +72,102 @@ function renderSmartRows() {
   const engine = $("smartEngine").value;
   $("builtinRow").hidden = engine !== "builtin";
   $("byokRow").hidden = engine !== "byok";
-  $("smartAssignRow").hidden = engine === "off";
   $("smartOtherRow").hidden = engine === "off";
   $("smartRegroupRow").hidden = engine === "off";
+  // Topic mode without an engine falls back to site grouping - say so.
+  $("autoGroupNeedsAi").hidden = !($("autoGroup").value === "topic" && engine === "off");
   const provider = $("byokProvider").value;
   const custom = provider === "custom";
   $("byokBaseUrlLabel").hidden = !custom;
   $("byokBaseUrl").hidden = !custom;
   $("byokModel").placeholder = PROVIDER_MODEL_HINTS[provider] || "";
+}
+
+// --- custom rule groups editor -------------------------------------------------
+// One bordered item per rule: name, the sites that always route there, and an
+// optional AI hint. Saves on change like everything else; the list is only
+// re-rendered on add/remove so typing focus is never stolen.
+
+let customGroups = [];
+
+function collectCustomGroups() {
+  return [...document.querySelectorAll(".custom-item")]
+    .map((item) => ({
+      id: item.dataset.id,
+      name: item.querySelector(".c-name").value.trim(),
+      domains: item
+        .querySelector(".c-domains")
+        .value.split(/[\s,;]+/)
+        .map((d) => d.trim())
+        .filter(Boolean),
+      hint: item.querySelector(".c-hint").value.trim(),
+      on: item.querySelector(".c-on").checked,
+    }))
+    .filter((g) => g.name);
+}
+
+async function saveCustomGroups() {
+  const result = await send({ type: "ui:customGroups:set", list: collectCustomGroups() });
+  if (result && result.ok) {
+    customGroups = result.customGroups;
+    $("customNote").textContent = "";
+  } else {
+    $("customNote").textContent = t("customTooBig");
+  }
+}
+
+function customRow(rule) {
+  const item = document.createElement("div");
+  item.className = "custom-item";
+  item.dataset.id = rule.id;
+
+  const name = document.createElement("input");
+  name.type = "text";
+  name.className = "c-name";
+  name.value = rule.name;
+  name.placeholder = t("customNamePh");
+  item.appendChild(name);
+
+  const on = document.createElement("input");
+  on.type = "checkbox";
+  on.className = "switch c-on";
+  on.checked = rule.on !== false;
+  item.appendChild(on);
+
+  const remove = document.createElement("button");
+  remove.className = "linklike";
+  remove.textContent = t("customRemove");
+  remove.addEventListener("click", async () => {
+    item.remove();
+    await saveCustomGroups();
+    renderCustomList();
+  });
+  item.appendChild(remove);
+
+  const domains = document.createElement("input");
+  domains.type = "text";
+  domains.className = "c-domains full";
+  domains.value = (rule.domains || []).join(", ");
+  domains.placeholder = t("customDomainsPh");
+  domains.spellcheck = false;
+  item.appendChild(domains);
+
+  const hint = document.createElement("input");
+  hint.type = "text";
+  hint.className = "c-hint full";
+  hint.value = rule.hint || "";
+  hint.placeholder = t("customHintPh");
+  item.appendChild(hint);
+
+  for (const el of [name, on, domains, hint]) el.addEventListener("change", saveCustomGroups);
+  return item;
+}
+
+function renderCustomList() {
+  const list = $("customList");
+  list.textContent = "";
+  for (const rule of customGroups) list.appendChild(customRow(rule));
+  $("customAddBtn").hidden = customGroups.length >= 10;
 }
 
 async function refreshBuiltinStatus() {
@@ -157,11 +245,9 @@ async function saveByokKey() {
 
 async function init() {
   const state = await send({ type: "ui:getState" });
+  if (!state || !state.settings) throw new Error("engine did not respond");
   settings = state.settings;
-  applyTheme(settings.theme);
-  await ttI18n.init(settings.language);
-  localizeDom();
-  $("version").textContent = `v${chrome.runtime.getManifest().version}`;
+  customGroups = state.customGroups || [];
 
   for (const id of SWITCHES) {
     $(id).checked = !!settings[id];
@@ -173,13 +259,21 @@ async function init() {
       await setSetting(id, e.target.value);
       if (id === "theme") applyTheme(e.target.value);
       if (id === "language") location.reload();
-      if (id === "smartEngine" || id === "byokProvider") {
+      if (id === "smartEngine" || id === "byokProvider" || id === "autoGroup") {
         renderSmartRows();
         refreshByokWarning();
       }
       if (id === "smartEngine" && e.target.value === "builtin") refreshBuiltinStatus();
     });
   }
+
+  renderCustomList();
+  $("customAddBtn").addEventListener("click", () => {
+    customGroups.push({ id: crypto.randomUUID(), name: "", domains: [], hint: "", on: true });
+    renderCustomList();
+    const rows = document.querySelectorAll(".custom-item .c-name");
+    rows[rows.length - 1].focus();
+  });
 
   $("archiveAllowlist").value = (settings.archiveAllowlist || []).join("\n");
   $("archiveAllowlist").addEventListener("change", (e) => {
@@ -263,4 +357,31 @@ async function init() {
   });
 }
 
-init();
+// Two-stage boot. Stage 1 never touches the engine: theme and language come
+// straight from storage, every label is localized, the version is stamped -
+// so the page reads even when the service worker is stale or dead
+// (mid-update). Stage 2 loads live state; a failure shows a plain notice
+// with a way out instead of a blank skeleton.
+async function boot() {
+  try {
+    const { settings: stored } = await chrome.storage.sync.get("settings");
+    applyTheme((stored && stored.theme) || "auto");
+    await ttI18n.init((stored && stored.language) || "auto");
+  } catch {
+    await ttI18n.init("auto");
+  }
+  localizeDom();
+  $("version").textContent = `v${chrome.runtime.getManifest().version}`;
+  try {
+    await init();
+  } catch (err) {
+    $("engineDown").hidden = false;
+    $("engineResetBtn").addEventListener("click", async () => {
+      await chrome.storage.sync.remove(["settings", "customGroups"]);
+      location.reload();
+    });
+    console.error("TrueTabs options init failed:", err);
+  }
+}
+
+boot();

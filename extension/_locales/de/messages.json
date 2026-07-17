@@ -185,12 +185,6 @@
   "optGroupsHeader": {
     "message": "Gruppen"
   },
-  "optGroupAuto": {
-    "message": "Neue Tabs nach Website gruppieren"
-  },
-  "optGroupAutoHint": {
-    "message": "Behutsam: nur neue Tabs werden gruppiert, bestehende nie umsortiert. Ihre eigenen Gruppen bleiben unberührt."
-  },
   "optCollapse": {
     "message": "Inaktive Gruppen einklappen nach"
   },
@@ -265,12 +259,6 @@
   },
   "byokPermDenied": {
     "message": "Zugriff auf den Anbieter wurde nicht gewährt."
-  },
-  "optSmartAssign": {
-    "message": "Neue Tabs automatisch smarten Gruppen zuordnen"
-  },
-  "optSmartAssignHint": {
-    "message": "Ein neuer Tab, der zu einer bestehenden Themengruppe passt, tritt ihr automatisch bei."
   },
   "optAppearanceHeader": {
     "message": "Darstellung"
@@ -368,12 +356,6 @@
   "groupCollapse": {
     "message": "Einklappen"
   },
-  "optSort": {
-    "message": "Beim Ordnen sortieren"
-  },
-  "optSortHint": {
-    "message": "Nur beim Klick auf Ordnen: Gruppen und lose Tabs erhalten eine feste Reihenfolge. Sortiert nie von selbst um."
-  },
   "optSortTitle": {
     "message": "Alphabetisch"
   },
@@ -433,5 +415,71 @@
   },
   "smartWorking": {
     "message": "Gruppiere nach Thema… $1 von $2 Tabs"
+  },
+  "optAutoGroup": {
+    "message": "Neue Tabs gruppieren"
+  },
+  "optAutoGroupHint": {
+    "message": "Behutsam: Nur neue Tabs werden gruppiert, bestehende nie umsortiert. Nach Website: eine Gruppe pro Website, entsteht beim zweiten Tab. Nach Thema: Die KI wählt für jeden neuen Tab eine passende Themengruppe."
+  },
+  "optAutoGroupSite": {
+    "message": "Nach Website"
+  },
+  "optAutoGroupTopic": {
+    "message": "Nach Thema (KI)"
+  },
+  "optAutoGroupNeedsAi": {
+    "message": "Der Themenmodus braucht eine KI-Engine - unten bei der intelligenten Gruppierung wählen. Bis dahin werden neue Tabs nach Website gruppiert."
+  },
+  "optSortGroups": {
+    "message": "Reihenfolge der Gruppen"
+  },
+  "optSortGroupsHint": {
+    "message": "Wie sich TrueTabs-Gruppen in der Leiste anordnen. A-Z, zuletzt und älteste gelten einmalig - beim Klick auf Organisieren. Live: Die gerade genutzte Gruppe rückt nach 3 Sekunden Verweildauer nach vorn."
+  },
+  "optSortTabs": {
+    "message": "Reihenfolge der Tabs"
+  },
+  "optSortTabsHint": {
+    "message": "Reihenfolge innerhalb jeder TrueTabs-Gruppe und unter losen Tabs. A-Z, zuletzt und älteste gelten einmalig beim Organisieren. Live: Der genutzte Tab rückt nach 3 Sekunden an den Anfang seiner Gruppe."
+  },
+  "optSortLiveGroups": {
+    "message": "Aktive Gruppe zuerst (live)"
+  },
+  "optSortLiveTabs": {
+    "message": "Aktiver Tab zuerst (live)"
+  },
+  "optCustomHeader": {
+    "message": "Meine Gruppen"
+  },
+  "optCustomHint": {
+    "message": "Deine benannten Gruppen mit Regeln: Liste die Websites auf, die immer dorthin gehören, beschreibe das Thema für die KI - oder beides. Regeln greifen vor jeder Automatik; zwei von Hand herausgezogene Tabs legen eine Regel für die Sitzung still."
+  },
+  "customAdd": {
+    "message": "Gruppe hinzufügen"
+  },
+  "customRemove": {
+    "message": "Entfernen"
+  },
+  "customNamePh": {
+    "message": "Gruppenname"
+  },
+  "customDomainsPh": {
+    "message": "Websites, durch Komma getrennt: youtube.com, twitch.tv"
+  },
+  "customHintPh": {
+    "message": "KI-Regel (optional): z. B. alles zu GPU-Preisen"
+  },
+  "customTooBig": {
+    "message": "Zu viel für den Sync-Speicher - Domainlisten oder Hinweise kürzen."
+  },
+  "engineDownTitle": {
+    "message": "Die Engine antwortet nicht"
+  },
+  "engineDownBody": {
+    "message": "Der Live-Zustand lässt sich gerade nicht laden. Wurde TrueTabs eben aktualisiert, lade es unter chrome://extensions neu und öffne diese Seite erneut. Tabs und Archiv sind sicher."
+  },
+  "engineReset": {
+    "message": "Alle Einstellungen zurücksetzen"
   }
 }

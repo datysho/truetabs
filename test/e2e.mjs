@@ -325,9 +325,9 @@ async function main() {
     assert(state.settings.dedupAuto === true, "dedupAuto default on");
     assert(state.settings.dedupScope === "window", "dedupScope default window");
     assert(state.settings.archiveAfter === "24h", "archiveAfter default 24h");
-    assert(state.settings.groupAuto === true, "groupAuto default on");
+    assert(state.settings.autoGroup === "site", "autoGroup default site");
     assert(state.settings.smartEngine === "off", "smart off by default");
-    assert(state.settings.sortMode === "off", "sort off by default");
+    assert(state.settings.sortGroups === "off" && state.settings.sortTabs === "off", "sort off by default");
     step("alarm");
     const alarm = await swEval(
       () => new Promise((resolve) => chrome.alarms.get("tt-tick", (a) => resolve(a || null))),
@@ -906,7 +906,7 @@ async function main() {
   await test("smart: mock AI organizes by topic; garbage falls back to domains", async () => {
     await resetWorld();
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
     const t1 = await createTab({ url: `${baseUrl}/topicCats` });
     const t2 = await createTab({ url: `${altUrl}/topicCatCare` });
     await sleep(400);
@@ -936,12 +936,12 @@ async function main() {
     assert(g1Now.groupId !== -1, "domain fallback grouped");
     await swEval(() => globalThis.__ttSetMockAi(null));
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
   });
 
   await test("restart: reload re-adopts domain groups by 3-of-3 signature", async () => {
     await resetWorld();
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
     const a = await openViaCommit(`${altUrl}/readopt1`, { active: false });
     const b = await openViaCommit(`${altUrl}/readopt2`, { active: false });
     await waitFor("grouped", async () => (await getTab(b.id)).groupId !== -1);
@@ -1015,7 +1015,7 @@ async function main() {
   await test("undo organize: created groups dissolve, tabs stay, no strikes recorded", async () => {
     await resetWorld();
     // continuous mode off: the explicit Organize must be the one creating
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
     const a = await createTab({ url: `${baseUrl}/orgA`, active: false });
     const b = await createTab({ url: `${baseUrl}/orgB`, active: false });
     await sleep(400);
@@ -1037,7 +1037,7 @@ async function main() {
     // organize again still works (nothing retired)
     const again = await ui({ type: "ui:organizeNow", scope: "all" });
     assert(again.groupsCreated >= 1, "regrouping works after undo");
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
   });
 
   await test("archive resurrection: a protected page that pops back strikes out of archiving", async () => {
@@ -1092,7 +1092,7 @@ async function main() {
 
   await test("sort on organize: alphabetical order applied to loose tabs", async () => {
     await resetWorld();
-    await ui({ type: "ui:setSetting", key: "sortMode", value: "title" });
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "title" });
     // three different sites (no grouping possible), shuffled titles
     const c = await openViaCommit(`${baseUrl}/zebra`, { active: false });
     const a = await openViaCommit(`${altUrl}/alpha`, { active: false });
@@ -1106,7 +1106,7 @@ async function main() {
     const alphaIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), alphaTab.id);
     const zebraIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), zebraTab.id);
     assert(alphaIndex < zebraIndex, `alpha (${alphaIndex}) before zebra (${zebraIndex})`);
-    await ui({ type: "ui:setSetting", key: "sortMode", value: "off" });
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
   });
 
   await test("ungroup: one group and all groups dissolve without strikes", async () => {
@@ -1138,11 +1138,11 @@ async function main() {
   await test("groups on top: organize lines groups up right after pins", async () => {
     await resetWorld();
     await ui({ type: "ui:setSetting", key: "groupsOnTop", value: true });
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
     const loose1 = await openViaCommit(`${baseUrl}/looseFirst`, { active: false });
     const g1 = await openViaCommit(`${altUrl}/topA`, { active: false });
     const g2 = await openViaCommit(`${altUrl}/topB`, { active: false });
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
     await ui({ type: "ui:organizeNow", scope: "all" });
     await sleep(400);
     const gTab = await getTab(g1.id);
@@ -1156,7 +1156,7 @@ async function main() {
   await test("smart Other: leftovers land in a grey catch-all group at the end", async () => {
     await resetWorld();
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
     const t1 = await createTab({ url: `${baseUrl}/themeA1` });
     const t2 = await createTab({ url: `${altUrl}/themeA2` });
     const o1 = await createTab({ url: `${baseUrl}/leftover1` });
@@ -1188,13 +1188,13 @@ async function main() {
     assert(oIndex > tIndex, "Other sits after the theme group");
     await swEval(() => globalThis.__ttSetMockAi(null));
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
   });
 
   await test("smart quality gate: a half-empty answer sends the tail to site groups, not Other", async () => {
     await resetWorld();
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
     const a1 = await createTab({ url: `${baseUrl}/qa1` });
     const a2 = await createTab({ url: `${altUrl}/qa2` });
     const t1 = await createTab({ url: `${baseUrl}/tail1` });
@@ -1239,7 +1239,337 @@ async function main() {
     assert(!smartProgress, "progress cleared when done");
     await swEval(() => globalThis.__ttSetMockAi(null));
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
-    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("settings survive a hostile upgrade: junk normalizes, old keys map over", async () => {
+    await swEval(() =>
+      chrome.storage.sync.set({
+        settings: {
+          groupAuto: false,
+          sortMode: "title",
+          smartAutoAssign: true,
+          smartEngine: "builtin",
+          archiveAfter: "BOGUS",
+          theme: 42,
+          archiveAllowlist: "nope",
+          nonsense: { deep: true },
+          dedupScope: "all",
+        },
+      }),
+    );
+    const s = (await ui({ type: "ui:getState" })).settings;
+    assert(s.autoGroup === "off", "groupAuto=false maps to off");
+    assert(s.sortTabs === "title" && s.sortGroups === "title", "sortMode fans out to both axes");
+    assert(s.archiveAfter === "24h", "bogus enum degrades to the default");
+    assert(s.theme === "auto", "wrong type degrades to the default");
+    assert(Array.isArray(s.archiveAllowlist), "allowlist is an array again");
+    assert(!("nonsense" in s) && !("groupAuto" in s), "unknown and retired keys dropped");
+    assert(s.dedupScope === "all", "valid values survive untouched");
+    // a bad write through the API degrades too - storage is never poisoned
+    await ui({ type: "ui:setSetting", key: "archiveAfter", value: "1000years" });
+    assert(
+      (await ui({ type: "ui:getState" })).settings.archiveAfter === "24h",
+      "bad write degraded on save",
+    );
+    await swEval(() => chrome.storage.sync.remove("settings"));
+  });
+
+  await test("options page: a dead engine leaves a readable page with recovery, never a blank", async () => {
+    const extUrl = (await findSwTarget()).url().replace("background.js", "options.html");
+    await swEval(() => {
+      globalThis.__ttFailUi = true;
+    });
+    const page = await browser.newPage();
+    await page.goto(extUrl, { waitUntil: "networkidle0" });
+    await sleep(500);
+    const check = await page.evaluate(() => ({
+      down: !document.getElementById("engineDown").hidden,
+      body: document.getElementById("engineDown").textContent.trim().length,
+      reset: document.getElementById("engineResetBtn").textContent.trim().length,
+      label: document.querySelector('[data-i18n="optDupesHeader"]').textContent.trim().length,
+      version: document.getElementById("version").textContent.trim().length,
+    }));
+    assert(check.down, "engine-down card shown");
+    assert(check.body > 0 && check.reset > 0, "card carries localized text");
+    assert(check.label > 0, "static labels localized without the engine");
+    assert(check.version > 0, "version stamped without the engine");
+    await page.close();
+    await swEval(() => {
+      globalThis.__ttFailUi = false;
+    });
+  });
+
+  await test("sort axes: groups A-Z among themselves, tabs A-Z inside their group", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "title" });
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "title" });
+    const z1 = await openViaCommit(`${altUrl}/zzInside`, { active: false });
+    const a1 = await openViaCommit(`${altUrl}/aaInside`, { active: false });
+    const m1 = await openViaCommit(`${baseUrl}/mmSiteOne`, { active: false });
+    const m2 = await openViaCommit(`${baseUrl}/mmSiteTwo`, { active: false });
+    await waitFor(
+      "grouped",
+      async () => (await getTab(a1.id)).groupId !== -1 && (await getTab(m2.id)).groupId !== -1,
+    );
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    await sleep(500);
+    const idx = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
+    assert((await idx(a1.id)) < (await idx(z1.id)), "aa before zz inside the group");
+    const altFirst = Math.min(await idx(a1.id), await idx(z1.id));
+    const baseFirst = Math.min(await idx(m1.id), await idx(m2.id));
+    assert(altFirst < baseFirst, `aa-group (${altFirst}) before mm-group (${baseFirst})`);
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
+  });
+
+  await test("live sort: after the dwell the used tab and its group surface", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "live" });
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "live" });
+    await swEval(() => {
+      globalThis.__ttMruDwellMs = 50;
+    });
+    const a1 = await openViaCommit(`${altUrl}/mruA1`, { active: false });
+    const a2 = await openViaCommit(`${altUrl}/mruA2`, { active: false });
+    const b1 = await openViaCommit(`${baseUrl}/mruB1`, { active: false });
+    const b2 = await openViaCommit(`${baseUrl}/mruB2`, { active: false });
+    await waitFor(
+      "grouped",
+      async () => (await getTab(a2.id)).groupId !== -1 && (await getTab(b2.id)).groupId !== -1,
+    );
+    const idx = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
+    assert((await idx(b2.id)) > (await idx(b1.id)), "b2 starts behind b1");
+    await swEval((id) => chrome.tabs.update(id, { active: true }), b2.id);
+    await waitFor("tab surfaced in its group", async () => (await idx(b2.id)) < (await idx(b1.id)));
+    await waitFor("group surfaced in the strip", async () => {
+      const bFirst = Math.min(await idx(b1.id), await idx(b2.id));
+      const aFirst = Math.min(await idx(a1.id), await idx(a2.id));
+      return bFirst < aFirst;
+    });
+    await swEval(() => {
+      globalThis.__ttMruDwellMs = undefined;
+    });
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
+  });
+
+  await test("popup reorder: the final drag order lands on the strip", async () => {
+    await resetWorld();
+    const a1 = await openViaCommit(`${altUrl}/roA1`, { active: false });
+    const a2 = await openViaCommit(`${altUrl}/roA2`, { active: false });
+    const b1 = await openViaCommit(`${baseUrl}/roB1`, { active: false });
+    const b2 = await openViaCommit(`${baseUrl}/roB2`, { active: false });
+    await waitFor(
+      "grouped",
+      async () => (await getTab(a2.id)).groupId !== -1 && (await getTab(b2.id)).groupId !== -1,
+    );
+    const gA = (await getTab(a1.id)).groupId;
+    const gB = (await getTab(b1.id)).groupId;
+    const winId = (await getTab(a1.id)).windowId;
+    const res = await ui({ type: "ui:groupReorder", windowId: winId, gids: [gB, gA] });
+    assert(res.ok, "reorder accepted");
+    const idx = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
+    assert((await idx(b1.id)) < (await idx(a1.id)), "B group now before A group");
+  });
+
+  await test("custom rules: a listed site routes to the user's group before site grouping", async () => {
+    await resetWorld();
+    const saved = await ui({
+      type: "ui:customGroups:set",
+      list: [{ id: "r1", name: "Video", domains: ["localhost"], hint: "", on: true }],
+    });
+    assert(saved.ok && saved.customGroups.length === 1, "rule saved");
+    const v1 = await openViaCommit(`${altUrl}/videoPage1`, { active: false });
+    await waitFor("routed", async () => (await getTab(v1.id)).groupId !== -1);
+    const gid = (await getTab(v1.id)).groupId;
+    const group = await swEval((g) => chrome.tabGroups.get(g), gid);
+    assert(group.title === "Video", `rule group titled Video (got "${group.title}")`);
+    const v2 = await openViaCommit(`${altUrl}/videoPage2`, { active: false });
+    await waitFor("second joins", async () => (await getTab(v2.id)).groupId === gid);
+    const plain = await openViaCommit(`${baseUrl}/plainPage`, { active: false });
+    await sleep(400);
+    assert((await getTab(plain.id)).groupId !== gid, "unmatched site not routed");
+    await ui({ type: "ui:customGroups:set", list: [] });
+  });
+
+  await test("smart honors the user's rule group: name reserved, hint-matched tabs land there", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    await ui({
+      type: "ui:customGroups:set",
+      list: [{ id: "r2", name: "Research", domains: [], hint: "research papers", on: true }],
+    });
+    const r1 = await createTab({ url: `${baseUrl}/resPaper1` });
+    const r2 = await createTab({ url: `${altUrl}/resPaper2` });
+    await sleep(400);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        // answers with a LOWER-CASED name: must still map to the exact rule
+        respond: (prompt) => {
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("resPaper"))
+            .map((line) => parseInt(line, 10));
+          return JSON.stringify({ groups: [{ name: "research", tabIndices: idx }] });
+        },
+      }),
+    );
+    const result = await ui({ type: "ui:smartOrganize", scope: "all" });
+    assert(result.grouped >= 2, "tabs grouped");
+    const gid = (await getTab(r1.id)).groupId;
+    assert(gid !== -1 && gid === (await getTab(r2.id)).groupId, "both in one group");
+    const group = await swEval((g) => chrome.tabGroups.get(g), gid);
+    assert(group.title === "Research", `rule name kept exactly (got "${group.title}")`);
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:customGroups:set", list: [] });
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("topic mode: a new tab joins its topic group live; site fallback without an engine", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "topic" });
+    const c1 = await createTab({ url: `${baseUrl}/catsSeed1` });
+    const c2 = await createTab({ url: `${altUrl}/catsSeed2` });
+    await sleep(400);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          if (prompt.includes("Pick the best topic group")) {
+            return JSON.stringify({ group: 0 });
+          }
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("catsSeed"))
+            .map((line) => parseInt(line, 10));
+          return JSON.stringify({ groups: [{ name: "Cats", tabIndices: idx }] });
+        },
+      }),
+    );
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    const gid = (await getTab(c1.id)).groupId;
+    assert(gid !== -1, "seed topic group exists");
+    const fresh = await openViaCommit(`${baseUrl}/catsNews`, { active: false });
+    await waitFor(
+      "live-assigned to the topic",
+      async () => (await getTab(fresh.id)).groupId === gid,
+    );
+    // engine gone: topic mode degrades to site grouping, never to nothing
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    const f1 = await openViaCommit(`${altUrl}/fbSite1`, { active: false });
+    const f2 = await openViaCommit(`${altUrl}/fbSite2`, { active: false });
+    await waitFor("site fallback grouped", async () => (await getTab(f2.id)).groupId !== -1);
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("smart incremental: batches apply as they land, one undo covers the run", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    for (let i = 0; i < 17; i++) {
+      await createTab({ url: `${baseUrl}/multi${i < 9 ? "Alpha" : "Beta"}${i}` });
+    }
+    await sleep(700);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          const lines = prompt.split("\n").filter((line) => /^\d+\. /.test(line));
+          const groups = [];
+          for (const [name, marker] of [
+            ["Alpha", "multiAlpha"],
+            ["Beta", "multiBeta"],
+          ]) {
+            const idx = lines
+              .filter((line) => line.includes(marker))
+              .map((line) => parseInt(line, 10));
+            if (idx.length) groups.push({ name, tabIndices: idx });
+          }
+          return JSON.stringify({ groups });
+        },
+      }),
+    );
+    const result = await ui({ type: "ui:smartOrganize", scope: "all" });
+    assert(result.groupsCreated === 2, `two theme groups across batches (${result.groupsCreated})`);
+    assert(result.grouped >= 17, `all 17 grouped (${result.grouped})`);
+    const state = await ui({ type: "ui:getState" });
+    assert(state.lastOrganize.gids.length === 2, "one undo record for the whole run");
+    const undo = await ui({ type: "ui:undoOrganize" });
+    assert(undo.ungrouped >= 17, `undo dissolves the whole run (${undo.ungrouped})`);
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("smart streaming: per-tab progress moves inside a single batch", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const n = 8;
+    for (let i = 0; i < n; i++) await createTab({ url: `${baseUrl}/streamPg${i}` });
+    await sleep(500);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respondStream: async (prompt, onChunk) => {
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("streamPg"))
+            .map((line) => parseInt(line, 10));
+          const full = JSON.stringify({ groups: [{ name: "Stream", tabIndices: idx }] });
+          const mid = Math.floor(full.length * 0.55);
+          onChunk(full.slice(0, mid));
+          await new Promise((r) => setTimeout(r, 450));
+          onChunk(full.slice(mid)); // delta-style second chunk
+          await new Promise((r) => setTimeout(r, 200));
+          return full;
+        },
+      }),
+    );
+    const seen = [];
+    const runPromise = ui({ type: "ui:smartOrganize", scope: "all" });
+    for (let i = 0; i < 12; i++) {
+      const { smartProgress } = await swEval(() => chrome.storage.session.get("smartProgress"));
+      if (smartProgress) seen.push(smartProgress.done);
+      await sleep(60);
+    }
+    const result = await runPromise;
+    assert(result.grouped >= n, "all streamed tabs grouped");
+    assert(
+      seen.some((d) => d > 0 && d < n),
+      `intermediate per-tab progress observed (saw: ${seen.join(",") || "nothing"})`,
+    );
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("closing grouped tabs is not a pull-out: no strikes, domain keeps grouping", async () => {
+    await resetWorld();
+    const c1 = await openViaCommit(`${altUrl}/closeG1`, { active: false });
+    const c2 = await openViaCommit(`${altUrl}/closeG2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(c2.id)).groupId !== -1);
+    // the user closes the whole group, tab by tab
+    await swEval((ids) => Promise.all(ids.map((id) => chrome.tabs.remove(id))), [c1.id, c2.id]);
+    await sleep(600);
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(
+      !Object.keys(diag.strikes).some((k) => k.startsWith("group:")),
+      `closures never strike (got ${JSON.stringify(diag.strikes)})`,
+    );
+    // and the domain still auto-groups right after
+    const c3 = await openViaCommit(`${altUrl}/closeG3`, { active: false });
+    const c4 = await openViaCommit(`${altUrl}/closeG4`, { active: false });
+    await waitFor("regrouped", async () => (await getTab(c4.id)).groupId !== -1);
   });
 
   await test("service worker: zero unchecked errors across the whole run", async () => {

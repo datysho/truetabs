@@ -4,6 +4,17 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 
 # TrueTabs v1.0 — Implementation Spec
 
+> **Shipped evolution (this spec is the v1.0 baseline; the code is canon):**
+> v1.1 popup groups panel, organize undo, sort-on-organize, BYOK autosave, window-scope dedup default;
+> v1.2 group words+grip, groups-on-top, smart "Other", regroup-ours option, family options header;
+> v1.3 smart prompt v2 with cross-batch theme merge, live progress, quality gate (site-fallback tail);
+> v1.4 settings normalize+migrate on every read (`normalizeSettings`), crash-proof two-stage page boot,
+> `autoGroup: off|site|topic` replaces `groupAuto`+`smartAutoAssign`, `sortGroups`+`sortTabs` (with `live`
+> MRU dwell mode) replace `sortMode`, custom rule groups (`customGroups` sync key: domains + AI hint,
+> routed before all automation), smart v3 (rule pre-pass, batches of 15 applied incrementally, streamed
+> per-tab progress on Nano, refinement pass for leftovers), close-vs-pullout fix (a closed grouped tab
+> never strikes), popup live drag-reorder via `ui:groupReorder`.
+
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 
 ---

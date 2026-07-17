@@ -185,12 +185,6 @@
   "optGroupsHeader": {
     "message": "分组"
   },
-  "optGroupAuto": {
-    "message": "按网站为新标签页分组"
-  },
-  "optGroupAutoHint": {
-    "message": "温和模式：只对新标签页分组，绝不重排已有标签。你自建的分组不会被动。"
-  },
   "optCollapse": {
     "message": "闲置分组折叠时间"
   },
@@ -265,12 +259,6 @@
   },
   "byokPermDenied": {
     "message": "未授予对服务商的访问权限。"
-  },
-  "optSmartAssign": {
-    "message": "自动把新标签页归入智能分组"
-  },
-  "optSmartAssignHint": {
-    "message": "与现有主题分组匹配的新标签页会自动加入。"
   },
   "optAppearanceHeader": {
     "message": "外观"
@@ -368,12 +356,6 @@
   "groupCollapse": {
     "message": "折叠"
   },
-  "optSort": {
-    "message": "整理时排序"
-  },
-  "optSortHint": {
-    "message": "仅在点击“整理”时生效：分组和散落标签页按确定顺序排列，绝不自行重排。"
-  },
   "optSortTitle": {
     "message": "按字母"
   },
@@ -433,5 +415,71 @@
   },
   "smartWorking": {
     "message": "按主题分组中… $1/$2 个标签页"
+  },
+  "optAutoGroup": {
+    "message": "新标签页分组"
+  },
+  "optAutoGroupHint": {
+    "message": "温和模式：只对新标签页分组，绝不重排现有标签页。按网站：每个网站一组，第二个标签页出现时创建。按主题：AI 为每个新标签页挑选合适的主题组。"
+  },
+  "optAutoGroupSite": {
+    "message": "按网站"
+  },
+  "optAutoGroupTopic": {
+    "message": "按主题（AI）"
+  },
+  "optAutoGroupNeedsAi": {
+    "message": "主题模式需要 AI 引擎 - 请在下方的智能分组中选择。在此之前，新标签页按网站分组。"
+  },
+  "optSortGroups": {
+    "message": "组的顺序"
+  },
+  "optSortGroupsHint": {
+    "message": "TrueTabs 组在标签栏中的排列方式。字母序、最近使用和最早打开在点击「整理」时应用一次。实时：停留 3 秒后，正在使用的组会移到最前。"
+  },
+  "optSortTabs": {
+    "message": "标签页顺序"
+  },
+  "optSortTabsHint": {
+    "message": "每个 TrueTabs 组内部及散落标签页的顺序。字母序、最近使用和最早打开在「整理」时应用一次。实时：停留 3 秒后，正在使用的标签页移到组内最前。"
+  },
+  "optSortLiveGroups": {
+    "message": "活动组在前（实时）"
+  },
+  "optSortLiveTabs": {
+    "message": "活动标签页在前（实时）"
+  },
+  "optCustomHeader": {
+    "message": "我的分组"
+  },
+  "optCustomHint": {
+    "message": "你自己命名的分组及其规则：列出总是归入该组的网站，或为 AI 描述主题 - 也可两者兼有。规则先于任何自动分组执行；手动拖出两个标签页后，该规则本次会话内停用。"
+  },
+  "customAdd": {
+    "message": "添加分组"
+  },
+  "customRemove": {
+    "message": "删除"
+  },
+  "customNamePh": {
+    "message": "分组名称"
+  },
+  "customDomainsPh": {
+    "message": "网站，逗号分隔：youtube.com, twitch.tv"
+  },
+  "customHintPh": {
+    "message": "AI 规则（可选）：例如，一切关于显卡价格的内容"
+  },
+  "customTooBig": {
+    "message": "超出同步存储空间 - 请缩短网站列表或描述。"
+  },
+  "engineDownTitle": {
+    "message": "引擎无响应"
+  },
+  "engineDownBody": {
+    "message": "当前无法加载实时状态。如果 TrueTabs 刚刚更新，请在 chrome://extensions 重新加载后再打开此页面。你的标签页和归档安然无恙。"
+  },
+  "engineReset": {
+    "message": "重置所有设置"
   }
 }
