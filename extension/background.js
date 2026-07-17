@@ -31,38 +31,16 @@
 
 importScripts("i18n.js");
 importScripts("config.js");
+importScripts("settings-schema.js");
+
+// The settings schema (defaults, validation, migration) is SHARED with the
+// pages so they can paint real values straight from storage - see
+// settings-schema.js for the single source of truth.
+const { DEFAULTS, GROUP_COLORS, fnv1a32, colorFor, normalizeSettings, normalizeCustomGroups } =
+  ttSchema;
 
 // --- constants & defaults --------------------------------------------------
 
-const DEFAULTS = {
-  // pillar 1 - duplicates
-  dedupAuto: true, // close-into-focus on duplicate open
-  dedupScope: "window", // "window" | "all" - where the existing copy may live
-  // pillar 2 - archive
-  archiveAfter: "24h", // "6h" | "12h" | "24h" | "3d" | "7d" | "off"
-  archiveTtl: "30d", // "7d" | "30d" | "90d" | "forever"
-  archiveForeignGroups: false, // user-made groups are curated intent: skip
-  archiveNotify: true, // notification with Undo per auto-batch
-  discardStale: false, // free memory at half-threshold (Chrome has Memory Saver)
-  archiveAllowlist: ["meet.google.com", "zoom.us", "teams.microsoft.com"],
-  // pillar 3 - groups
-  autoGroup: "site", // "off" | "site" | "topic" - how NEW tabs are grouped on first commit
-  groupCollapseAfter: "10m", // "off" | "5m" | "10m" | "30m"
-  sortGroups: "off", // "off" | "title" | "recent" | "opened" | "live" - group order
-  sortTabs: "off", // same values - tab order (loose + inside our groups); live = active surfaces
-  groupsOnTop: false, // keep groups at the front of the strip (applied on Organize + new groups)
-  // pillar 3b - smart (AI) grouping
-  smartEngine: "off", // "off" | "builtin" | "byok"
-  smartOther: true, // collect unassigned tabs into an "Other" group, always last
-  smartRegroupOurs: true, // Smart Organize may rebuild OUR auto groups (hand-made never)
-  byokProvider: "openai", // "openai" | "gemini" | "grok" | "custom"
-  byokModel: "",
-  byokBaseUrl: "", // custom OpenAI-compatible endpoint (Ollama, LM Studio)
-  // shell
-  theme: "auto", // "auto" | "light" | "dark"
-  iconStyle: "color", // "color" | "mono" - match the browser UI (TruePin parity)
-  language: "auto",
-};
 
 const AFTER_MS = {
   "6h": 6 * 3600e3,
@@ -101,7 +79,6 @@ const TRACKING_EXACT = new Set([
   "ttclid", "igshid", "mc_cid", "mc_eid", "vero_id", "wickedid",
   "oly_enc_id", "oly_anon_id", "s_kwcid", "ref_src",
 ]);
-const GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan", "orange"];
 
 // --- serialized state mutations ---------------------------------------------
 // Every mutation of shared state runs through this FIFO queue: concurrent
@@ -138,54 +115,6 @@ function enqueue(job, label = "job") {
 let clockOverride = null;
 const now = () => clockOverride ?? Date.now();
 
-// Every stored value is validated against DEFAULTS on EVERY read: an update
-// must survive whatever an older version (or a sync conflict) left behind -
-// wrong types, retired keys, unknown enum values. Old keys are mapped to
-// their successors first, so an upgrade carries the user's choices over.
-const SETTING_ENUMS = {
-  dedupScope: ["window", "all"],
-  archiveAfter: ["6h", "12h", "24h", "3d", "7d", "off"],
-  archiveTtl: ["7d", "30d", "90d", "forever"],
-  autoGroup: ["off", "site", "topic"],
-  groupCollapseAfter: ["off", "5m", "10m", "30m"],
-  sortGroups: ["off", "title", "recent", "opened", "live"],
-  sortTabs: ["off", "title", "recent", "opened", "live"],
-  smartEngine: ["off", "builtin", "byok"],
-  byokProvider: ["openai", "gemini", "grok", "custom"],
-  theme: ["auto", "light", "dark"],
-  iconStyle: ["color", "mono"],
-};
-
-function normalizeSettings(raw) {
-  const src = raw && typeof raw === "object" ? { ...raw } : {};
-  // v1.3 -> v1.4 renames (idempotent: old keys only apply while new ones are absent).
-  if (!("autoGroup" in src)) {
-    if (src.groupAuto === false) src.autoGroup = "off";
-    else if (src.smartAutoAssign === true && src.smartEngine && src.smartEngine !== "off") {
-      src.autoGroup = "topic";
-    }
-  }
-  if (!("sortTabs" in src) && typeof src.sortMode === "string") src.sortTabs = src.sortMode;
-  if (!("sortGroups" in src) && typeof src.sortMode === "string") src.sortGroups = src.sortMode;
-  const out = { ...DEFAULTS };
-  for (const key of Object.keys(DEFAULTS)) {
-    const value = src[key];
-    const def = DEFAULTS[key];
-    if (typeof def === "boolean") {
-      if (typeof value === "boolean") out[key] = value;
-    } else if (Array.isArray(def)) {
-      if (Array.isArray(value)) {
-        out[key] = value.filter((v) => typeof v === "string").slice(0, 200);
-      }
-    } else if (SETTING_ENUMS[key]) {
-      if (SETTING_ENUMS[key].includes(value)) out[key] = value;
-    } else if (typeof value === "string") {
-      out[key] = value.slice(0, 500);
-    }
-  }
-  return out;
-}
-
 async function getSettings() {
   const { settings } = await chrome.storage.sync.get("settings");
   return normalizeSettings(settings);
@@ -196,33 +125,6 @@ async function getSettings() {
 // runs before any automatic grouping) and/or an AI hint (used by topic mode and
 // Smart Organize). Stored under their own sync key with hard caps - sync gives
 // one item ~8KB and rules must never be the thing that breaks saving settings.
-const CUSTOM_CAPS = { groups: 10, name: 40, domains: 12, domain: 60, hint: 140 };
-
-function normalizeCustomGroups(raw) {
-  if (!Array.isArray(raw)) return [];
-  const out = [];
-  for (const g of raw.slice(0, CUSTOM_CAPS.groups)) {
-    if (!g || typeof g !== "object" || typeof g.name !== "string") continue;
-    const name = g.name.trim().slice(0, CUSTOM_CAPS.name);
-    if (!name) continue;
-    const domains = (Array.isArray(g.domains) ? g.domains : [])
-      .filter((d) => typeof d === "string")
-      .map((d) => d.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, ""))
-      .filter(Boolean)
-      .slice(0, CUSTOM_CAPS.domains)
-      .map((d) => d.slice(0, CUSTOM_CAPS.domain));
-    out.push({
-      id: typeof g.id === "string" && g.id ? g.id.slice(0, 40) : `c${fnv1a32(name)}`,
-      name,
-      color: GROUP_COLORS.includes(g.color) ? g.color : colorFor(name),
-      domains,
-      hint: typeof g.hint === "string" ? g.hint.trim().slice(0, CUSTOM_CAPS.hint) : "",
-      on: g.on !== false,
-    });
-  }
-  return out;
-}
-
 async function getCustomGroups() {
   const { customGroups } = await chrome.storage.sync.get("customGroups");
   return normalizeCustomGroups(customGroups);
@@ -340,15 +242,6 @@ function cleanLabel(domain) {
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
-function fnv1a32(str) {
-  let h = 0x811c9dc5;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
-  return h >>> 0;
-}
-const colorFor = (name) => GROUP_COLORS[fnv1a32(name) % GROUP_COLORS.length];
 
 const tabUrl = (tab) => (tab && (tab.url || tab.pendingUrl)) || "";
 
@@ -656,13 +549,15 @@ async function archiveRMW(mutate) {
   const next = (await mutate(archive)) || archive;
   if (next.entries.length > ARCHIVE_CAP) next.entries.length = ARCHIVE_CAP;
   next.updatedAt = now();
+  // archiveCount rides along: getState wants the total on every popup open
+  // and must not deserialize the whole archive blob to learn one number.
   try {
-    await chrome.storage.local.set({ archive: next });
+    await chrome.storage.local.set({ archive: next, archiveCount: next.entries.length });
   } catch (err) {
     // Quota: drop the oldest 500 and retry once. Newest-first order makes
     // "oldest" the tail.
     next.entries.length = Math.max(0, next.entries.length - 500);
-    await chrome.storage.local.set({ archive: next });
+    await chrome.storage.local.set({ archive: next, archiveCount: next.entries.length });
     traceDiag(`archive quota fallback: ${err && err.message}`);
   }
   return next;
@@ -962,13 +857,28 @@ function allowlistMatch(allowlist, url) {
 async function archiveCandidates(settings, scopeWindowId = null) {
   const afterMs = archiveAfterMs(settings);
   if (!afterMs) return [];
-  const { ourGroups = {} } = await chrome.storage.session.get("ourGroups");
   const tabs = await normalTabs(scopeWindowId);
+  // Batched reads: one storage roundtrip for all tab states and one for the
+  // session bags - getState calls this on every popup open, and N sequential
+  // session reads over a large strip were most of its latency.
+  const [bags, states] = await Promise.all([
+    chrome.storage.session.get(["ourGroups", "strikes"]),
+    tabs.length
+      ? chrome.storage.session.get(tabs.map((t) => stateKey(t.id)))
+      : Promise.resolve({}),
+  ]);
+  const ourGroups = bags.ourGroups || {};
+  const strikes = bags.strikes || {};
+  const struck = (key) => {
+    const record = strikes[`archive:${key}`];
+    return !!record && record.count >= STRIKE_LIMIT;
+  };
   const out = [];
   for (const tab of tabs) {
     if (tab.pinned || tab.active || tab.audible) continue;
-    if (!dupeKey(tab.url)) continue; // non-http(s), ephemeral: not restorable
-    const st = await getTabState(tab.id);
+    const key = dupeKey(tab.url);
+    if (!key) continue; // non-http(s), ephemeral: not restorable
+    const st = states[stateKey(tab.id)] || null;
     if (now() - staleSince(tab, st) < afterMs) continue;
     if (allowlistMatch(settings.archiveAllowlist, tab.url)) continue;
     if (tab.groupId !== -1 && tab.groupId != null) {
@@ -976,7 +886,7 @@ async function archiveCandidates(settings, scopeWindowId = null) {
       if (!ours && !settings.archiveForeignGroups) continue; // curated intent
       if (ours && now() - (ours.lastTouchedAt || 0) < afterMs) continue; // working set
     }
-    if (await isStruck("archive", dupeKey(tab.url))) continue;
+    if (struck(key)) continue;
     out.push(tab);
   }
   return out;
@@ -1806,14 +1716,24 @@ async function getByokKey() {
   return byokKey;
 }
 
+// availability() costs a real model probe - cache it: getState runs on every
+// popup open and storage change, and the answer moves once in a blue moon.
+let smartAvailCache = { at: 0, value: null };
+
 async function smartAvailability() {
   if (globalThis.__ttMockAi) return globalThis.__ttMockAi.availability || "available";
   if (typeof LanguageModel === "undefined") return "unavailable";
-  try {
-    return await LanguageModel.availability();
-  } catch {
-    return "unavailable";
+  if (smartAvailCache.value && Date.now() - smartAvailCache.at < 60_000) {
+    return smartAvailCache.value;
   }
+  let value = "unavailable";
+  try {
+    value = await LanguageModel.availability();
+  } catch {
+    value = "unavailable";
+  }
+  smartAvailCache = { at: Date.now(), value };
+  return value;
 }
 
 function smartPrompt(items, existingTopics = []) {
@@ -2430,7 +2350,9 @@ async function uiGetState(request) {
   const windows = await normalWindows();
   const staleNow = (await archiveCandidates(settings)).length;
   const counters = await getCounters();
-  const archive = await getArchive();
+  // The maintained count, not the whole blob: the archive can be megabytes.
+  let { archiveCount } = await chrome.storage.local.get("archiveCount");
+  if (archiveCount == null) archiveCount = (await getArchive()).entries.length;
   const { lastBatch = null } = await chrome.storage.local.get("lastBatch");
   const { settled = false, lastOrganize = null } = await chrome.storage.session.get([
     "settled",
@@ -2464,7 +2386,7 @@ async function uiGetState(request) {
       staleNow,
       archivedToday: counters.archivedToday,
       dedupedToday: counters.dedupedToday,
-      archiveTotal: archive.entries.length,
+      archiveTotal: archiveCount,
     },
     settings,
     customGroups: await getCustomGroups(),
@@ -2484,6 +2406,9 @@ async function handleUi(request) {
   switch (request.type) {
     case "ui:getState":
       return uiGetState(request);
+    case "ui:ping":
+      // The pages' health probe: cheap, off-queue, answers even mid-storm.
+      return { ok: true, version: chrome.runtime.getManifest().version };
     case "ui:setSetting": {
       if (!(request.key in DEFAULTS)) return { ok: false };
       const { settings = {} } = await chrome.storage.sync.get("settings");
@@ -2680,6 +2605,7 @@ async function handleUi(request) {
         });
         if (session.destroy) session.destroy();
         await chrome.storage.session.remove("smartDownload");
+        smartAvailCache = { at: 0, value: null }; // the world just changed
         return { status: "available" };
       } catch (err) {
         return { status: "unavailable", error: String((err && err.message) || err) };
@@ -2991,7 +2917,18 @@ chrome.notifications.onClicked.addListener((notificationId) => {
 // Long-running calls that do NOT mutate our state (model download, provider
 // test) bypass the FIFO queue - otherwise every settings write would hang
 // behind a multi-minute download and the options page would look dead.
-const OFF_QUEUE_UI = new Set(["ui:smartEnable", "ui:byokTest", "ui:smartOrganize"]);
+// Off the mutation queue: long non-mutating calls (model download, network
+// test, the AI run) must not freeze settings - and the READ-ONLY state and
+// health probes must answer instantly even while the queue grinds through a
+// commit storm. getState mutates nothing; a mid-job snapshot is fine for UI.
+const OFF_QUEUE_UI = new Set([
+  "ui:smartEnable",
+  "ui:byokTest",
+  "ui:smartOrganize",
+  "ui:getState",
+  "ui:smartStatus",
+  "ui:ping",
+]);
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (!request || typeof request.type !== "string" || !request.type.startsWith("ui:")) {
@@ -3057,6 +2994,8 @@ globalThis.__ttTick = ({ now: overrideNow } = {}) =>
       clockOverride = null;
     }
   }, "test tick");
+globalThis.__ttEnqueueSleep = (ms) =>
+  void enqueue(() => new Promise((resolve) => setTimeout(resolve, ms)), "test sleep");
 globalThis.__ttSimulateCommit = (details) =>
   enqueue(() => handleCommit({ frameId: 0, transitionQualifiers: [], ...details }), "test commit");
 globalThis.__ttClassifyCommit = classifyCommit;

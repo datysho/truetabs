@@ -12,6 +12,11 @@
         display: flex;
         flex-direction: column;
       }
+      /* Anti-flicker: nothing paints until every control carries its REAL
+         stored value - a neutral blink beats a wrong state flipping over. */
+      body:not(.ready) {
+        visibility: hidden;
+      }
       header {
         flex: none;
         display: flex;
@@ -383,6 +388,7 @@
 
     <script src="config.js"></script>
     <script src="i18n.js"></script>
+    <script src="settings-schema.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

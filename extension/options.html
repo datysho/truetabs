@@ -11,6 +11,11 @@
         flex-direction: column;
         align-items: center;
       }
+      /* Anti-flicker: nothing paints until every control carries its REAL
+         stored value - a neutral blink beats a wrong state flipping over. */
+      body:not(.ready) {
+        visibility: hidden;
+      }
       .page {
         width: 100%;
         max-width: 560px;
@@ -472,6 +477,7 @@
 
     <script src="config.js"></script>
     <script src="i18n.js"></script>
+    <script src="settings-schema.js"></script>
     <script src="options.js"></script>
   </body>
 </html>

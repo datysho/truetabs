@@ -1281,29 +1281,54 @@ async function main() {
     await swEval(() => chrome.storage.sync.remove("settings"));
   });
 
-  await test("options page: a dead engine leaves a readable page with recovery, never a blank", async () => {
+  await test("options page: a dead engine leaves a readable page with REAL values and recovery", async () => {
+    // the user's actual choices must show even with the engine down: pages
+    // paint straight from storage, not from a ui:getState roundtrip
+    await ui({ type: "ui:setSetting", key: "archiveAfter", value: "7d" });
+    await ui({ type: "ui:setSetting", key: "dedupAuto", value: true });
     const extUrl = (await findSwTarget()).url().replace("background.js", "options.html");
     await swEval(() => {
       globalThis.__ttFailUi = true;
     });
     const page = await browser.newPage();
     await page.goto(extUrl, { waitUntil: "networkidle0" });
-    await sleep(500);
+    await sleep(600);
     const check = await page.evaluate(() => ({
       down: !document.getElementById("engineDown").hidden,
       body: document.getElementById("engineDown").textContent.trim().length,
       reset: document.getElementById("engineResetBtn").textContent.trim().length,
       label: document.querySelector('[data-i18n="optDupesHeader"]').textContent.trim().length,
       version: document.getElementById("version").textContent.trim().length,
+      archiveAfter: document.getElementById("archiveAfter").value,
+      dedup: document.getElementById("dedupAuto").checked,
+      disabled: document.getElementById("archiveAfter").disabled,
+      ready: document.body.classList.contains("ready"),
     }));
     assert(check.down, "engine-down card shown");
     assert(check.body > 0 && check.reset > 0, "card carries localized text");
     assert(check.label > 0, "static labels localized without the engine");
     assert(check.version > 0, "version stamped without the engine");
+    assert(check.archiveAfter === "7d", `stored value painted (got ${check.archiveAfter})`);
+    assert(check.dedup === true, "toggle painted from storage");
+    assert(check.disabled, "controls disabled while the engine is down");
+    assert(check.ready, "page revealed");
     await page.close();
     await swEval(() => {
       globalThis.__ttFailUi = false;
     });
+    await ui({ type: "ui:setSetting", key: "archiveAfter", value: "24h" });
+  });
+
+  await test("getState answers instantly even while the mutation queue grinds", async () => {
+    await swEval(() => globalThis.__ttEnqueueSleep(2500));
+    const t0 = Date.now();
+    const state = await ui({ type: "ui:getState" });
+    const elapsed = Date.now() - t0;
+    assert(state && state.settings, "state returned");
+    assert(elapsed < 800, `off-queue getState (${elapsed}ms < 800ms)`);
+    const pong = await ui({ type: "ui:ping" });
+    assert(pong.ok === true && pong.version.length > 0, "ping answers");
+    await sleep(2600); // let the jam job drain before the next test
   });
 
   await test("sort axes: groups A-Z among themselves, tabs A-Z inside their group", async () => {

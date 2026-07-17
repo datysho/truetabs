@@ -243,12 +243,10 @@ async function saveByokKey() {
   }
 }
 
-async function init() {
-  const state = await send({ type: "ui:getState" });
-  if (!state || !state.settings) throw new Error("engine did not respond");
-  settings = state.settings;
-  customGroups = state.customGroups || [];
-
+// Everything on this page paints from STORAGE, not from the engine: stored
+// settings are always normalized on write, so they are the truth for every
+// control - real values on the first frame, no engine roundtrip, no flicker.
+function paintControls() {
   for (const id of SWITCHES) {
     $(id).checked = !!settings[id];
     $(id).addEventListener("change", (e) => setSetting(id, e.target.checked));
@@ -287,11 +285,9 @@ async function init() {
 
   $("byokModel").value = settings.byokModel || "";
   $("byokBaseUrl").value = settings.byokBaseUrl || "";
-  byokKeyPresent = !!state.byokKeySet;
-  if (state.byokKeySet) $("byokKey").value = "********";
+  if (byokKeyPresent) $("byokKey").value = "********";
   renderSmartRows();
   refreshByokWarning();
-  if (settings.smartEngine === "builtin") refreshBuiltinStatus();
 
   // Auto-save on change - same contract as every other control on this page.
   $("byokKey").addEventListener("change", saveByokKey);
@@ -357,31 +353,49 @@ async function init() {
   });
 }
 
-// Two-stage boot. Stage 1 never touches the engine: theme and language come
-// straight from storage, every label is localized, the version is stamped -
-// so the page reads even when the service worker is stale or dead
-// (mid-update). Stage 2 loads live state; a failure shows a plain notice
-// with a way out instead of a blank skeleton.
+// Two-stage boot.
+// Stage 1 never touches the engine: settings, rules and the BYOK-key flag
+// come straight from storage, every control gets its REAL value, the page
+// localizes and only then reveals - the first painted frame is already
+// correct, whatever the engine is doing.
+// Stage 2 is a health probe: a short ping decides between live extras (the
+// built-in AI status) and the engine-down card with recovery.
 async function boot() {
+  let stored = {};
   try {
-    const { settings: stored } = await chrome.storage.sync.get("settings");
-    applyTheme((stored && stored.theme) || "auto");
-    await ttI18n.init((stored && stored.language) || "auto");
-  } catch {
-    await ttI18n.init("auto");
-  }
+    stored = await chrome.storage.sync.get(["settings", "customGroups"]);
+  } catch {}
+  settings = ttSchema.normalizeSettings(stored.settings);
+  customGroups = ttSchema.normalizeCustomGroups(stored.customGroups);
+  applyTheme(settings.theme);
+  await ttI18n.init(settings.language);
   localizeDom();
   $("version").textContent = `v${chrome.runtime.getManifest().version}`;
   try {
-    await init();
-  } catch (err) {
+    byokKeyPresent = !!(await chrome.storage.local.get("byokKey")).byokKey;
+  } catch {}
+  try {
+    paintControls();
+  } finally {
+    document.body.classList.add("ready"); // reveal even if painting hiccuped
+  }
+
+  const pong = await Promise.race([
+    send({ type: "ui:ping" }).catch(() => null),
+    new Promise((resolve) => setTimeout(() => resolve(null), 2500)),
+  ]);
+  if (!pong || !pong.ok) {
     $("engineDown").hidden = false;
+    for (const el of document.querySelectorAll("input, select, textarea, button")) {
+      if (el.id !== "engineResetBtn") el.disabled = true;
+    }
     $("engineResetBtn").addEventListener("click", async () => {
       await chrome.storage.sync.remove(["settings", "customGroups"]);
       location.reload();
     });
-    console.error("TrueTabs options init failed:", err);
+    return;
   }
+  if (settings.smartEngine === "builtin") refreshBuiltinStatus();
 }
 
 boot();

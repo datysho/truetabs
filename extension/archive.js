@@ -184,12 +184,6 @@ async function refresh() {
 }
 
 async function init() {
-  const state = await send({ type: "ui:getState" });
-  if (!state || !state.settings) throw new Error("engine did not respond");
-  const ttl = state.settings.archiveTtl;
-  const ttlLabel = { "7d": "optDays7", "30d": "optDays30", "90d": "optDays90" }[ttl];
-  $("ttlNote").textContent = ttlLabel ? t("archiveTtlNote", [t(ttlLabel)]) : "";
-
   $("search").addEventListener("input", render);
   $("restoreSel").addEventListener("click", () => restoreIds([...selected]));
   $("deleteSel").addEventListener("click", () => deleteIds([...selected]));
@@ -201,14 +195,19 @@ async function init() {
 // itself straight from storage first, so a stale or dead service worker
 // (mid-update) still leaves a readable page, not a blank skeleton.
 async function boot() {
+  let stored = null;
   try {
-    const { settings: stored } = await chrome.storage.sync.get("settings");
+    stored = (await chrome.storage.sync.get("settings")).settings;
     applyTheme((stored && stored.theme) || "auto");
     await ttI18n.init((stored && stored.language) || "auto");
   } catch {
     await ttI18n.init("auto");
   }
   localizeDom();
+  // The TTL note comes straight from stored settings - no engine roundtrip.
+  const ttl = (stored && stored.archiveTtl) || "30d";
+  const ttlLabel = { "7d": "optDays7", "30d": "optDays30", "90d": "optDays90" }[ttl];
+  $("ttlNote").textContent = ttlLabel ? t("archiveTtlNote", [t(ttlLabel)]) : "";
   try {
     await init();
   } catch (err) {

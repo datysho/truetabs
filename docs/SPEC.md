@@ -18,6 +18,10 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > attention-wins merge on address/bookmark re-navigation of an existing tab (`mergeIntoNavigated`:
 > archive-first, victim's OUR-group inherited) + `rehomeNavigated` (rule > victim group > domain group >
 > release from a mismatched site group), popup hero relayout (labels above centered numbers).
+> v1.6 instant state: shared settings schema (`settings-schema.js`, importScripts + page script tag),
+> pages paint REAL values straight from storage before the first frame (anti-FOUC reveal), engine-down
+> detection via off-queue `ui:ping`; `ui:getState`/`ui:smartStatus` moved off the mutation queue and made
+> cheap (maintained `archiveCount`, batched tab-state reads in archiveCandidates, 60s availability cache).
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

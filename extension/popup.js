@@ -377,19 +377,65 @@ async function init() {
   });
 }
 
-// Two-stage boot. Theme and language come straight from storage, so the page
-// reads even when the engine is stale or dead (a mid-update service worker);
-// only then the engine state is fetched - and a failure shows a plain,
-// localized notice instead of a blank skeleton.
+// Stage 1: paint everything storage already knows - toggles, the organize
+// button's identity, today's archive counter, both undo rows, smart progress.
+// Stored settings are normalized on write, so these are REAL values: the
+// first painted frame is correct and nothing flips later. Counters that need
+// the live tab world stay "-" until the engine answers - a fill, not a flip.
+function localDate(ts) {
+  const d = new Date(ts);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
+    d.getDate(),
+  ).padStart(2, "0")}`;
+}
+
+async function prePaint() {
+  const [syncBag, localBag, sessionBag] = await Promise.all([
+    chrome.storage.sync.get("settings"),
+    chrome.storage.local.get(["counters", "lastBatch"]),
+    chrome.storage.session.get(["lastOrganize", "smartProgress"]),
+  ]);
+  const s = ttSchema.normalizeSettings(syncBag.settings);
+  applyTheme(s.theme);
+  await ttI18n.init(s.language);
+  localizeDom();
+
+  $("dedupToggle").checked = !!s.dedupAuto;
+  $("archiveToggle").checked = s.archiveAfter !== "off";
+  $("groupToggle").checked = s.autoGroup !== "off";
+  $("organizeBtn").textContent =
+    s.smartEngine !== "off" ? t("actSmartOrganize") : t("actOrganize");
+  const counters = localBag.counters;
+  $("archivedCount").textContent =
+    counters && counters.date === localDate(Date.now()) ? counters.archivedToday || 0 : 0;
+  if (localBag.lastBatch && localBag.lastBatch.count > 0) {
+    $("undoRow").hidden = false;
+    $("undoText").textContent = t("undoRowText", [localBag.lastBatch.count]);
+  }
+  const lastOrganize = sessionBag.lastOrganize;
+  if (lastOrganize && lastOrganize.gids.length > 0) {
+    $("undoOrgRow").hidden = false;
+    $("undoOrgText").textContent = t("undoOrgText", [lastOrganize.gids.length]);
+  }
+  const progress = sessionBag.smartProgress;
+  if (progress && progress.total > 0) {
+    $("warming").textContent = t("smartWorking", [progress.done, progress.total]);
+    $("organizeBtn").disabled = true;
+  }
+}
+
+// Boot: stage 1 paints from storage and reveals; stage 2 talks to the engine
+// (live counts, group list) - its failure shows a plain, localized notice on
+// an otherwise fully painted page, never a blank or wrong-state skeleton.
 async function boot() {
   try {
-    const { settings } = await chrome.storage.sync.get("settings");
-    applyTheme((settings && settings.theme) || "auto");
-    await ttI18n.init((settings && settings.language) || "auto");
+    await prePaint();
   } catch {
     await ttI18n.init("auto");
+    localizeDom();
+  } finally {
+    document.body.classList.add("ready");
   }
-  localizeDom();
   try {
     await init();
   } catch (err) {
