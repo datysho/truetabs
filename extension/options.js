@@ -38,6 +38,10 @@ const PROVIDER_ORIGINS = {
   gemini: "https://generativelanguage.googleapis.com/*",
   grok: "https://api.x.ai/*",
 };
+// A custom endpoint is a model server running on this machine (Ollama, LM
+// Studio). Keeping the ask to loopback keeps the manifest free of the
+// http://*/* + https://*/* pair, which reads as <all_urls> to a reviewer.
+const LOOPBACK_HOSTS = ["localhost", "127.0.0.1"];
 const PROVIDER_MODEL_HINTS = {
   openai: "gpt-4o-mini",
   gemini: "gemini-2.0-flash",
@@ -213,20 +217,30 @@ function refreshByokWarning() {
   $("byokWarn").hidden = !($("smartEngine").value === "byok" && !byokKeyPresent);
 }
 
+// Which single origin the current BYOK setup needs, or null if the fields do
+// not name a usable one. The manifest's optional_host_permissions is the
+// ceiling of what may ever be asked for: three named providers plus loopback,
+// nothing wider - so a custom endpoint must be a LOCAL model server.
+function byokOriginPattern(provider, baseUrl) {
+  if (provider !== "custom") return PROVIDER_ORIGINS[provider] || null;
+  let url;
+  try {
+    url = new URL((baseUrl || "").trim());
+  } catch {
+    return null;
+  }
+  if (!LOOPBACK_HOSTS.includes(url.hostname)) return "not-local";
+  return `${url.origin}/*`;
+}
+
 // The one runtime permission ask: the origin of the chosen provider (or the
-// custom endpoint's own origin). Returns true when granted.
+// local endpoint's own origin). Returns true when granted.
 async function ensureByokPermission() {
-  const provider = $("byokProvider").value;
-  let pattern = PROVIDER_ORIGINS[provider];
-  if (provider === "custom") {
-    try {
-      const url = new URL($("byokBaseUrl").value.trim());
-      pattern = `${url.origin}/*`;
-    } catch {
-      $("byokStatus").textContent = t("byokBadUrl");
-      $("byokStatus").className = "byok-note err";
-      return false;
-    }
+  const pattern = byokOriginPattern($("byokProvider").value, $("byokBaseUrl").value);
+  if (!pattern || pattern === "not-local") {
+    $("byokStatus").textContent = t(pattern === "not-local" ? "byokLocalOnly" : "byokBadUrl");
+    $("byokStatus").className = "byok-note err";
+    return false;
   }
   const granted = await chrome.permissions.request({ origins: [pattern] });
   if (!granted) {
@@ -234,6 +248,28 @@ async function ensureByokPermission() {
     $("byokStatus").className = "byok-note err";
   }
   return granted;
+}
+
+// Access granted for one provider must not outlive the choice: switching
+// provider or clearing the key hands the old origin back. Only origins this
+// extension could have asked for are ever touched (the manifest's ceiling),
+// and never the one currently in use - so "zero site access unless you use
+// BYOK" stays true over time, not just on install day.
+async function releaseUnusedByokOrigins(keep) {
+  const { origins = [] } = await chrome.permissions.getAll();
+  const askable = chrome.runtime.getManifest().optional_host_permissions || [];
+  const stale = origins.filter((o) => o !== keep && askable.includes(o));
+  // A loopback grant is not in the manifest verbatim (the port is the user's),
+  // so match those by host instead of by pattern.
+  for (const o of origins) {
+    if (o === keep || stale.includes(o)) continue;
+    try {
+      if (LOOPBACK_HOSTS.includes(new URL(o.replace(/\*$/, "")).hostname)) stale.push(o);
+    } catch {
+      /* not a URL-shaped pattern: leave it alone */
+    }
+  }
+  if (stale.length) await chrome.permissions.remove({ origins: stale });
 }
 
 // BYOK fields auto-save like every other setting. The one special moment is
@@ -258,6 +294,9 @@ async function saveByokKey() {
   if (granted) {
     $("byokStatus").textContent = t("byokSaved");
     $("byokStatus").className = "byok-note ok";
+    // The provider may have changed with this save: the previous one's origin
+    // has no reason to stay granted.
+    await releaseUnusedByokOrigins(byokOriginPattern($("byokProvider").value, $("byokBaseUrl").value));
   }
 }
 
@@ -278,6 +317,14 @@ function paintControls() {
       if (id === "smartEngine" || id === "byokProvider" || id === "autoGroup") {
         renderSmartRows();
         refreshByokWarning();
+      }
+      // Turning BYOK off, or picking another provider, retires the old grant.
+      if (id === "smartEngine" || id === "byokProvider") {
+        await releaseUnusedByokOrigins(
+          settings.smartEngine === "byok"
+            ? byokOriginPattern($("byokProvider").value, $("byokBaseUrl").value)
+            : null,
+        );
       }
       if (id === "sortGroups" || id === "sortTabs") renderSortRows();
       if (settings.smartEngine === "builtin") refreshBuiltinStatus();

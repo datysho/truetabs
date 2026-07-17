@@ -79,6 +79,17 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > phrase: `ttI18n.plural(stem, n)` generalizes tabsCount, `windowsCount` rides it, `windows_*` keys
 > replace `inWindows` (the preposition existed only to dodge Slavic plurals; Intl.PluralRules does it
 > properly). Geometry verified across 8 locales x every plural category.
+> v1.14.0 release candidate - the pre-submit audit's own findings. HOST CEILING: the custom BYOK
+> endpoint is loopback-only (`http://localhost/*`, `127.0.0.1`, both schemes); the `http://*/*` +
+> `https://*/*` pair is gone, so no build can ask for an arbitrary site and the promise is structural
+> rather than behavioural (`byokOriginPattern()` refuses a non-loopback URL before any ask; contract
+> locks the manifest). GRANTS ARE RETURNED: `releaseUnusedByokOrigins()` hands back every askable
+> origin that is not the one in use, on provider switch and on engine-off - `permissions.request`
+> existed with no counterpart. Store kit: every asset is emitted at a size the store accepts (six
+> screenshots were @2x/portrait and none could have been uploaded), the seeded world uses real
+> domains via `--host-resolver-rules` (the grouping shot advertised a group named "127"), a 440x280
+> promo tile and the 1280x640 social/hero pair are generated, and the fr description (136) was over
+> the store's 132-char ceiling that Chrome itself does not enforce - all three are contracts now.
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

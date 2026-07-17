@@ -237,7 +237,7 @@
     "message": "Provedor"
   },
   "optByokCustom": {
-    "message": "Personalizado (compatível com OpenAI)"
+    "message": "Modelo local (compatível com OpenAI)"
   },
   "optByokKey": {
     "message": "Chave de API"
@@ -271,6 +271,9 @@
   },
   "byokPermDenied": {
     "message": "O acesso ao provedor não foi concedido."
+  },
+  "byokLocalOnly": {
+    "message": "Um endpoint próprio precisa rodar nesta máquina (localhost ou 127.0.0.1) - o TrueTabs não pede nenhum outro acesso."
   },
   "optAppearanceHeader": {
     "message": "Aparência"

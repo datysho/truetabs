@@ -237,7 +237,7 @@
     "message": "服务商"
   },
   "optByokCustom": {
-    "message": "自定义（兼容 OpenAI）"
+    "message": "本地模型（OpenAI 兼容）"
   },
   "optByokKey": {
     "message": "API 密钥"
@@ -271,6 +271,9 @@
   },
   "byokPermDenied": {
     "message": "未授予对服务商的访问权限。"
+  },
+  "byokLocalOnly": {
+    "message": "自定义端点必须运行在本机（localhost 或 127.0.0.1）- TrueTabs 不请求任何其他网站权限。"
   },
   "optAppearanceHeader": {
     "message": "外观"

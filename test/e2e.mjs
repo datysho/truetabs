@@ -2457,6 +2457,45 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
   });
 
+  await test("host access: the manifest can never ask for an arbitrary site", async () => {
+    // The privacy promise is structural, not behavioural: what the extension
+    // MAY request is the manifest's ceiling. A broad pair here would read as
+    // <all_urls> to a reviewer and make "no network by default" a matter of
+    // trust rather than of construction.
+    const manifest = await swEval(() => chrome.runtime.getManifest());
+    const askable = manifest.optional_host_permissions || [];
+    assert(!manifest.host_permissions, "no host access is granted at install");
+    const broad = askable.filter((p) => /^\*|:\/\/\*\/|^https?:\/\/\*\/\*$/.test(p));
+    assert(!broad.length, `no wildcard-host ask: ${broad.join(", ")}`);
+    const allowed = [
+      "https://api.openai.com/*",
+      "https://generativelanguage.googleapis.com/*",
+      "https://api.x.ai/*",
+      "http://localhost/*",
+      "https://localhost/*",
+      "http://127.0.0.1/*",
+      "https://127.0.0.1/*",
+    ];
+    const extra = askable.filter((p) => !allowed.includes(p));
+    assert(!extra.length, `only the three providers and loopback are askable: ${extra.join(", ")}`);
+  });
+
+  await test("store limits: every localized description fits the manifest ceiling", async () => {
+    // Chrome loads an over-long description without a word (verified), so this
+    // can only be caught here: the 132-char cap is the STORE's, and the French
+    // string was 136 - it would have been found by a rejected upload.
+    const { readFileSync, readdirSync } = await import("node:fs");
+    const dir = new URL("../extension/_locales/", import.meta.url);
+    const over = [];
+    for (const loc of readdirSync(dir)) {
+      const msg = JSON.parse(readFileSync(new URL(`${loc}/messages.json`, dir), "utf8"));
+      const desc = msg.appDesc && msg.appDesc.message;
+      assert(desc, `${loc} has an appDesc`);
+      if (desc.length > 132) over.push(`${loc}=${desc.length}`);
+    }
+    assert(!over.length, `descriptions over the 132-char store limit: ${over.join(", ")}`);
+  });
+
   await test("service worker: zero unchecked errors across the whole run", async () => {
     await sleep(500);
     assert(

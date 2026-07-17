@@ -237,7 +237,7 @@
     "message": "Anbieter"
   },
   "optByokCustom": {
-    "message": "Eigener (OpenAI-kompatibel)"
+    "message": "Lokales Modell (OpenAI-kompatibel)"
   },
   "optByokKey": {
     "message": "API-Schlüssel"
@@ -271,6 +271,9 @@
   },
   "byokPermDenied": {
     "message": "Zugriff auf den Anbieter wurde nicht gewährt."
+  },
+  "byokLocalOnly": {
+    "message": "Ein eigener Endpunkt muss auf diesem Rechner laufen (localhost oder 127.0.0.1) - anderen Website-Zugriff verlangt TrueTabs nicht."
   },
   "optAppearanceHeader": {
     "message": "Darstellung"

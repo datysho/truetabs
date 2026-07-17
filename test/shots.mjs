@@ -4,6 +4,7 @@
 
 import path from "node:path";
 import fs from "node:fs";
+import os from "node:os";
 import http from "node:http";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer";
@@ -28,6 +29,12 @@ const browser = await puppeteer.launch({
     `--disable-extensions-except=${EXTENSION_DIR}`,
     `--load-extension=${EXTENSION_DIR}`,
     "--no-first-run",
+    // Every hostname resolves to the local server, so the seeded tabs carry
+    // REAL domains and site grouping names the groups the way a user's browser
+    // would: "Github", "Youtube". On 127.0.0.1 every tab shares one domain and
+    // the shot advertised grouping with a group called "127". No network is
+    // touched - the resolver never leaves the loopback.
+    `--host-resolver-rules=MAP * 127.0.0.1:${port}`,
   ],
 });
 const target = await browser.waitForTarget(
@@ -40,17 +47,19 @@ const extId = new URL(target.url()).host;
 await swEval(() => globalThis.__ttForceSettle());
 
 // Seed a believable world: a few grouped tabs + counters + archive entries.
-const mk = async (title, active = false) =>
+// The host carries the domain (and so the group name), the path the title.
+const mk = async (host, title, active = false) =>
   swEval(
     (u, a) => new Promise((r) => chrome.tabs.create({ url: u, active: a }, (t) => r(t.id))),
-    `http://127.0.0.1:${port}/${encodeURIComponent(title)}`,
+    `http://${host}/${encodeURIComponent(title)}`,
     active,
   );
-await mk("GitHub - pull requests");
-await mk("GitHub - actions");
-await mk("YouTube - talk on tab hygiene");
-await mk("Docs - quarterly plan", true);
-await sleep(1200);
+await mk("github.com", "Pull requests");
+await mk("github.com", "Actions - all workflows");
+await mk("youtube.com", "A talk on tab hygiene");
+await mk("youtube.com", "Arc browser - a retrospective");
+await mk("docs.google.com", "Quarterly plan", true);
+await sleep(1500);
 await swEval(() => globalThis.__ttUiCall({ type: "ui:organizeNow", scope: "all" }));
 
 const day = 86400e3;
@@ -88,32 +97,127 @@ await swEval(() => {
   });
 });
 
-async function shot(pageName, file, { width, height, scheme }) {
+// The store takes EXACTLY 1280x800 (or 640x400) - a @2x render is rejected at
+// upload, so these are shot at deviceScaleFactor 1 and are upload-ready as-is.
+async function shot(pageName, file, { scheme }) {
   const page = await browser.newPage();
-  await page.setViewport({ width, height, deviceScaleFactor: 2 });
+  await page.setViewport({ width: CWS.w, height: CWS.h, deviceScaleFactor: 1 });
   await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
   await page.goto(`chrome-extension://${extId}/${pageName}`, { waitUntil: "networkidle0" });
   await sleep(700);
-  if (pageName === "popup.html" && process.env.SHOT_DEBUG) {
-    console.log(
-      await page.evaluate(() =>
-        JSON.stringify({
-          orgHidden: document.getElementById("undoOrgRow").hidden,
-          orgText: document.getElementById("undoOrgText").textContent,
-          archHidden: document.getElementById("undoRow").hidden,
-        }),
-      ),
-    );
-  }
+  await page.screenshot({ path: path.join(OUT_DIR, file) });
+  await page.close();
+  console.log(`wrote ${file}`);
+}
+
+const CWS = { w: 1280, h: 800 };
+const TILE = { w: 440, h: 280 }; // the store's small promo tile
+
+// The popup is 344 wide: it cannot BE a store screenshot, it has to be placed
+// on one. Same composition as the social image, sized for the store canvas.
+const PANEL = {
+  light: {
+    bg: "linear-gradient(135deg, #f7f9fc 0%, #eef3f9 55%, #e6edf6 100%)",
+    fg: "#212835",
+    sub: "#5b6472",
+    shadow: "0 24px 64px rgba(20, 35, 60, 0.18), 0 4px 16px rgba(20, 35, 60, 0.10)",
+    border: "none",
+    popupBg: "#ffffff",
+  },
+  dark: {
+    bg: "linear-gradient(135deg, #0f1319 0%, #151b24 55%, #1a222d 100%)",
+    fg: "#dfe4ea",
+    sub: "#98a2b0",
+    shadow: "0 24px 64px rgba(0, 0, 0, 0.55), 0 4px 16px rgba(0, 0, 0, 0.35)",
+    border: "1px solid rgba(255, 255, 255, 0.08)",
+    popupBg: "#292a2d",
+  },
+};
+const dataUri = (file) => `data:image/png;base64,${fs.readFileSync(file).toString("base64")}`;
+const iconUri = dataUri(path.join(EXTENSION_DIR, "icons", "tt-128.png"));
+
+async function shotPopupRaw(scheme) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: 344, height: 700, deviceScaleFactor: 2 });
+  await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
+  await page.goto(`chrome-extension://${extId}/popup.html`, { waitUntil: "networkidle0" });
+  await page.waitForFunction(
+    () =>
+      document.body.classList.contains("ready") &&
+      document.getElementById("tabCount").textContent !== "-",
+    { timeout: 5000 },
+  );
+  await sleep(500);
+  const file = path.join(os.tmpdir(), `truetabs-shot-popup-${scheme}-${process.pid}.png`);
+  await page.screenshot({ path: file, fullPage: true });
+  await page.close();
+  return file;
+}
+
+async function compose(scheme, popupFile, { size, file, headline, sub, popupW, popupTop }) {
+  const t = PANEL[scheme];
+  const page = await browser.newPage();
+  await page.setViewport({ width: size.w, height: size.h, deviceScaleFactor: 1 });
+  await page.setContent(
+    `<!doctype html><html><head><style>
+      * { margin: 0; box-sizing: border-box; }
+      body {
+        width: ${size.w}px; height: ${size.h}px; overflow: hidden;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        background: ${t.bg}; display: flex; align-items: center;
+      }
+      .left { flex: 1; padding: 0 ${size.w > 800 ? 56 : 24}px 0 ${size.w > 800 ? 72 : 28}px; }
+      .brand { display: flex; align-items: center; gap: ${size.w > 800 ? 16 : 10}px; margin-bottom: ${size.w > 800 ? 28 : 12}px; }
+      .brand img { width: ${size.w > 800 ? 60 : 34}px; height: ${size.w > 800 ? 60 : 34}px; border-radius: ${size.w > 800 ? 13 : 8}px; }
+      .brand .name { font-size: ${size.w > 800 ? 44 : 25}px; font-weight: 650; letter-spacing: -0.5px; color: ${t.fg}; }
+      h1 { font-size: ${size.w > 800 ? 34 : 17}px; line-height: 1.25; font-weight: 600; letter-spacing: -0.3px; color: ${t.fg}; }
+      .sub { margin-top: ${size.w > 800 ? 18 : 8}px; font-size: ${size.w > 800 ? 18 : 11}px; line-height: 1.5; color: ${t.sub}; }
+      .right { flex: none; width: ${popupW + 30}px; height: ${size.h}px; position: relative; }
+      .popup {
+        position: absolute; top: ${popupTop}px; left: 0; width: ${popupW}px;
+        border-radius: 14px; overflow: hidden;
+        border: ${t.border}; box-shadow: ${t.shadow}; background: ${t.popupBg};
+      }
+      .popup img { display: block; width: 100%; }
+    </style></head><body>
+      <div class="left">
+        <div class="brand"><img src="${iconUri}" alt=""><span class="name">TrueTabs</span></div>
+        <h1>${headline}</h1>
+        ${sub ? `<p class="sub">${sub}</p>` : ""}
+      </div>
+      <div class="right"><div class="popup"><img src="${dataUri(popupFile)}" alt=""></div></div>
+    </body></html>`,
+    { waitUntil: "networkidle0" },
+  );
+  await sleep(250);
   await page.screenshot({ path: path.join(OUT_DIR, file) });
   await page.close();
   console.log(`wrote ${file}`);
 }
 
 for (const scheme of ["light", "dark"]) {
-  await shot("popup.html", `store-popup-${scheme}.png`, { width: 344, height: 560, scheme });
-  await shot("options.html", `store-options-${scheme}.png`, { width: 1280, height: 800, scheme });
-  await shot("archive.html", `store-archive-${scheme}.png`, { width: 1280, height: 800, scheme });
+  const popupFile = await shotPopupRaw(scheme);
+  await compose(scheme, popupFile, {
+    size: CWS,
+    file: `store-popup-${scheme}.png`,
+    headline: "The Arc-style tab butler for Chrome",
+    sub: "No duplicate tabs. Stale tabs auto-archived, always undoable.<br>Grouped by site - or by topic, with AI that runs on your device.",
+    popupW: 430,
+    popupTop: 40,
+  });
+  if (scheme === "light") {
+    await compose(scheme, popupFile, {
+      size: TILE,
+      file: "store-tile-440x280.png",
+      headline: "Tabs that keep themselves in order",
+      sub: "",
+      popupW: 168,
+      popupTop: 26,
+    });
+  }
+  fs.unlinkSync(popupFile);
+  await shot("options.html", `store-options-${scheme}.png`, { scheme });
+  await shot("archive.html", `store-archive-${scheme}.png`, { scheme });
 }
 
 await browser.close();

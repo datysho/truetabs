@@ -1,6 +1,6 @@
 {
   "appDesc": {
-    "message": "Des onglets rangés comme dans Arc : zéro doublon, les onglets délaissés partent aux archives (annulable), groupes par site ou par thème."
+    "message": "Onglets rangés comme dans Arc : zéro doublon, les onglets délaissés partent aux archives (annulable), groupes par site ou thème."
   },
   "tabs_one": {
     "message": "$1 onglet"
@@ -237,7 +237,7 @@
     "message": "Fournisseur"
   },
   "optByokCustom": {
-    "message": "Personnalisé (compatible OpenAI)"
+    "message": "Modèle local (compatible OpenAI)"
   },
   "optByokKey": {
     "message": "Clé API"
@@ -271,6 +271,9 @@
   },
   "byokPermDenied": {
     "message": "L'accès au fournisseur n'a pas été accordé."
+  },
+  "byokLocalOnly": {
+    "message": "Un endpoint personnalisé doit tourner sur cette machine (localhost ou 127.0.0.1) - TrueTabs ne demande aucun autre accès."
   },
   "optAppearanceHeader": {
     "message": "Apparence"

@@ -242,7 +242,7 @@
     "message": "Provider"
   },
   "optByokCustom": {
-    "message": "Custom (OpenAI-compatible)"
+    "message": "Local model (OpenAI-compatible)"
   },
   "optByokKey": {
     "message": "API key"
@@ -276,6 +276,10 @@
   },
   "byokPermDenied": {
     "message": "Access to the provider was not granted."
+  },
+  "byokLocalOnly": {
+    "message": "A custom endpoint must run on this machine (localhost or 127.0.0.1) - TrueTabs asks for no other site access.",
+    "description": "Error: a custom BYOK endpoint that is not on loopback"
   },
   "optAppearanceHeader": {
     "message": "Appearance"
