@@ -3,7 +3,7 @@
   "name": "TrueTabs",
   "description": "__MSG_appDesc__",
   "default_locale": "en",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "minimum_chrome_version": "121",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2d6eGdhyjkIFr02TONvJk+g5geAImTXVMXRq/yA2duXeqvYq9DlMBfLaWABaLYTixD2l+cNQVwEyecWGsBN9QKnW6pkgivpexA/7JcKLB9oslXV75ya3ck1X2HCqBW6cufZsk2cmUT6JF14zi7G4S6WH0LF4haP54anH/F3W0JgeB0NRRINKIVj8/xq3XJWCmHBGT+rHDywrFsHwVmOzYlrns3NsINa7wRNJlPedTnDUeDPT6w9TSc0fYK53NmX4cXPXpv9NbEUX14WwppWLIwZHrlCsZK5Lca4V2vMzjkjCVz5M9LUQMGV/4wwTQQhEZHUSbLkjYAm4oVxP084F2QIDAQAB",
   "homepage_url": "https://github.com/datysho/truetabs",
