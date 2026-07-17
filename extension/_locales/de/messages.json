@@ -398,12 +398,6 @@
   "optGroupsOnTopHint": {
     "message": "Wird laufend gehalten: Gruppen stehen direkt hinter den angehefteten Tabs, lose Tabs folgen, die Sammelgruppe schließt den Block ab. Verträgt sich mit jedem Sortiermodus."
   },
-  "optSmartOther": {
-    "message": "Reste in einer Gruppe „Sonstiges“ sammeln"
-  },
-  "optSmartOtherHint": {
-    "message": "Tabs ohne Thema landen in einer Sammelgruppe, immer ganz am Ende."
-  },
   "smartOtherName": {
     "message": "Sonstiges"
   },
@@ -490,5 +484,11 @@
   },
   "optDiagFailed": {
     "message": "Kopieren fehlgeschlagen - markiere den Text unten und kopiere ihn manuell."
+  },
+  "optOtherGroup": {
+    "message": "Den Rest in \"Sonstige\" sammeln"
+  },
+  "optOtherGroupHint": {
+    "message": "Ein Tab ohne Zuhause - kein Thema, keine Website-Gruppe, keine eigene Regel - landet in der grauen Gruppe \"Sonstige\" am Ende der Leiste statt lose herumzuliegen. Gilt für Gruppierung nach Website wie nach Thema; eine echte Gruppe holt sich ihre Tabs immer aus \"Sonstige\" zurück."
   }
 }

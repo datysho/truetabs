@@ -398,12 +398,6 @@
   "optGroupsOnTopHint": {
     "message": "Se mantiene continuamente: los grupos van justo después de las pestañas fijadas, las sueltas siguen, y el grupo «Otros» cierra el bloque. Se combina con cualquier modo de orden."
   },
-  "optSmartOther": {
-    "message": "Reunir lo restante en un grupo «Otros»"
-  },
-  "optSmartOtherHint": {
-    "message": "Las pestañas sin tema van a un grupo cajón de sastre, siempre al final."
-  },
   "smartOtherName": {
     "message": "Otros"
   },
@@ -490,5 +484,11 @@
   },
   "optDiagFailed": {
     "message": "No se pudo copiar: selecciona el texto de abajo y cópialo manualmente."
+  },
+  "optOtherGroup": {
+    "message": "Reunir el resto en «Otros»"
+  },
+  "optOtherGroupHint": {
+    "message": "Una pestaña sin hogar - sin tema, sin grupo de sitio, sin regla tuya - se une al grupo gris «Otros» al final de la barra en vez de quedar suelta. Funciona con la agrupación por sitio y por tema; un grupo real siempre recupera sus pestañas de «Otros»."
   }
 }

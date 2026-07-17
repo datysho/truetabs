@@ -32,11 +32,12 @@ sidebar, no new-tab page takeover - Chrome stays Chrome, the mess just stops.
 
 | | Feature | How |
 |---|---|---|
-| 1 | **Duplicate prevention** | Opening a URL you already have focuses the existing tab instantly - a fresh duplicate is pre-empted before the page even loads. Re-typing an open URL into an EXISTING tab works the other way round: your tab wins, the stale copy merges into it (archived first) and the tab is re-filed by your rules. Manual "Sweep duplicates" for the pile you already have. |
+| 1 | **Duplicate prevention** | Opening a page you already have focuses the existing tab instantly - a fresh duplicate is pre-empted before it even loads. Any real page counts: websites, local `file://` pages, extension and `chrome://` pages. Re-typing an open URL into an EXISTING tab works the other way round: your tab wins, the stale copy merges into it (archived first) and the tab is re-filed by your rules. Manual "Sweep duplicates" for the pile you already have. |
 | 2 | **Auto-archive** | A tab untouched for 24h (configurable 6h-7d, or off) is saved to a local archive and closed. Searchable archive page, restore in one click, notification with Undo after every batch. |
 | 3 | **Auto-group** | One selector: new tabs group by *site* (stable colors, clean names) or by *topic* via AI. Idle groups collapse. One-click "Organize now" for everything else. |
 | 3b | **Smart groups (AI)** | Cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / any OpenAI-compatible endpoint like Ollama). Groups appear batch by batch with live progress. With the "Other" catch-all on, nothing is left loose - new tabs that fit no topic join it. |
 | 3c | **My groups (rules)** | Your named groups with routing rules: a site list (deterministic) and/or a plain-language AI hint. Rules outrank every automatic grouping. |
+| 3e | **"Other" catch-all** | With it on, nothing is left loose: a tab that fits no topic, no site group and no rule parks in a grey "Other" at the end. Works with plain site grouping too - no AI required. It is a parking lot, never a decision: a real group always wins its tabs back. |
 | 3d | **Order** | Two maintained axes: group order and tab order (A-Z / recently used / oldest). New tabs slot into place, manual drags snap back, and with *recently used first* the tab you use surfaces instantly - its group rises to the front. |
 | 4 | **Dashboard** | Live counts (tabs, duplicates, stale, archived today), one-click actions, merge all windows, master switches per automation. |
 
@@ -97,6 +98,9 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
   browsing never merges or reshuffles anything.
 - The tabs API cannot see camera/microphone use - meeting sites are protected
   by an editable allowlist (meet/zoom/teams seeded) instead.
+- Only websites are archived: a local or internal page cannot be recreated
+  faithfully, so it is never archived and never gets an archive row - its
+  duplicates are simply closed while the original stays open.
 - macOS may hide notification buttons; the popup's "Undo last batch" is the
   canonical undo path.
 - On-device AI needs Chrome 138+, ~22 GB free disk and 16 GB RAM or a 4 GB
@@ -119,7 +123,7 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 ```bash
 cd test
 npm install
-npm test          # 62 e2e contracts against a real Chrome for Testing
+npm test          # 64 e2e contracts against a real Chrome for Testing (ONLY="substring" to run one)
 HEADFUL=1 npm test
 node shots.mjs    # regenerate store screenshots
 ./package.sh      # build the store zip (strips the dev key)

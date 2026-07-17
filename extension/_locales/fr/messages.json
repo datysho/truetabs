@@ -398,12 +398,6 @@
   "optGroupsOnTopHint": {
     "message": "Maintenu en continu : les groupes se placent juste après les onglets épinglés, les onglets libres suivent, le groupe « Autres » ferme le bloc. Compatible avec tous les modes de tri."
   },
-  "optSmartOther": {
-    "message": "Rassembler le reste dans un groupe « Autre »"
-  },
-  "optSmartOtherHint": {
-    "message": "Les onglets sans thème vont dans un groupe fourre-tout, toujours tout à la fin."
-  },
   "smartOtherName": {
     "message": "Autre"
   },
@@ -490,5 +484,11 @@
   },
   "optDiagFailed": {
     "message": "Copie impossible - sélectionnez le texte ci-dessous et copiez-le manuellement."
+  },
+  "optOtherGroup": {
+    "message": "Rassembler le reste dans « Autres »"
+  },
+  "optOtherGroupHint": {
+    "message": "Un onglet sans foyer - ni sujet, ni groupe de site, ni règle à vous - rejoint le groupe gris « Autres » en fin de barre au lieu de traîner. Fonctionne avec le groupement par site comme par sujet ; un vrai groupe récupère toujours ses onglets depuis « Autres »."
   }
 }

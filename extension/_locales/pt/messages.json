@@ -398,12 +398,6 @@
   "optGroupsOnTopHint": {
     "message": "Mantido continuamente: os grupos ficam logo após as guias fixadas, as soltas vêm em seguida, e o grupo \"Outros\" fecha o bloco. Combina com qualquer modo de ordenação."
   },
-  "optSmartOther": {
-    "message": "Reunir o restante num grupo \"Outros\""
-  },
-  "optSmartOtherHint": {
-    "message": "Abas sem tema vão para um grupo coletor, sempre no fim."
-  },
   "smartOtherName": {
     "message": "Outros"
   },
@@ -490,5 +484,11 @@
   },
   "optDiagFailed": {
     "message": "Não foi possível copiar - selecione o texto abaixo e copie manualmente."
+  },
+  "optOtherGroup": {
+    "message": "Reunir o resto em \"Outros\""
+  },
+  "optOtherGroupHint": {
+    "message": "Uma guia sem lar - sem tema, sem grupo de site, sem regra sua - entra no grupo cinza \"Outros\" no fim da barra em vez de ficar solta. Funciona tanto com o agrupamento por site quanto por tema; um grupo real sempre recupera suas guias de \"Outros\"."
   }
 }

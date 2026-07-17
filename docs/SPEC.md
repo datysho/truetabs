@@ -41,6 +41,14 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > in the popup with one-click ui:resumeAutomation. ensureOtherGroup extracted as the single catch-all
 > path (tail + fresh unmatched tabs, born with the second stray). ui:diagnostics off-queue + clipboard
 > fallback to a selectable dump.
+> v1.11 identity split: dupeKey covers EVERY real scheme (file://, chrome-extension://, chrome://) so
+> local-page duplicates are duplicates; normalizeUrl stays the http(s) "is a website" gate for archive,
+> discard and site grouping (non-web dupes close without an archive row - nothing to promise back).
+> smartOther -> otherGroup: the catch-all is not an AI feature (site mode + Organize park strays too),
+> and it is a PARKING LOT - placeable() lets rules/site/topic reclaim its tabs. Fixed: createOurGroup
+> marked self-ops AFTER the call (moving a tab out of our own group read as a user pull-out and struck
+> grouping session-wide), and the catch-all judged a re-read instead of the commit (a tab still on
+> about:blank got parked, and its real page could then never claim it).
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

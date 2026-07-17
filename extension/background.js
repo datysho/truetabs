@@ -223,7 +223,32 @@ function normalizeUrl(raw) {
   return `${u.protocol}//${host}${port}${path}${query}${hash}`;
 }
 
-const dupeKey = normalizeUrl;
+// Two different questions, two functions (they used to be one, and the one
+// answered only for websites):
+//   normalizeUrl(url) - "is this a WEBSITE, and what is its canonical form?"
+//     http(s) only. Gates the features that need a site: archiving (a page we
+//     can bring back), the discard tier, grouping by domain.
+//   dupeKey(url) - "which page IS this?" Identity for duplicate detection,
+//     across every real scheme: three tabs of the same file:// page, of the
+//     same chrome-extension:// page or of chrome://extensions are duplicates
+//     exactly like three tabs of a website. Ephemeral pages (blank, new tab)
+//     have no identity by design.
+function dupeKey(raw) {
+  const web = normalizeUrl(raw);
+  if (web) return web;
+  if (isEphemeralUrl(raw)) return null;
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return null;
+  }
+  if (u.protocol === "http:" || u.protocol === "https:") return null; // ephemeral http
+  // Non-web schemes: the parsed URL verbatim (percent-encoding normalized by
+  // the URL parser). No tracking-param surgery - it is meaningless here, and
+  // a file path's query/hash may well be load-bearing.
+  return u.href.replace(/#$/, "");
+}
 
 // eTLD+1 approximation (TruePin's): last two labels, three when the middle one
 // is a known second-level domain; IP literals whole; www. stripped.
@@ -729,7 +754,10 @@ async function mergeIntoNavigated(tabId, url, st) {
   const cache = new Map();
   const entries = [];
   for (const t of stale) {
-    entries.push(makeEntry(t, await groupInfoOf(t, cache), "merge", batchId));
+    // Websites get an archive row (a free way back); a local or internal page
+    // does not - it cannot be recreated faithfully, and its twin is right
+    // here in front of the user anyway.
+    if (normalizeUrl(t.url)) entries.push(makeEntry(t, await groupInfoOf(t, cache), "merge", batchId));
     if (
       inheritGid == null &&
       t.groupId !== -1 &&
@@ -740,10 +768,12 @@ async function mergeIntoNavigated(tabId, url, st) {
       inheritGid = t.groupId;
     }
   }
-  await archiveRMW((archive) => {
-    archive.entries = [...entries, ...archive.entries];
-    return archive;
-  });
+  if (entries.length) {
+    await archiveRMW((archive) => {
+      archive.entries = [...entries, ...archive.entries];
+      return archive;
+    });
+  }
   const closed = await closeTabsGuarded(stale.map((t) => t.id), "merge");
   if (closed) {
     const { dedupRecent = {} } = await chrome.storage.session.get("dedupRecent");
@@ -786,7 +816,8 @@ async function sweepDuplicates(scope, currentWindowId) {
     if (!buckets.has(key)) buckets.set(key, []);
     buckets.get(key).push(t);
   }
-  const victims = [];
+  const victims = []; // websites: archived, then closed - a free undo
+  const plainVictims = []; // file://, chrome-extension:// ...: closed, not archived
   for (const bucket of buckets.values()) {
     if (bucket.length < 2) continue;
     const survivor = bucket.sort(
@@ -797,13 +828,13 @@ async function sweepDuplicates(scope, currentWindowId) {
     )[0];
     for (const t of bucket) {
       if (t.id === survivor.id || t.pinned || t.active) continue;
-      victims.push(t);
+      (normalizeUrl(t.url) ? victims : plainVictims).push(t);
     }
   }
   // Surplus empty new-tab pages are duplicates of nothing: close them too
   // (not archived - there is no content to keep). Active/pinned blanks live.
   const blanks = tabs.filter((t) => isEphemeralUrl(t.url) && !t.pinned && !t.active);
-  if (!victims.length && !blanks.length) return { closed: 0, batchId: null };
+  if (!victims.length && !plainVictims.length && !blanks.length) return { closed: 0, batchId: null };
   const batchId = newBatchId();
   const groupInfoCache = new Map();
   const entries = [];
@@ -811,7 +842,7 @@ async function sweepDuplicates(scope, currentWindowId) {
     entries.push(makeEntry(t, await groupInfoOf(t, groupInfoCache), "dupe-sweep", batchId));
   }
   let closed = 0;
-  await withCloseAllowance(victims.length + blanks.length, async () => {
+  await withCloseAllowance(victims.length + plainVictims.length + blanks.length, async () => {
     if (entries.length) {
       await archiveRMW((archive) => {
         archive.entries = [...entries, ...archive.entries];
@@ -819,7 +850,7 @@ async function sweepDuplicates(scope, currentWindowId) {
       });
     }
     closed = await closeTabsGuarded(
-      [...victims.map((t) => t.id), ...blanks.map((t) => t.id)],
+      [...victims.map((t) => t.id), ...plainVictims.map((t) => t.id), ...blanks.map((t) => t.id)],
       "sweep",
     );
   });
@@ -883,8 +914,8 @@ async function archiveCandidates(settings, scopeWindowId = null) {
   const out = [];
   for (const tab of tabs) {
     if (tab.pinned || tab.active || tab.audible) continue;
-    const key = dupeKey(tab.url);
-    if (!key) continue; // non-http(s), ephemeral: not restorable
+    const key = normalizeUrl(tab.url);
+    if (!key) continue; // websites only: an archived page must be restorable
     const st = states[stateKey(tab.id)] || null;
     if (now() - staleSince(tab, st) < afterMs) continue;
     if (allowlistMatch(settings.archiveAllowlist, tab.url)) continue;
@@ -1088,12 +1119,17 @@ async function createOurGroup(
   windowId,
   { domain, title, color, smart = false, other = false, customId = null },
 ) {
+  // Mark BEFORE the call: a tab moving out of one of our groups (a stray
+  // leaving the catch-all for its real site group) emits a leave event, and
+  // an unmarked leave reads as "the user pulled it out" - two of those retire
+  // grouping for the whole session. Marking after the call is a race that
+  // only stayed invisible while we grouped loose tabs exclusively.
+  for (const id of tabIds) await markSelfOp("tabgroup", id);
   const gid = await quiet(chrome.tabs.group, {
     tabIds,
     createProperties: { windowId },
   });
   if (gid == null) return null;
-  for (const id of tabIds) await markSelfOp("tabgroup", id);
   await quiet(chrome.tabGroups.update, gid, { title, color });
   const ourGroups = await getOurGroups();
   ourGroups[gid] = {
@@ -1214,8 +1250,7 @@ async function customAssign(tabId, st) {
   const customs = await getCustomGroups();
   if (!customs.length) return false;
   const tab = await quiet(chrome.tabs.get, tabId);
-  if (!tab || tab.pinned || tab.incognito) return false;
-  if (tab.groupId !== -1 && tab.groupId != null) return false;
+  if (!placeable(tab, await getOurGroups())) return false;
   if (st.ungroupedByUser) return false;
   const win = await quiet(chrome.windows.get, tab.windowId);
   if (!win || win.type !== "normal") return false;
@@ -1271,6 +1306,16 @@ async function rehomeNavigated(tabId, st, inheritGid) {
   }
 }
 
+// "Other" holds what found no home - it is a parking lot, never a decision.
+// Every real placement (a rule, a site group, a topic) may take its tabs back
+// out of it; hand-made groups and topic groups are decisions and stay put.
+function placeable(tab, ourGroups) {
+  if (!tab || tab.pinned || tab.incognito) return false;
+  if (tab.groupId === -1 || tab.groupId == null) return true;
+  const owner = ourGroups[tab.groupId];
+  return !!(owner && owner.other);
+}
+
 // The catch-all, in ONE place: the smart tail and a fresh unmatched tab both
 // come here, so "with Other on nothing stays loose" means the same thing on
 // every path. Joining an existing catch-all takes even a single tab; minting
@@ -1279,9 +1324,13 @@ async function ensureOtherGroup(windowId, tabIds) {
   const live = [];
   for (const id of tabIds) {
     const t = await quiet(chrome.tabs.get, id);
-    if (t && !t.pinned && (t.groupId === -1 || t.groupId == null) && t.windowId === windowId) {
-      live.push(t.id);
-    }
+    if (!t || t.pinned || t.windowId !== windowId) continue;
+    if (t.groupId !== -1 && t.groupId != null) continue;
+    // A blank or new-tab page is not a leftover, it is a page about to be:
+    // parking it would put the tab in a group before it has any content -
+    // and then its real page could never claim it.
+    if (isEphemeralUrl(t.url) || !t.url) continue;
+    live.push(t.id);
   }
   if (!live.length) return { joined: 0, created: null };
   await ensureI18n();
@@ -1342,14 +1391,14 @@ async function routeCustoms(pool, windowId, createdGids) {
 async function groupOnCommit(tabId, st) {
   if (!(await isSettled()) || (await isPaused())) return;
   const tab = await quiet(chrome.tabs.get, tabId);
-  if (!tab || tab.pinned || tab.incognito) return;
+  const ourGroupsNow = await getOurGroups();
+  if (!placeable(tab, ourGroupsNow)) return; // never out of a REAL group
   const win = await quiet(chrome.windows.get, tab.windowId);
   if (!win || win.type !== "normal") return;
-  if (tab.groupId !== -1 && tab.groupId != null) return; // never move out of ANY group
   if (st.committedCount > 1) return;
   if (st.ungroupedByUser) return; // pulled out once: hands off for the session
   const domain = st.domain;
-  if (!domain || !st.key) return;
+  if (!domain || !normalizeUrl(st.url)) return; // a site group needs a site
   if (await isStruck("group", domain)) return;
 
   const ourGroups = await getOurGroups();
@@ -1358,11 +1407,16 @@ async function groupOnCommit(tabId, st) {
     if (await addToOurGroup(tab.id, existing)) return;
   }
   // Min size 2: a one-tab group is strip churn with zero organizational
-  // value. The group is born the moment a second same-domain tab exists.
+  // value. The group is born the moment a second same-domain tab exists -
+  // counting the ones parked in OUR catch-all: "Other" holds leftovers, not
+  // decisions, so a real site group always wins them back. Hand-made groups
+  // are untouchable, as ever.
   const peers = (await chrome.tabs.query({ windowId: tab.windowId, pinned: false })).filter(
     (t) =>
       t.id !== tab.id &&
-      (t.groupId === -1 || t.groupId == null) &&
+      (t.groupId === -1 ||
+        t.groupId == null ||
+        (ourGroups[t.groupId] && ourGroups[t.groupId].other)) &&
       registrableDomain(t.url) === domain &&
       !isEphemeralUrl(t.url),
   );
@@ -1399,7 +1453,7 @@ async function organizeNow(scope, currentWindowId) {
     const byDomain = new Map();
     for (const t of routed.rest) {
       const domain = registrableDomain(t.url);
-      if (!domain || !dupeKey(t.url)) continue;
+      if (!domain || !normalizeUrl(t.url)) continue; // a site group needs a site
       if (!byDomain.has(domain)) byDomain.set(domain, []);
       byDomain.get(domain).push(t);
     }
@@ -1420,6 +1474,22 @@ async function organizeNow(scope, currentWindowId) {
           grouped += list.length;
           groupsCreated++;
           createdGids.push(gid);
+        }
+      }
+    }
+    const settings = await getSettings();
+    if (settings.otherGroup) {
+      // Whatever the pass could not place goes to the catch-all - the same
+      // promise the smart run keeps, kept by the plain one.
+      const leftovers = (await chrome.tabs.query({ windowId: win.id, pinned: false }))
+        .filter((t) => (t.groupId === -1 || t.groupId == null) && !isEphemeralUrl(t.url) && t.url)
+        .map((t) => t.id);
+      if (leftovers.length) {
+        const res = await ensureOtherGroup(win.id, leftovers);
+        grouped += res.joined;
+        if (res.created != null) {
+          groupsCreated++;
+          createdGids.push(res.created);
         }
       }
     }
@@ -2264,7 +2334,7 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
       const exotic = [];
       for (const t of loose) {
         const domain = registrableDomain(t.url);
-        if (!dupeKey(t.url) || !domain) {
+        if (!normalizeUrl(t.url) || !domain) {
           exotic.push(t); // not a website: never a site group, Other material
           continue;
         }
@@ -2295,7 +2365,7 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings) {
       }
       loose.push(...exotic);
     }
-    if (settings.smartOther && loose.length) {
+    if (settings.otherGroup && loose.length) {
       const res = await ensureOtherGroup(windowId, loose.map((t) => t.id));
       run.grouped += res.joined;
       if (res.created != null) {
@@ -2377,9 +2447,9 @@ async function smartAssign(tabId, st) {
   }
   if (!(await isSettled()) || (await isPaused())) return false;
   const tab = await quiet(chrome.tabs.get, tabId);
-  if (!tab || tab.pinned || (tab.groupId !== -1 && tab.groupId != null)) return false;
-  if (st.ungroupedByUser) return false;
   const ourGroups = await getOurGroups();
+  if (!placeable(tab, ourGroups)) return false;
+  if (st.ungroupedByUser) return false;
   const candidates = [];
   for (const [gid, g] of Object.entries(ourGroups)) {
     if (g.smart && !g.other && g.windowId === tab.windowId) {
@@ -2431,7 +2501,7 @@ async function tick() {
       for (const tab of await normalTabs()) {
         if (tab.pinned || tab.active || tab.audible || tab.discarded) continue;
         if (candidateIds.has(tab.id)) continue;
-        if (!dupeKey(tab.url)) continue;
+        if (!normalizeUrl(tab.url)) continue; // websites only, mirroring archive
         if (allowlistMatch(settings.archiveAllowlist, tab.url)) continue;
         const st = await getTabState(tab.id);
         if (now() - staleSince(tab, st) >= afterMs / 2) {
@@ -2901,20 +2971,31 @@ async function handleCommit(details) {
           const assigned = await smartAssign(details.tabId, post);
           if (assigned === "fallback") await groupOnCommit(details.tabId, post);
         }
-        // "Other" is a promise: with it on, a new tab that fits no topic (and
-        // no site group) joins the catch-all instead of lying around loose.
-        // Topic mode only - under site grouping a lone domain staying loose
-        // is the design (min size 2), not a leftover.
+        // "Other" is a promise, and it has nothing to do with AI: with it on,
+        // a tab that found no home - no topic, no site group, no rule - joins
+        // the catch-all instead of lying around loose. Grouping off means the
+        // engine places nothing at all, catch-all included.
+        // post.key is the identity of the page THIS commit delivered: null
+        // for about:blank and the new-tab page. Gate on the event, never on a
+        // re-read of the tab - by the time this job runs the tab may already
+        // be navigating to its real page, and parking it here would put it in
+        // a group before it has content, where its real group could never
+        // claim it back.
         if (
-          settings.autoGroup === "topic" &&
-          settings.smartOther &&
-          settings.smartEngine !== "off" &&
+          post.key &&
+          settings.autoGroup !== "off" &&
+          settings.otherGroup &&
           !post.ungroupedByUser &&
           (await isSettled()) &&
           !(await isPaused())
         ) {
           const still = await quiet(chrome.tabs.get, details.tabId);
-          if (still && !still.pinned && (still.groupId === -1 || still.groupId == null)) {
+          if (
+            still &&
+            !still.pinned &&
+            (still.groupId === -1 || still.groupId == null) &&
+            !isEphemeralUrl(still.url)
+          ) {
             // Born with the second tab, exactly like a site group: this tab
             // plus the loose strays already lying around (tabs the user
             // pulled out by hand keep their freedom).

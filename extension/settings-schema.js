@@ -26,7 +26,7 @@ const ttSchema = (() => {
     groupsOnTop: false, // keep groups at the front of the strip (applied on Organize + new groups)
     // pillar 3b - smart (AI) grouping
     smartEngine: "off", // "off" | "builtin" | "byok"
-    smartOther: true, // collect unassigned tabs into an "Other" group, always last
+    otherGroup: true, // collect whatever found no home into "Other", always last
     smartRegroupOurs: true, // Smart Organize may rebuild OUR auto groups (hand-made never)
     byokProvider: "openai", // "openai" | "gemini" | "grok" | "custom"
     byokModel: "",
@@ -89,6 +89,10 @@ const ttSchema = (() => {
     // sort is maintained live now, recency just adds surfacing-on-use.
     if (src.sortTabs === "live") src.sortTabs = "recent";
     if (src.sortGroups === "live") src.sortGroups = "recent";
+    // v1.10 -> v1.11: the catch-all is not an AI feature any more.
+    if (!("otherGroup" in src) && typeof src.smartOther === "boolean") {
+      src.otherGroup = src.smartOther;
+    }
     const out = { ...DEFAULTS };
     for (const key of Object.keys(DEFAULTS)) {
       const value = src[key];

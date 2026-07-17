@@ -398,12 +398,6 @@
   "optGroupsOnTopHint": {
     "message": "持续保持：组紧跟在固定标签页之后，散落标签页随后，「其他」收纳组收尾。与任何排序模式兼容。"
   },
-  "optSmartOther": {
-    "message": "把剩余标签收进“其他”分组"
-  },
-  "optSmartOtherHint": {
-    "message": "不属于任何主题的标签进入一个兜底分组，始终排在最后。"
-  },
   "smartOtherName": {
     "message": "其他"
   },
@@ -490,5 +484,11 @@
   },
   "optDiagFailed": {
     "message": "复制失败 - 请选中下方文本手动复制。"
+  },
+  "optOtherGroup": {
+    "message": "把其余标签页收进「其他」"
+  },
+  "optOtherGroupHint": {
+    "message": "没有归属的标签页 - 没有主题、没有网站分组、不匹配你的规则 - 会进入标签栏末尾的灰色「其他」组，而不是散落在外。按网站分组和按主题分组都适用；真正的分组随时会把属于它的标签页从「其他」里收回。"
   }
 }

@@ -14,7 +14,7 @@ const SWITCHES = [
   "archiveForeignGroups",
   "discardStale",
   "groupsOnTop",
-  "smartOther",
+  "otherGroup",
   "smartRegroupOurs",
 ];
 const SELECTS = [
@@ -97,7 +97,6 @@ function renderSmartRows() {
   const engine = $("smartEngine").value;
   $("builtinRow").hidden = engine !== "builtin";
   $("byokRow").hidden = engine !== "byok";
-  $("smartOtherRow").hidden = engine === "off";
   $("smartRegroupRow").hidden = engine === "off";
   // Topic mode without an engine falls back to site grouping - say so.
   $("autoGroupNeedsAi").hidden = !($("autoGroup").value === "topic" && engine === "off");

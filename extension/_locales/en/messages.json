@@ -398,12 +398,6 @@
   "optGroupsOnTopHint": {
     "message": "Maintained continuously: groups sit right after the pinned tabs, loose tabs follow, and the \"Other\" catch-all closes the group block. Composes with every sort mode."
   },
-  "optSmartOther": {
-    "message": "Collect leftovers into an \"Other\" group"
-  },
-  "optSmartOtherHint": {
-    "message": "Tabs that fit no topic land in one catch-all group, always at the very end."
-  },
   "smartOtherName": {
     "message": "Other"
   },
@@ -490,5 +484,11 @@
   },
   "optDiagFailed": {
     "message": "Could not copy - select the text below and copy it manually."
+  },
+  "optOtherGroup": {
+    "message": "Collect the rest into \"Other\""
+  },
+  "optOtherGroupHint": {
+    "message": "A tab that found no home - no topic, no site group, no rule of yours - joins a grey \"Other\" group at the end of the strip instead of lying around loose. Works with grouping by site and by topic alike; a real group always wins its tabs back from Other."
   }
 }

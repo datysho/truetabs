@@ -10,13 +10,17 @@
 //
 // Run: cd test && npm install && npm test   (HEADFUL=1 npm test to watch)
 
+import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EXTENSION_DIR = path.resolve(__dirname, "../extension");
+// A real file:// page: duplicates of local pages are duplicates too.
+const filePagePath = path.join(os.tmpdir(), "truetabs-e2e-page.html");
 const TEST_TIMEOUT_MS = 60_000;
 const GLOBAL_TIMEOUT_MS = 480_000;
 
@@ -37,7 +41,11 @@ function assert(condition, label) {
   if (!condition) throw new Error(`assert failed: ${label}`);
 }
 
+// ONLY="substring" npm test - run a single contract while chasing it.
+const ONLY = process.env.ONLY || "";
+
 async function test(name, fn) {
+  if (ONLY && !name.includes(ONLY)) return;
   currentStep = "(start)";
   let timer;
   const timeout = new Promise((_, reject) => {
@@ -285,6 +293,10 @@ function startServer() {
 
 // ------------------------------------------------------------------ tests
 async function main() {
+  fs.writeFileSync(
+    filePagePath,
+    "<!doctype html><html><head><title>page-localFile</title></head><body>local</body></html>",
+  );
   const server = await startServer();
   const port = server.address().port;
   baseUrl = `http://127.0.0.1:${port}`;
@@ -1976,6 +1988,76 @@ async function main() {
     assert(dump && dump.version && Array.isArray(dump.trace), "dump returned");
     assert(elapsed < 800, `off-queue diagnostics (${elapsed}ms < 800ms)`);
     await sleep(2600); // let the jam drain
+  });
+
+  await test("dedup covers any real page: three file:// copies collapse to one", async () => {
+    await resetWorld();
+    const fileUrl = `file://${filePagePath}`;
+    const first = await openViaCommit(fileUrl, { active: false });
+    await waitFor("first file tab committed", async () => {
+      const st = await tabState(first.id);
+      return st && st.key;
+    });
+    const st = await tabState(first.id);
+    assert(st.key.startsWith("file://"), `file pages get an identity (got ${st.key})`);
+    // two more copies: both must be pre-empted, exactly like a website
+    const dupe1 = await openViaCommit(fileUrl, { active: false });
+    await waitFor("second copy closed", async () => (await getTab(dupe1.id)) === null);
+    const dupe2 = await openViaCommit(fileUrl, { active: false });
+    await waitFor("third copy closed", async () => (await getTab(dupe2.id)) === null);
+    assert((await getTab(first.id)) !== null, "the original stays");
+    // and the sweep counts them as duplicates too
+    const c1 = await createTab({ url: fileUrl, active: false });
+    const c2 = await createTab({ url: fileUrl, active: false });
+    await sleep(500);
+    const state = await ui({ type: "ui:getState" });
+    assert(state.counts.dupes >= 2, `counter sees file dupes (got ${state.counts.dupes})`);
+    const swept = await ui({ type: "ui:sweepDupes", scope: "all" });
+    assert(swept.closed >= 2, `sweep closed them (${swept.closed})`);
+    const left = (await queryTabs()).filter((t) => t.url.startsWith("file://"));
+    assert(left.length === 1, `exactly one copy survives (got ${left.length})`);
+    // never archived, and never an archive row we cannot honour: a local page
+    // is not restorable, so we do not promise it back
+    assert(
+      !(await archiveEntries()).some((e) => e.url.startsWith("file://")),
+      "no file:// rows in the archive",
+    );
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now() + 30 * 3600e3);
+    await sleep(600);
+    assert((await getTab(left[0].id)) !== null, "file page not archived by the stale scan");
+  });
+
+  await test("Other without AI: site grouping parks strays, a real site group wins them back", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    // two lone domains: neither can form a site group (min size 2)
+    const solo1 = await openViaCommit(`${baseUrl}/soloAlpha`, { active: false });
+    const solo2 = await openViaCommit(`${altUrl}/soloBeta`, { active: false });
+    await waitFor(
+      "strays parked in Other with no AI in sight",
+      async () => (await getTab(solo1.id)).groupId !== -1 && (await getTab(solo2.id)).groupId !== -1,
+      8000,
+    );
+    const gid = (await getTab(solo1.id)).groupId;
+    const other = await swEval((g) => chrome.tabGroups.get(g), gid);
+    assert(other.title === "Other" && other.color === "grey", `grey Other (got "${other.title}")`);
+    assert((await getTab(solo2.id)).groupId === gid, "both in the same catch-all");
+    // a second tab of solo1's domain arrives: the real site group is born and
+    // takes its tab back out of Other
+    const peer = await openViaCommit(`${baseUrl}/soloAlphaPeer`, { active: false });
+    await waitFor(
+      "site group born from the catch-all",
+      async () => {
+        const t = await getTab(peer.id);
+        const s = await getTab(solo1.id);
+        return t.groupId !== -1 && t.groupId !== gid && s.groupId === t.groupId;
+      },
+      8000,
+    );
+    const siteGroup = await swEval((g) => chrome.tabGroups.get(g), (await getTab(peer.id)).groupId);
+    assert(siteGroup.title !== "Other", `real site group (got "${siteGroup.title}")`);
+    assert((await getTab(solo2.id)).groupId === gid, "the other stray stays in Other");
   });
 
   await test("service worker: zero unchecked errors across the whole run", async () => {
