@@ -94,10 +94,14 @@ function groupRow(group) {
   row.dataset.gid = String(group.id);
   row.dataset.windowId = String(group.windowId);
 
-  // Drag by the grip only: a row click means "jump to the group".
+  // Drag by the grip only: a row click means "jump to the group". Under an
+  // active group sort the order is managed - dragging would just snap back,
+  // so the grip disappears instead of lying.
+  const managed = state && state.settings.sortGroups !== "off";
   const grip = document.createElement("span");
   grip.className = "grip";
-  grip.draggable = true;
+  grip.draggable = !managed;
+  grip.hidden = managed;
   grip.title = t("groupDragTitle");
   grip.addEventListener("click", (event) => event.stopPropagation());
   grip.addEventListener("dragstart", (event) => {

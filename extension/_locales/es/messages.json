@@ -435,19 +435,13 @@
     "message": "Orden de los grupos"
   },
   "optSortGroupsHint": {
-    "message": "Cómo se alinean los grupos de TrueTabs en la barra. A-Z, recientes y antiguos se aplican una vez, al pulsar Organizar. En vivo: el grupo que usas sube al frente tras 3 segundos en la pestaña."
+    "message": "Se mantiene continuamente: un grupo nuevo ocupa su lugar, un arrastre manual vuelve al orden. Recientes primero además sube al instante el grupo que usas."
   },
   "optSortTabs": {
     "message": "Orden de las pestañas"
   },
   "optSortTabsHint": {
-    "message": "Orden dentro de cada grupo de TrueTabs y entre pestañas sueltas. A-Z, recientes y antiguos se aplican una vez, al Organizar. En vivo: la pestaña que usas pasa al frente de su grupo tras 3 segundos."
-  },
-  "optSortLiveGroups": {
-    "message": "Grupo activo primero (en vivo)"
-  },
-  "optSortLiveTabs": {
-    "message": "Pestaña activa primero (en vivo)"
+    "message": "Orden dentro de cada grupo de TrueTabs y entre pestañas sueltas, mantenido continuamente: las pestañas nuevas se colocan, los arrastres manuales vuelven. Recientes primero sube al instante la pestaña que usas."
   },
   "optCustomHeader": {
     "message": "Mis grupos"

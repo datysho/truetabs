@@ -435,19 +435,13 @@
     "message": "Ordem dos grupos"
   },
   "optSortGroupsHint": {
-    "message": "Como os grupos do TrueTabs se alinham na barra. A-Z, recentes e antigos aplicam-se uma vez, ao clicar em Organizar. Ao vivo: o grupo que você usa sobe para a frente após 3 segundos na guia."
+    "message": "Mantida continuamente: um novo grupo entra no seu lugar, um arraste manual volta à ordem. Recentes primeiro também traz na hora o grupo que você usa para a frente."
   },
   "optSortTabs": {
     "message": "Ordem das guias"
   },
   "optSortTabsHint": {
-    "message": "Ordem dentro de cada grupo do TrueTabs e entre guias soltas. A-Z, recentes e antigos aplicam-se uma vez, ao Organizar. Ao vivo: a guia que você usa vai para a frente do seu grupo após 3 segundos."
-  },
-  "optSortLiveGroups": {
-    "message": "Grupo ativo primeiro (ao vivo)"
-  },
-  "optSortLiveTabs": {
-    "message": "Guia ativa primeiro (ao vivo)"
+    "message": "Ordem dentro de cada grupo do TrueTabs e entre guias soltas, mantida continuamente: novas guias entram no lugar, arrastes manuais voltam. Recentes primeiro traz na hora a guia que você usa para a frente."
   },
   "optCustomHeader": {
     "message": "Meus grupos"

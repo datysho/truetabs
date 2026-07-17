@@ -68,6 +68,31 @@ function setSetting(key, value) {
   return send({ type: "ui:setSetting", key, value });
 }
 
+// "Group new tabs: by topic" and "Group by topic using: <engine>" are one
+// decision seen from two sides - they move together. Picking an engine turns
+// topic grouping on; turning the engine off drops grouping back to site;
+// choosing topic with no engine auto-picks the built-in one.
+async function syncGroupingPair(changed) {
+  if (changed === "autoGroup") {
+    if ($("autoGroup").value === "topic" && $("smartEngine").value === "off") {
+      $("smartEngine").value = "builtin";
+      await setSetting("smartEngine", "builtin");
+      refreshBuiltinStatus();
+    }
+    return;
+  }
+  if (changed === "smartEngine") {
+    const engine = $("smartEngine").value;
+    if (engine === "off" && $("autoGroup").value === "topic") {
+      $("autoGroup").value = "site";
+      await setSetting("autoGroup", "site");
+    } else if (engine !== "off" && $("autoGroup").value !== "topic") {
+      $("autoGroup").value = "topic";
+      await setSetting("autoGroup", "topic");
+    }
+  }
+}
+
 function renderSmartRows() {
   const engine = $("smartEngine").value;
   $("builtinRow").hidden = engine !== "builtin";
@@ -257,6 +282,7 @@ function paintControls() {
       await setSetting(id, e.target.value);
       if (id === "theme") applyTheme(e.target.value);
       if (id === "language") location.reload();
+      if (id === "smartEngine" || id === "autoGroup") await syncGroupingPair(id);
       if (id === "smartEngine" || id === "byokProvider" || id === "autoGroup") {
         renderSmartRows();
         refreshByokWarning();

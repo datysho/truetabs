@@ -435,19 +435,13 @@
     "message": "组的顺序"
   },
   "optSortGroupsHint": {
-    "message": "TrueTabs 组在标签栏中的排列方式。字母序、最近使用和最早打开在点击「整理」时应用一次。实时：停留 3 秒后，正在使用的组会移到最前。"
+    "message": "持续保持：新组自动就位，手动拖动会弹回原序。「最近使用在前」还会立刻把正在使用的组移到最前。"
   },
   "optSortTabs": {
     "message": "标签页顺序"
   },
   "optSortTabsHint": {
-    "message": "每个 TrueTabs 组内部及散落标签页的顺序。字母序、最近使用和最早打开在「整理」时应用一次。实时：停留 3 秒后，正在使用的标签页移到组内最前。"
-  },
-  "optSortLiveGroups": {
-    "message": "活动组在前（实时）"
-  },
-  "optSortLiveTabs": {
-    "message": "活动标签页在前（实时）"
+    "message": "每个 TrueTabs 组内及散落标签页的顺序持续保持：新标签页自动就位，手动拖动会弹回。「最近使用在前」会立刻把正在使用的标签页移到最前。"
   },
   "optCustomHeader": {
     "message": "我的分组"

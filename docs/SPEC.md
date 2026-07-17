@@ -22,6 +22,10 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > pages paint REAL values straight from storage before the first frame (anti-FOUC reveal), engine-down
 > detection via off-queue `ui:ping`; `ui:getState`/`ui:smartStatus` moved off the mutation queue and made
 > cheap (maintained `archiveCount`, batched tab-state reads in archiveCandidates, 60s availability cache).
+> v1.7 maintained sort: modes are invariants (commit/creation placement, manual-drag snap-back via
+> onMoved + engine-activity stamp filter, immediate re-sort on setting change); "live" merged into
+> "recent" (instant surfacing, cycling-guard instead of a dwell); options grouping pair synced
+> (engine on = topic, off = site, topic auto-picks built-in); popup grips hide under managed order.
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

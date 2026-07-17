@@ -1272,6 +1272,13 @@ async function main() {
     assert(Array.isArray(s.archiveAllowlist), "allowlist is an array again");
     assert(!("nonsense" in s) && !("groupAuto" in s), "unknown and retired keys dropped");
     assert(s.dedupScope === "all", "valid values survive untouched");
+    // "live" from v1.5/1.6 merges into "recent"
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "live" });
+    assert(
+      (await ui({ type: "ui:getState" })).settings.sortTabs === "recent",
+      "live merges into recent",
+    );
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
     // a bad write through the API degrades too - storage is never poisoned
     await ui({ type: "ui:setSetting", key: "archiveAfter", value: "1000years" });
     assert(
@@ -1354,13 +1361,10 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
   });
 
-  await test("live sort: after the dwell the used tab and its group surface", async () => {
+  await test("recency sort: the used tab and its group surface INSTANTLY", async () => {
     await resetWorld();
-    await ui({ type: "ui:setSetting", key: "sortTabs", value: "live" });
-    await ui({ type: "ui:setSetting", key: "sortGroups", value: "live" });
-    await swEval(() => {
-      globalThis.__ttMruDwellMs = 50;
-    });
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "recent" });
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "recent" });
     const a1 = await openViaCommit(`${altUrl}/mruA1`, { active: false });
     const a2 = await openViaCommit(`${altUrl}/mruA2`, { active: false });
     const b1 = await openViaCommit(`${baseUrl}/mruB1`, { active: false });
@@ -1370,19 +1374,91 @@ async function main() {
       async () => (await getTab(a2.id)).groupId !== -1 && (await getTab(b2.id)).groupId !== -1,
     );
     const idx = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
-    assert((await idx(b2.id)) > (await idx(b1.id)), "b2 starts behind b1");
+    // recency is maintained from the first commit, so build the precondition
+    // explicitly: use b1, it surfaces; then use b2 and watch it overtake.
+    await swEval((id) => chrome.tabs.update(id, { active: true }), b1.id);
+    await waitFor("b1 surfaced first", async () => (await idx(b1.id)) < (await idx(b2.id)), 2500);
+    await sleep(900); // out of the cycling-guard window: the next switch is calm
     await swEval((id) => chrome.tabs.update(id, { active: true }), b2.id);
-    await waitFor("tab surfaced in its group", async () => (await idx(b2.id)) < (await idx(b1.id)));
-    await waitFor("group surfaced in the strip", async () => {
-      const bFirst = Math.min(await idx(b1.id), await idx(b2.id));
-      const aFirst = Math.min(await idx(a1.id), await idx(a2.id));
-      return bFirst < aFirst;
-    });
-    await swEval(() => {
-      globalThis.__ttMruDwellMs = undefined;
-    });
+    // zero dwell on a calm switch: both moves land in well under 2.5s
+    await waitFor(
+      "tab surfaced in its group",
+      async () => (await idx(b2.id)) < (await idx(b1.id)),
+      2500,
+    );
+    await waitFor(
+      "group surfaced in the strip",
+      async () => {
+        const bFirst = Math.min(await idx(b1.id), await idx(b2.id));
+        const aFirst = Math.min(await idx(a1.id), await idx(a2.id));
+        return bFirst < aFirst;
+      },
+      2500,
+    );
     await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
     await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
+  });
+
+  await test("maintained sort: new tabs slot in alphabetically, a manual drag snaps back", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "title" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" }); // keep them loose
+    const z = await openViaCommit(`${baseUrl}/zzMaint`, { active: false });
+    const a = await openViaCommit(`${altUrl}/aaMaint`, { active: false });
+    const idx = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
+    // no Organize click: the commit itself slots aa before zz
+    await waitFor("aa slots before zz", async () => (await idx(a.id)) < (await idx(z.id)), 5000);
+    // let the engine go quiet, then "drag" zz to the front by hand
+    await sleep(1400);
+    await swEval((tid) => chrome.tabs.move(tid, { index: 0 }), z.id);
+    await waitFor("zz moved by hand", async () => (await idx(z.id)) < (await idx(a.id)), 2000);
+    await waitFor("the invariant snaps it back", async () => (await idx(a.id)) < (await idx(z.id)), 5000);
+    await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("maintained sort: a newborn group takes its alphabetical place", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "title" });
+    const m1 = await openViaCommit(`${baseUrl}/mmFirst1`, { active: false });
+    const m2 = await openViaCommit(`${baseUrl}/mmFirst2`, { active: false });
+    await waitFor("mm grouped", async () => (await getTab(m2.id)).groupId !== -1);
+    const a1 = await openViaCommit(`${altUrl}/aaSecond1`, { active: false });
+    const a2 = await openViaCommit(`${altUrl}/aaSecond2`, { active: false });
+    await waitFor("aa grouped", async () => (await getTab(a2.id)).groupId !== -1);
+    const idx = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
+    await waitFor(
+      "aa group lines up before mm group without Organize",
+      async () => {
+        const aFirst = Math.min(await idx(a1.id), await idx(a2.id));
+        const mFirst = Math.min(await idx(m1.id), await idx(m2.id));
+        return aFirst < mFirst;
+      },
+      5000,
+    );
+    await ui({ type: "ui:setSetting", key: "sortGroups", value: "off" });
+  });
+
+  await test("options: the grouping pair moves together, both directions", async () => {
+    const extUrl = (await findSwTarget()).url().replace("background.js", "options.html");
+    const page = await browser.newPage();
+    await page.goto(extUrl, { waitUntil: "networkidle0" });
+    await sleep(400);
+    await page.select("#smartEngine", "builtin");
+    await sleep(350);
+    let v = await page.$eval("#autoGroup", (el) => el.value);
+    assert(v === "topic", `engine on flips grouping to topic (got ${v})`);
+    await page.select("#smartEngine", "off");
+    await sleep(350);
+    v = await page.$eval("#autoGroup", (el) => el.value);
+    assert(v === "site", `engine off drops grouping to site (got ${v})`);
+    await page.select("#autoGroup", "topic");
+    await sleep(350);
+    v = await page.$eval("#smartEngine", (el) => el.value);
+    assert(v === "builtin", `topic auto-picks the built-in engine (got ${v})`);
+    await page.close();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
   });
 
   await test("popup reorder: the final drag order lands on the strip", async () => {

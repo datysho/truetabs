@@ -19,8 +19,10 @@ const ttSchema = (() => {
     // pillar 3 - groups
     autoGroup: "site", // "off" | "site" | "topic" - how NEW tabs are grouped on first commit
     groupCollapseAfter: "10m", // "off" | "5m" | "10m" | "30m"
-    sortGroups: "off", // "off" | "title" | "recent" | "opened" | "live" - group order
-    sortTabs: "off", // same values - tab order (loose + inside our groups); live = active surfaces
+    // Sort modes are MAINTAINED invariants: new tabs slot into place, manual
+    // drags snap back, "recent" surfaces what you use - instantly.
+    sortGroups: "off", // "off" | "title" | "recent" | "opened" - group order
+    sortTabs: "off", // same values - tab order (loose + inside our groups)
     groupsOnTop: false, // keep groups at the front of the strip (applied on Organize + new groups)
     // pillar 3b - smart (AI) grouping
     smartEngine: "off", // "off" | "builtin" | "byok"
@@ -41,8 +43,8 @@ const ttSchema = (() => {
     archiveTtl: ["7d", "30d", "90d", "forever"],
     autoGroup: ["off", "site", "topic"],
     groupCollapseAfter: ["off", "5m", "10m", "30m"],
-    sortGroups: ["off", "title", "recent", "opened", "live"],
-    sortTabs: ["off", "title", "recent", "opened", "live"],
+    sortGroups: ["off", "title", "recent", "opened"],
+    sortTabs: ["off", "title", "recent", "opened"],
     smartEngine: ["off", "builtin", "byok"],
     byokProvider: ["openai", "gemini", "grok", "custom"],
     theme: ["auto", "light", "dark"],
@@ -83,6 +85,10 @@ const ttSchema = (() => {
     }
     if (!("sortTabs" in src) && typeof src.sortMode === "string") src.sortTabs = src.sortMode;
     if (!("sortGroups" in src) && typeof src.sortMode === "string") src.sortGroups = src.sortMode;
+    // v1.5 -> v1.7: the separate "live" mode merged into "recent" - every
+    // sort is maintained live now, recency just adds surfacing-on-use.
+    if (src.sortTabs === "live") src.sortTabs = "recent";
+    if (src.sortGroups === "live") src.sortGroups = "recent";
     const out = { ...DEFAULTS };
     for (const key of Object.keys(DEFAULTS)) {
       const value = src[key];

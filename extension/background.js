@@ -86,6 +86,10 @@ const TRACKING_EXACT = new Set([
 // selfClosed race). Event handlers and ui:* calls only enqueue jobs.
 
 let queueTail = Promise.resolve();
+// The engine's own strip churn is filtered out of "the user dragged
+// something" detection synchronously, by recency: every queue job and every
+// chrome.* mutation refreshes this stamp.
+let lastEngineActAt = 0;
 globalThis.__ttDiag = { queued: 0, finished: 0, last: "", trace: [] };
 function traceDiag(entry) {
   globalThis.__ttDiag.trace.push(`${new Date().toISOString().slice(11, 19)} ${entry}`);
@@ -94,6 +98,7 @@ function traceDiag(entry) {
 function enqueue(job, label = "job") {
   globalThis.__ttDiag.queued++;
   const run = queueTail.then(() => {
+    lastEngineActAt = Date.now();
     globalThis.__ttDiag.last = `${label} started`;
     return job();
   });
@@ -162,13 +167,15 @@ function ensureI18n() {
 // Fire-and-forget calls often target a tab that is mid-close; the callback form
 // with an explicit lastError read is the only way Chromium stays quiet about it.
 const checked = () => void chrome.runtime.lastError;
-const quiet = (api, ...args) =>
-  new Promise((resolve) =>
+const quiet = (api, ...args) => {
+  lastEngineActAt = Date.now(); // every engine mutation refreshes the stamp
+  return new Promise((resolve) =>
     api(...args, (result) => {
       void chrome.runtime.lastError;
       resolve(result);
     }),
   );
+};
 
 // --- url identity ----------------------------------------------------------------
 
@@ -1112,6 +1119,8 @@ async function createOurGroup(
   } else if (settings.groupsOnTop) {
     await moveGroupsToFront(windowId);
   }
+  // Maintained order: a newborn group takes its sorted place.
+  if (settings.sortGroups !== "off") scheduleSortAssert(windowId);
   return gid;
 }
 
@@ -1407,8 +1416,8 @@ async function undoOrganize() {
 // as "recent" here.
 async function applySort(windowId) {
   const settings = await getSettings();
-  const groupMode = settings.sortGroups === "live" ? "recent" : settings.sortGroups;
-  const tabMode = settings.sortTabs === "live" ? "recent" : settings.sortTabs;
+  const groupMode = settings.sortGroups;
+  const tabMode = settings.sortTabs;
   if (groupMode === "off" && tabMode === "off") return;
   const ourGroups = await getOurGroups();
   const tabs = await chrome.tabs.query({ windowId });
@@ -1483,16 +1492,20 @@ async function applySort(windowId) {
   }
 }
 
-// --- live sort (MRU): the tab you use surfaces ---------------------------------
-// sortTabs="live": after a short dwell on a tab it moves to the front of its
-// container (its group, or the loose block). sortGroups="live": its group
-// rises to the front of the strip. The dwell keeps Ctrl+Tab cycling and quick
-// glances from churning the strip; only one pending surface at a time.
+// --- recency surfacing (MRU): the tab you use surfaces INSTANTLY --------------
+// sortTabs="recent": the tab moves to the front of its container (its group,
+// or the loose block) the moment you switch to it. sortGroups="recent": its
+// group rises to the front of the strip. A calm switch acts with zero delay;
+// rapid cycling (Ctrl+Tab hops) coalesces into one move shortly after the
+// hopping stops - the strip never churns under a scanning finger.
 let mruTimer = null;
+let lastActivationAt = 0;
 
 function scheduleMruSurface(tabId) {
   clearTimeout(mruTimer);
-  const dwell = globalThis.__ttMruDwellMs ?? 3000;
+  const sinceLast = Date.now() - lastActivationAt;
+  lastActivationAt = Date.now();
+  const dwell = globalThis.__ttMruDwellMs ?? (sinceLast < 800 ? 800 : 0);
   mruTimer = setTimeout(() => {
     enqueue(() => mruSurface(tabId), "mru");
   }, dwell);
@@ -1500,8 +1513,8 @@ function scheduleMruSurface(tabId) {
 
 async function mruSurface(tabId) {
   const settings = await getSettings();
-  const liveTabs = settings.sortTabs === "live";
-  const liveGroups = settings.sortGroups === "live";
+  const liveTabs = settings.sortTabs === "recent";
+  const liveGroups = settings.sortGroups === "recent";
   if (!liveTabs && !liveGroups) return;
   if (!(await isSettled()) || (await isPaused())) return;
   const tab = await quiet(chrome.tabs.get, tabId);
@@ -1543,6 +1556,33 @@ async function mruSurface(tabId) {
       ours.lastTouchedAt = now();
       await putOurGroups(ourGroups);
     }
+  }
+}
+
+// --- maintained order -----------------------------------------------------------
+// A sort mode is not a one-shot command: it is an invariant the engine keeps
+// true. New tabs slot into place on commit, new groups on creation, a manual
+// drag that breaks the order snaps back, and flipping the setting re-sorts
+// immediately. One debounced full re-sort per window is the mechanism - the
+// engine's own churn is filtered out synchronously by the activity stamp.
+const sortAssertTimers = new Map();
+
+function scheduleSortAssert(windowId, delay = 300) {
+  if (windowId == null || windowId < 0) return;
+  clearTimeout(sortAssertTimers.get(windowId));
+  sortAssertTimers.set(
+    windowId,
+    setTimeout(() => {
+      sortAssertTimers.delete(windowId);
+      enqueue(() => applySort(windowId), "sort-assert");
+    }, delay),
+  );
+}
+
+async function sortAssertIfActive(windowId, delay) {
+  const settings = await getSettings();
+  if (settings.sortTabs !== "off" || settings.sortGroups !== "off") {
+    scheduleSortAssert(windowId, delay);
   }
 }
 
@@ -2418,6 +2458,11 @@ async function handleUi(request) {
       await chrome.storage.sync.set({ settings: normalizeSettings(settings) });
       i18nReady = null; // language may have changed
       if (request.key === "iconStyle") applyActionIcon(request.value);
+      // Flipping a sort mode re-sorts immediately - the setting is a
+      // maintained invariant, not a note for the next Organize click.
+      if (request.key === "sortGroups" || request.key === "sortTabs") {
+        for (const win of await normalWindows()) scheduleSortAssert(win.id, 50);
+      }
       return { ok: true };
     }
     case "ui:customGroups:set": {
@@ -2512,6 +2557,9 @@ async function handleUi(request) {
         await quiet(chrome.tabGroups.move, gid, { windowId: request.windowId, index: cursor });
         cursor += sizes.get(gid);
       }
+      // Under an active group sort the popup hides the grips; if a reorder
+      // still arrives (stale popup), the invariant snaps it back.
+      await sortAssertIfActive(request.windowId, 400);
       return { ok: true };
     }
     case "ui:sweepDupes":
@@ -2747,6 +2795,11 @@ async function handleCommit(details) {
         }
       }
     }
+    // Maintained order: the fresh page slots into its sorted place.
+    if (settings.sortTabs !== "off" || settings.sortGroups !== "off") {
+      const live = await quiet(chrome.tabs.get, details.tabId);
+      if (live) scheduleSortAssert(live.windowId);
+    }
   }
 }
 
@@ -2826,6 +2879,19 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   enqueue(async () => {
     await dropTabState(tabId);
   }, "removed");
+});
+
+// Maintained order: a manual drag that breaks an active sort snaps back.
+// The engine's own churn is filtered synchronously - any queue job or
+// chrome.* mutation within the last second means this move was ours.
+chrome.tabs.onMoved.addListener((tabId, info) => {
+  if (Date.now() - lastEngineActAt < 1000) return;
+  sortAssertIfActive(info.windowId, 600);
+});
+
+chrome.tabGroups.onMoved.addListener((group) => {
+  if (Date.now() - lastEngineActAt < 1000) return;
+  sortAssertIfActive(group.windowId, 600);
 });
 
 chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {

@@ -435,19 +435,13 @@
     "message": "Ordre des groupes"
   },
   "optSortGroupsHint": {
-    "message": "Comment les groupes TrueTabs s'alignent dans la barre. A-Z, récents et anciens s'appliquent une fois, au clic sur Organiser. En direct : le groupe que vous utilisez remonte en tête après 3 secondes."
+    "message": "Maintenu en continu : un nouveau groupe se range à sa place, un glissement manuel revient dans l'ordre. Récents d'abord fait aussi remonter instantanément le groupe que vous utilisez."
   },
   "optSortTabs": {
     "message": "Ordre des onglets"
   },
   "optSortTabsHint": {
-    "message": "Ordre au sein de chaque groupe TrueTabs et parmi les onglets libres. A-Z, récents et anciens s'appliquent une fois, à Organiser. En direct : l'onglet utilisé passe en tête de son groupe après 3 secondes."
-  },
-  "optSortLiveGroups": {
-    "message": "Groupe actif en premier (direct)"
-  },
-  "optSortLiveTabs": {
-    "message": "Onglet actif en premier (direct)"
+    "message": "Ordre au sein de chaque groupe TrueTabs et parmi les onglets libres, maintenu en continu : les nouveaux onglets se rangent, les glissements manuels reviennent. Récents d'abord fait remonter instantanément l'onglet utilisé."
   },
   "optCustomHeader": {
     "message": "Mes groupes"

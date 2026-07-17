@@ -435,19 +435,13 @@
     "message": "Reihenfolge der Gruppen"
   },
   "optSortGroupsHint": {
-    "message": "Wie sich TrueTabs-Gruppen in der Leiste anordnen. A-Z, zuletzt und älteste gelten einmalig - beim Klick auf Organisieren. Live: Die gerade genutzte Gruppe rückt nach 3 Sekunden Verweildauer nach vorn."
+    "message": "Wird laufend gehalten: Eine neue Gruppe reiht sich ein, manuelles Ziehen springt zurück. Zuletzt genutzt zuerst hebt zusätzlich die gerade genutzte Gruppe sofort nach vorn."
   },
   "optSortTabs": {
     "message": "Reihenfolge der Tabs"
   },
   "optSortTabsHint": {
-    "message": "Reihenfolge innerhalb jeder TrueTabs-Gruppe und unter losen Tabs. A-Z, zuletzt und älteste gelten einmalig beim Organisieren. Live: Der genutzte Tab rückt nach 3 Sekunden an den Anfang seiner Gruppe."
-  },
-  "optSortLiveGroups": {
-    "message": "Aktive Gruppe zuerst (live)"
-  },
-  "optSortLiveTabs": {
-    "message": "Aktiver Tab zuerst (live)"
+    "message": "Reihenfolge in jeder TrueTabs-Gruppe und unter losen Tabs, laufend gehalten: Neue Tabs reihen sich ein, manuelles Ziehen springt zurück. Zuletzt genutzt zuerst hebt den genutzten Tab sofort nach vorn."
   },
   "optCustomHeader": {
     "message": "Meine Gruppen"

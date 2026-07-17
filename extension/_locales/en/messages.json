@@ -435,19 +435,13 @@
     "message": "Order of groups"
   },
   "optSortGroupsHint": {
-    "message": "How TrueTabs groups line up in the strip. A-Z, recent and oldest apply once, when you click Organize. Live: the group you are using rises to the front after a 3-second dwell."
+    "message": "Maintained continuously: a new group slots into place, a manual drag snaps back. Recently used first also surfaces the group you are using - instantly."
   },
   "optSortTabs": {
     "message": "Order of tabs"
   },
   "optSortTabsHint": {
-    "message": "Order inside each TrueTabs group and among loose tabs. A-Z, recent and oldest apply once, on Organize. Live: the tab you are using moves to the front of its group after a 3-second dwell."
-  },
-  "optSortLiveGroups": {
-    "message": "Active group first (live)"
-  },
-  "optSortLiveTabs": {
-    "message": "Active tab first (live)"
+    "message": "Order inside each TrueTabs group and among loose tabs, maintained continuously: new tabs slot in, manual drags snap back. Recently used first surfaces the tab you use - instantly."
   },
   "optCustomHeader": {
     "message": "My groups"
