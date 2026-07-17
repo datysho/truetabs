@@ -15,9 +15,11 @@
         width: 100%;
         max-width: 560px;
       }
+      /* Centered page header (family style, same as TruePin's options). */
       .pagehead {
         display: flex;
         align-items: center;
+        justify-content: center;
         gap: 10px;
         margin: 4px 2px 16px;
       }
@@ -30,10 +32,11 @@
         font-weight: 600;
         font-size: 16px;
       }
-      .pagehead .ver {
-        margin-left: auto;
+      .pagehead .headver {
         color: var(--muted);
         font-size: 12px;
+        align-self: flex-end;
+        padding-bottom: 1px;
       }
       .card {
         background: var(--surface);
@@ -105,28 +108,35 @@
       .gap {
         height: 16px;
       }
-      /* TruePin-parity footer: centered linklike diagnostics, version below. */
-      .ver {
-        text-align: center;
+      .footrow {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .footrow .note {
         color: var(--muted);
         font-size: 12px;
-        margin: 20px 0 0;
       }
-      .linklike {
-        background: none;
-        border: none;
-        padding: 0;
-        font: inherit;
-        color: var(--muted);
+      /* Inline warning box: soft error surface, not a bare red string. */
+      .warnbox {
+        background: color-mix(in srgb, var(--err) 10%, transparent);
+        color: var(--err);
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        width: 100%;
+      }
+      .warnbox[hidden] {
+        display: none !important;
+      }
+      /* chrome:// links: clickable, and the URL wraps as one word. */
+      .chromelink {
+        color: var(--accent);
         text-decoration: underline;
         cursor: pointer;
-      }
-      .linklike:hover {
-        color: var(--text);
-        background: none;
-      }
-      #diagNote {
-        margin-left: 8px;
+        display: inline-block;
+        white-space: nowrap;
       }
       #smartProgress {
         font-size: 12px;
@@ -145,6 +155,7 @@
       <div class="pagehead">
         <img src="icons/tt-32.png" alt="" />
         <span class="name">TrueTabs</span>
+        <span class="headver" id="version"></span>
       </div>
 
       <div class="card">
@@ -252,6 +263,13 @@
             <option value="opened" data-i18n="optSortOpened"></option>
           </select>
         </div>
+        <div class="setting">
+          <div class="info">
+            <div class="label" data-i18n="optGroupsOnTop"></div>
+            <div class="hint" data-i18n="optGroupsOnTopHint"></div>
+          </div>
+          <input type="checkbox" class="switch" id="groupsOnTop" />
+        </div>
 
         <h3 data-i18n="optSmartHeader"></h3>
         <div class="setting">
@@ -269,7 +287,10 @@
           <div class="info">
             <div class="label" data-i18n="optSmartBuiltinStatus"></div>
             <div class="hint" id="builtinStatus"></div>
-            <div class="hint" id="builtinManaged" hidden data-i18n="smartManagedNote"></div>
+            <div class="hint" id="builtinManaged" hidden>
+              <span data-i18n="smartManagedNote"></span>
+              <a class="chromelink" id="onDeviceLink">chrome://on-device-internals</a>
+            </div>
             <div class="hint" id="smartProgress"></div>
           </div>
           <button id="smartEnableBtn" data-i18n="optSmartEnable"></button>
@@ -290,6 +311,7 @@
             <label id="byokBaseUrlLabel" data-i18n="optByokBaseUrl" hidden></label>
             <input type="text" id="byokBaseUrl" spellcheck="false" placeholder="http://localhost:11434/v1" hidden />
           </div>
+          <div class="warnbox" id="byokWarn" hidden data-i18n="byokNoKey"></div>
           <div class="byok-actions">
             <button id="byokTestBtn" data-i18n="optByokTest"></button>
             <span class="byok-note" id="byokStatus"></span>
@@ -302,6 +324,20 @@
             <div class="hint" data-i18n="optSmartAssignHint"></div>
           </div>
           <input type="checkbox" class="switch" id="smartAutoAssign" />
+        </div>
+        <div class="setting" id="smartOtherRow" hidden>
+          <div class="info">
+            <div class="label" data-i18n="optSmartOther"></div>
+            <div class="hint" data-i18n="optSmartOtherHint"></div>
+          </div>
+          <input type="checkbox" class="switch" id="smartOther" />
+        </div>
+        <div class="setting" id="smartRegroupRow" hidden>
+          <div class="info">
+            <div class="label" data-i18n="optSmartRegroup"></div>
+            <div class="hint" data-i18n="optSmartRegroupHint"></div>
+          </div>
+          <input type="checkbox" class="switch" id="smartRegroupOurs" />
         </div>
 
         <h3 data-i18n="optAppearanceHeader"></h3>
@@ -342,13 +378,10 @@
         </div>
       </div>
 
-      <p class="ver">
-        <span class="diag">
-          <button id="diagBtn" class="linklike" data-i18n="optDiag"></button>
-          <span id="diagNote" style="visibility: hidden" data-i18n="optDiagCopied"></span>
-        </span>
-      </p>
-      <p class="ver" id="version"></p>
+      <div class="footrow">
+        <button id="diagBtn" data-i18n="optDiag"></button>
+        <span class="note" id="diagNote"></span>
+      </div>
     </div>
 
     <script src="config.js"></script>

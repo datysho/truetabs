@@ -90,41 +90,45 @@ def write_png(path, size, rows):
         f.write(png)
 
 
+def ring_coverage(px, py, shape, aa, thickness):
+    """Outline of a rounded rect: |distance| within half the stroke width."""
+    cx, cy, hw, hh, r, _ = shape
+    d = abs(rr_dist(px, py, cx, cy, hw, hh, r)) - thickness / 2
+    a = 0.5 - d / aa
+    return 0.0 if a <= 0 else (1.0 if a >= 1 else a)
+
+
+# Chrome-style monochrome glyph: a single OUTLINED browser tab card with a
+# "header" line, grey, on transparency - like the toolbar icons Chrome ships.
+MONO_CARD = (0.5, 0.52, 0.34, 0.27, 0.09, 1.0)
+MONO_HEADER_Y = 0.37  # separator line under the card's header strip
+
+
 def render_mono(size):
-    """Toolbar-neutral variant: grey tab cards on transparency (no square)."""
     grey = (95, 99, 104)  # #5f6368 - Chrome's neutral icon grey
     ss = 4
     aa = 1.0 / size
+    stroke = max(2.0 / size, 0.075)  # >= 2px at 16, elegant at 128
     rows = []
+    cx, cy, hw, hh, r, _ = MONO_CARD
     for y in range(size):
         row = bytearray()
         for x in range(size):
-            r = g = b = a = 0.0
+            acc = 0.0
             for sy in range(ss):
                 for sx in range(ss):
                     px = (x + (sx + 0.5) / ss) / size
                     py = (y + (sy + 0.5) / ss) / size
-                    sr = sg = sb = sa = 0.0
-                    for card in CARDS:
-                        cv = coverage(px, py, card, aa) * card[5]
-                        if cv > 0:
-                            sr = grey[0] * cv + sr * (1 - cv)
-                            sg = grey[1] * cv + sg * (1 - cv)
-                            sb = grey[2] * cv + sb * (1 - cv)
-                            sa = cv + sa * (1 - cv)
-                    r += sr
-                    g += sg
-                    b += sb
-                    a += sa
-            n = ss * ss
-            row += bytes(
-                (
-                    min(255, round(r / n)),
-                    min(255, round(g / n)),
-                    min(255, round(b / n)),
-                    min(255, round(a / n * 255) if a / n <= 1 else 255),
-                )
-            )
+                    cv = ring_coverage(px, py, MONO_CARD, aa, stroke)
+                    # header separator line inside the card
+                    if (
+                        cx - hw + stroke * 1.2 < px < cx + hw - stroke * 1.2
+                        and abs(py - MONO_HEADER_Y) < stroke / 2
+                    ):
+                        cv = 1.0
+                    acc += cv
+            a = acc / (ss * ss)
+            row += bytes((grey[0], grey[1], grey[2], min(255, round(a * 255))))
         rows.append(bytes(row))
     return rows
 

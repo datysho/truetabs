@@ -150,10 +150,10 @@
     "message": "Auch innerhalb Ihrer eigenen Tab-Gruppen archivieren"
   },
   "optArchiveForeignHint": {
-    "message": "Aus: von Hand erstellte Gruppen gelten als bewusste Auswahl und werden übersprungen."
+    "message": "Wenn aus, gelten von Hand erstellte Gruppen als bewusste Auswahl und werden übersprungen."
   },
   "optDiscard": {
-    "message": "Speicher früher freigeben (Entladen)"
+    "message": "Speicher früher freigeben"
   },
   "optDiscardHint": {
     "message": "Ein Tab auf halbem Weg zur Archiv-Schwelle wird aus dem Speicher entladen, behält aber seinen Platz in der Tableiste; ein Klick lädt die Seite neu. Spart RAM schon vor dem Archivieren."
@@ -363,10 +363,10 @@
     "message": "Ohne Namen"
   },
   "groupExpand": {
-    "message": "Gruppe ausklappen"
+    "message": "Ausklappen"
   },
   "groupCollapse": {
-    "message": "Gruppe einklappen"
+    "message": "Einklappen"
   },
   "optSort": {
     "message": "Beim Ordnen sortieren"
@@ -393,9 +393,42 @@
     "message": "Monochrom (wie Chrome)"
   },
   "smartManagedNote": {
-    "message": "Das Modell lädt und verwaltet Chrome selbst. Später entfernen: chrome://on-device-internals."
+    "message": "Das Modell lädt und verwaltet Chrome selbst. Später entfernen unter"
   },
   "byokNoKey": {
     "message": "Noch kein API-Schlüssel - smarte Gruppierung ist inaktiv, bis einer eingetragen ist."
+  },
+  "groupUngroup": {
+    "message": "Auflösen"
+  },
+  "ungroupAll": {
+    "message": "Alle auflösen"
+  },
+  "ungroupAllConfirm": {
+    "message": "Sicher?"
+  },
+  "groupDragTitle": {
+    "message": "Zum Sortieren ziehen"
+  },
+  "optGroupsOnTop": {
+    "message": "Gruppen vorn halten"
+  },
+  "optGroupsOnTopHint": {
+    "message": "Beim Ordnen und bei neuen Gruppen reihen sich Gruppen direkt hinter den angepinnten Tabs ein; lose Tabs folgen."
+  },
+  "optSmartOther": {
+    "message": "Reste in einer Gruppe „Sonstiges“ sammeln"
+  },
+  "optSmartOtherHint": {
+    "message": "Tabs ohne Thema landen in einer Sammelgruppe, immer ganz am Ende."
+  },
+  "smartOtherName": {
+    "message": "Sonstiges"
+  },
+  "optSmartRegroup": {
+    "message": "Smart ordnen darf automatische Gruppen neu bauen"
+  },
+  "optSmartRegroupHint": {
+    "message": "Vom Add-on erstellte Website-Gruppen werden nach Thema neu gebündelt. Von Hand erstellte Gruppen bleiben unberührt."
   }
 }

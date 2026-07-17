@@ -150,10 +150,10 @@
     "message": "也归档你自建分组内的标签页"
   },
   "optArchiveForeignHint": {
-    "message": "关闭时：手动创建的分组视为有意保留，直接跳过。"
+    "message": "关闭时，手动创建的分组视为有意保留并跳过。"
   },
   "optDiscard": {
-    "message": "更早释放内存（休眠）"
+    "message": "更早释放内存"
   },
   "optDiscardHint": {
     "message": "闲置达到归档阈值一半的标签页会从内存卸载，但仍保留在标签栏原位；点击即可重新加载。在归档之前就能节省内存。"
@@ -363,10 +363,10 @@
     "message": "未命名"
   },
   "groupExpand": {
-    "message": "展开分组"
+    "message": "展开"
   },
   "groupCollapse": {
-    "message": "折叠分组"
+    "message": "折叠"
   },
   "optSort": {
     "message": "整理时排序"
@@ -393,9 +393,42 @@
     "message": "单色（贴合 Chrome）"
   },
   "smartManagedNote": {
-    "message": "模型由 Chrome 自行下载和管理。以后删除：chrome://on-device-internals。"
+    "message": "模型由 Chrome 自行下载和管理。以后如需删除，请打开"
   },
   "byokNoKey": {
     "message": "尚未填写 API 密钥——填写之前智能分组不会工作。"
+  },
+  "groupUngroup": {
+    "message": "解散"
+  },
+  "ungroupAll": {
+    "message": "全部解散"
+  },
+  "ungroupAllConfirm": {
+    "message": "确定？"
+  },
+  "groupDragTitle": {
+    "message": "拖动排序"
+  },
+  "optGroupsOnTop": {
+    "message": "分组置顶"
+  },
+  "optGroupsOnTopHint": {
+    "message": "整理时及新分组诞生时，分组紧随固定标签页排列，散落标签页在后。"
+  },
+  "optSmartOther": {
+    "message": "把剩余标签收进“其他”分组"
+  },
+  "optSmartOtherHint": {
+    "message": "不属于任何主题的标签进入一个兜底分组，始终排在最后。"
+  },
+  "smartOtherName": {
+    "message": "其他"
+  },
+  "optSmartRegroup": {
+    "message": "允许智能整理重组自动分组"
+  },
+  "optSmartRegroupHint": {
+    "message": "扩展创建的网站分组会按主题重组。你手动创建的分组绝不会被动。"
   }
 }

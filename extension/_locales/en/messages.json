@@ -150,10 +150,10 @@
     "message": "Also archive inside your own tab groups"
   },
   "optArchiveForeignHint": {
-    "message": "Off: groups you made by hand are treated as curated and skipped."
+    "message": "When off, groups you made by hand are treated as curated and skipped."
   },
   "optDiscard": {
-    "message": "Free memory earlier (discard)"
+    "message": "Free memory earlier"
   },
   "optDiscardHint": {
     "message": "A tab halfway to the archive threshold is unloaded from memory but keeps its place in the tab strip; clicking it reloads the page. Saves RAM before archiving happens."
@@ -363,10 +363,10 @@
     "message": "Untitled"
   },
   "groupExpand": {
-    "message": "Unfold group"
+    "message": "Unfold"
   },
   "groupCollapse": {
-    "message": "Fold group"
+    "message": "Fold"
   },
   "optSort": {
     "message": "Sort on Organize"
@@ -393,9 +393,42 @@
     "message": "Monochrome (match Chrome)"
   },
   "smartManagedNote": {
-    "message": "The model is downloaded and managed by Chrome itself. To remove it later: chrome://on-device-internals."
+    "message": "The model is downloaded and managed by Chrome itself. To remove it later, open"
   },
   "byokNoKey": {
     "message": "No API key yet - smart grouping is inactive until you enter one."
+  },
+  "groupUngroup": {
+    "message": "Ungroup"
+  },
+  "ungroupAll": {
+    "message": "Ungroup all"
+  },
+  "ungroupAllConfirm": {
+    "message": "Sure?"
+  },
+  "groupDragTitle": {
+    "message": "Drag to reorder"
+  },
+  "optGroupsOnTop": {
+    "message": "Keep groups at the front"
+  },
+  "optGroupsOnTopHint": {
+    "message": "On Organize and when a new group is born, groups line up right after the pinned tabs; loose tabs follow."
+  },
+  "optSmartOther": {
+    "message": "Collect leftovers into an \"Other\" group"
+  },
+  "optSmartOtherHint": {
+    "message": "Tabs that fit no topic land in one catch-all group, always at the very end."
+  },
+  "smartOtherName": {
+    "message": "Other"
+  },
+  "optSmartRegroup": {
+    "message": "Let Smart Organize rebuild automatic groups"
+  },
+  "optSmartRegroupHint": {
+    "message": "Site groups this extension made get re-clustered by topic. Groups you made by hand are never touched."
   }
 }

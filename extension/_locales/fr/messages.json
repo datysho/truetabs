@@ -150,10 +150,10 @@
     "message": "Archiver aussi dans vos propres groupes d'onglets"
   },
   "optArchiveForeignHint": {
-    "message": "Désactivé : les groupes créés à la main sont un choix délibéré et sont ignorés."
+    "message": "Quand désactivé, les groupes faits main sont considérés délibérés et ignorés."
   },
   "optDiscard": {
-    "message": "Libérer la mémoire plus tôt (déchargement)"
+    "message": "Libérer la mémoire plus tôt"
   },
   "optDiscardHint": {
     "message": "Un onglet à mi-chemin du seuil d'archivage est déchargé de la mémoire mais garde sa place dans la barre ; un clic recharge la page. Économise la RAM avant même l'archivage."
@@ -363,10 +363,10 @@
     "message": "Sans titre"
   },
   "groupExpand": {
-    "message": "Déplier le groupe"
+    "message": "Déplier"
   },
   "groupCollapse": {
-    "message": "Replier le groupe"
+    "message": "Replier"
   },
   "optSort": {
     "message": "Trier lors du rangement"
@@ -393,9 +393,42 @@
     "message": "Monochrome (style Chrome)"
   },
   "smartManagedNote": {
-    "message": "Le modèle est téléchargé et géré par Chrome lui-même. Pour le retirer : chrome://on-device-internals."
+    "message": "Le modèle est téléchargé et géré par Chrome lui-même. Pour le retirer plus tard, ouvrez"
   },
   "byokNoKey": {
     "message": "Pas encore de clé API - le groupement intelligent est inactif tant qu'elle manque."
+  },
+  "groupUngroup": {
+    "message": "Dissoudre"
+  },
+  "ungroupAll": {
+    "message": "Tout dissoudre"
+  },
+  "ungroupAllConfirm": {
+    "message": "Sûr ?"
+  },
+  "groupDragTitle": {
+    "message": "Glisser pour réordonner"
+  },
+  "optGroupsOnTop": {
+    "message": "Garder les groupes en tête"
+  },
+  "optGroupsOnTopHint": {
+    "message": "Au rangement et à la naissance d'un groupe, les groupes se placent juste après les onglets épinglés ; les libres suivent."
+  },
+  "optSmartOther": {
+    "message": "Rassembler le reste dans un groupe « Autre »"
+  },
+  "optSmartOtherHint": {
+    "message": "Les onglets sans thème vont dans un groupe fourre-tout, toujours tout à la fin."
+  },
+  "smartOtherName": {
+    "message": "Autre"
+  },
+  "optSmartRegroup": {
+    "message": "Le rangement intelligent peut reconstruire les groupes automatiques"
+  },
+  "optSmartRegroupHint": {
+    "message": "Les groupes par site créés par l'extension sont re-regroupés par thème. Vos groupes faits main ne sont jamais touchés."
   }
 }

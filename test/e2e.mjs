@@ -1109,6 +1109,80 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "sortMode", value: "off" });
   });
 
+  await test("ungroup: one group and all groups dissolve without strikes", async () => {
+    await resetWorld();
+    const a = await openViaCommit(`${altUrl}/ug1`, { active: false });
+    const b = await openViaCommit(`${altUrl}/ug2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(b.id)).groupId !== -1);
+    const gid = (await getTab(b.id)).groupId;
+    const one = await ui({ type: "ui:groupUngroup", gid });
+    assert(one.ungrouped === 2, "one group dissolved");
+    assert((await getTab(a.id)).groupId === -1 && (await getTab(b.id)) !== null, "tabs alive, loose");
+    // rebuild two groups, then dissolve everything
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    const c = await openViaCommit(`${baseUrl}/ug3`, { active: false });
+    const d = await openViaCommit(`${baseUrl}/ug4`, { active: false });
+    await sleep(400);
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    const all = await ui({ type: "ui:groupsUngroupAll" });
+    assert(all.ungrouped >= 4, `all dissolved (${all.ungrouped})`);
+    const groupsLeft = await swEval(() => chrome.tabGroups.query({}));
+    assert(groupsLeft.length === 0, "no groups left");
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(
+      !Object.keys(diag.strikes).some((k) => k.startsWith("group:")),
+      "commands never strike",
+    );
+  });
+
+  await test("groups on top: organize lines groups up right after pins", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "groupsOnTop", value: true });
+    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    const loose1 = await openViaCommit(`${baseUrl}/looseFirst`, { active: false });
+    const g1 = await openViaCommit(`${altUrl}/topA`, { active: false });
+    const g2 = await openViaCommit(`${altUrl}/topB`, { active: false });
+    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    await sleep(400);
+    const gTab = await getTab(g1.id);
+    assert(gTab.groupId !== -1, "grouped");
+    const gIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), g1.id);
+    const looseIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), loose1.id);
+    assert(gIndex < looseIndex, `group (${gIndex}) before loose (${looseIndex})`);
+    await ui({ type: "ui:setSetting", key: "groupsOnTop", value: false });
+  });
+
+  await test("smart Other: leftovers land in a grey catch-all group at the end", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "groupAuto", value: false });
+    const t1 = await createTab({ url: `${baseUrl}/themeA1` });
+    const t2 = await createTab({ url: `${altUrl}/themeA2` });
+    const o1 = await createTab({ url: `${baseUrl}/leftover1` });
+    const o2 = await createTab({ url: `${altUrl}/leftover2` });
+    await sleep(400);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: () => JSON.stringify({ groups: [{ name: "Theme", tabIndices: [0, 1] }] }),
+      }),
+    );
+    const result = await ui({ type: "ui:smartOrganize", scope: "all" });
+    assert(result.groupsCreated >= 2, `theme + Other created (${result.groupsCreated})`);
+    const oTab = await getTab(o1.id);
+    assert(oTab.groupId !== -1, "leftover grouped");
+    const otherGroup = await swEval((g) => chrome.tabGroups.get(g), oTab.groupId);
+    assert(otherGroup.title === "Other", `catch-all titled Other (got "${otherGroup.title}")`);
+    assert(otherGroup.color === "grey", "catch-all grey");
+    const oIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), o1.id);
+    const tIndex = await swEval((id) => chrome.tabs.get(id).then((t) => t.index), t1.id);
+    assert(oIndex > tIndex, "Other sits after the theme group");
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "groupAuto", value: true });
+  });
+
   await test("service worker: zero unchecked errors across the whole run", async () => {
     await sleep(500);
     assert(

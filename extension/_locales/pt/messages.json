@@ -150,10 +150,10 @@
     "message": "Arquivar também dentro dos seus próprios grupos"
   },
   "optArchiveForeignHint": {
-    "message": "Desligado: grupos feitos à mão são escolha deliberada e são pulados."
+    "message": "Quando desligado, grupos feitos à mão são tratados como escolha deliberada e pulados."
   },
   "optDiscard": {
-    "message": "Liberar memória mais cedo (descarregar)"
+    "message": "Liberar memória mais cedo"
   },
   "optDiscardHint": {
     "message": "Uma aba na metade do limite de arquivamento é descarregada da memória mas mantém o lugar na barra; clicar nela recarrega a página. Economiza RAM antes do arquivamento."
@@ -363,10 +363,10 @@
     "message": "Sem título"
   },
   "groupExpand": {
-    "message": "Expandir grupo"
+    "message": "Expandir"
   },
   "groupCollapse": {
-    "message": "Recolher grupo"
+    "message": "Recolher"
   },
   "optSort": {
     "message": "Ordenar ao organizar"
@@ -393,9 +393,42 @@
     "message": "Monocromático (estilo Chrome)"
   },
   "smartManagedNote": {
-    "message": "O modelo é baixado e gerenciado pelo próprio Chrome. Para removê-lo depois: chrome://on-device-internals."
+    "message": "O modelo é baixado e gerenciado pelo próprio Chrome. Para removê-lo depois, abra"
   },
   "byokNoKey": {
     "message": "Ainda sem chave de API - o agrupamento inteligente fica inativo até você inseri-la."
+  },
+  "groupUngroup": {
+    "message": "Desagrupar"
+  },
+  "ungroupAll": {
+    "message": "Desagrupar tudo"
+  },
+  "ungroupAllConfirm": {
+    "message": "Certeza?"
+  },
+  "groupDragTitle": {
+    "message": "Arraste para reordenar"
+  },
+  "optGroupsOnTop": {
+    "message": "Manter grupos à frente"
+  },
+  "optGroupsOnTopHint": {
+    "message": "Ao organizar e quando um grupo nasce, os grupos ficam logo após as abas fixadas; as soltas vêm depois."
+  },
+  "optSmartOther": {
+    "message": "Reunir o restante num grupo \"Outros\""
+  },
+  "optSmartOtherHint": {
+    "message": "Abas sem tema vão para um grupo coletor, sempre no fim."
+  },
+  "smartOtherName": {
+    "message": "Outros"
+  },
+  "optSmartRegroup": {
+    "message": "O organizar inteligente pode reconstruir grupos automáticos"
+  },
+  "optSmartRegroupHint": {
+    "message": "Grupos por site criados pela extensão são reagrupados por tema. Grupos feitos à mão nunca são tocados."
   }
 }

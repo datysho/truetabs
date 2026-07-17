@@ -80,7 +80,23 @@ let dragGid = null;
 function groupRow(group) {
   const row = document.createElement("div");
   row.className = "group-row";
-  row.draggable = true;
+
+  // Drag by the grip only: a row click means "jump to the group".
+  const grip = document.createElement("span");
+  grip.className = "grip";
+  grip.draggable = true;
+  grip.title = t("groupDragTitle");
+  grip.addEventListener("click", (event) => event.stopPropagation());
+  grip.addEventListener("dragstart", (event) => {
+    event.stopPropagation();
+    dragGid = group.id;
+    row.classList.add("dragging");
+  });
+  grip.addEventListener("dragend", () => {
+    dragGid = null;
+    row.classList.remove("dragging");
+  });
+  row.appendChild(grip);
 
   const dot = document.createElement("span");
   dot.className = `dot gc-${group.color}`;
@@ -96,30 +112,32 @@ function groupRow(group) {
   count.textContent = ttI18n.tabsCount(group.tabCount);
   row.appendChild(count);
 
+  // Words, not glyphs: Fold/Unfold + Ungroup, shown on hover in the count's place.
+  const actions = document.createElement("span");
+  actions.className = "row-actions";
   const fold = document.createElement("button");
-  fold.className = `fold${group.collapsed ? " folded" : ""}`;
-  fold.title = t(group.collapsed ? "groupExpand" : "groupCollapse");
-  fold.innerHTML =
-    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" ' +
-    'stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+  fold.textContent = t(group.collapsed ? "groupExpand" : "groupCollapse");
   fold.addEventListener("click", (event) => {
     event.stopPropagation();
     send({ type: "ui:groupCollapse", gid: group.id, collapsed: !group.collapsed }).then(refresh);
   });
-  row.appendChild(fold);
+  actions.appendChild(fold);
+  const ungroup = document.createElement("button");
+  ungroup.textContent = t("groupUngroup");
+  ungroup.addEventListener("click", (event) => {
+    event.stopPropagation();
+    send({ type: "ui:groupUngroup", gid: group.id }).then((r) => {
+      setStatus(t("statusUngrouped", [r.ungrouped]));
+      refresh();
+    });
+  });
+  actions.appendChild(ungroup);
+  row.appendChild(actions);
 
   row.addEventListener("click", () => {
     send({ type: "ui:groupFocus", gid: group.id }); // sync dispatch; popup may die
   });
 
-  row.addEventListener("dragstart", () => {
-    dragGid = group.id;
-    row.classList.add("dragging");
-  });
-  row.addEventListener("dragend", () => {
-    dragGid = null;
-    row.classList.remove("dragging");
-  });
   row.addEventListener("dragover", (event) => {
     if (dragGid == null || dragGid === group.id) return;
     event.preventDefault();
@@ -268,6 +286,26 @@ async function init() {
   });
   $("expandAllBtn").addEventListener("click", () => {
     send({ type: "ui:groupsCollapseAll", collapsed: false }).then(refresh);
+  });
+  // Ungroup all dissolves every group in every window - ask twice (TruePin's
+  // "sure?" pill pattern): first click arms, second within 3s fires.
+  $("ungroupAllBtn").addEventListener("click", () => {
+    const btn = $("ungroupAllBtn");
+    if (!btn.classList.contains("confirm")) {
+      btn.classList.add("confirm");
+      btn.textContent = t("ungroupAllConfirm");
+      setTimeout(() => {
+        btn.classList.remove("confirm");
+        btn.textContent = t("ungroupAll");
+      }, 3000);
+      return;
+    }
+    btn.classList.remove("confirm");
+    btn.textContent = t("ungroupAll");
+    send({ type: "ui:groupsUngroupAll" }).then((r) => {
+      setStatus(t("statusUngrouped", [r.ungrouped]));
+      refresh();
+    });
   });
   wireToggle("dedupToggle", "dedupAuto", (checked) => checked);
   wireToggle("groupToggle", "groupAuto", (checked) => checked);

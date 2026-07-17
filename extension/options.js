@@ -14,7 +14,10 @@ const SWITCHES = [
   "archiveForeignGroups",
   "discardStale",
   "groupAuto",
+  "groupsOnTop",
   "smartAutoAssign",
+  "smartOther",
+  "smartRegroupOurs",
 ];
 const SELECTS = [
   "dedupScope",
@@ -70,6 +73,8 @@ function renderSmartRows() {
   $("builtinRow").hidden = engine !== "builtin";
   $("byokRow").hidden = engine !== "byok";
   $("smartAssignRow").hidden = engine === "off";
+  $("smartOtherRow").hidden = engine === "off";
+  $("smartRegroupRow").hidden = engine === "off";
   const provider = $("byokProvider").value;
   const custom = provider === "custom";
   $("byokBaseUrlLabel").hidden = !custom;
@@ -99,15 +104,7 @@ async function refreshBuiltinStatus() {
 }
 
 function refreshByokWarning() {
-  const engine = $("smartEngine").value;
-  const el = $("byokStatus");
-  if (engine === "byok" && !byokKeyPresent) {
-    el.textContent = t("byokNoKey");
-    el.className = "byok-note err";
-  } else if (el.textContent === t("byokNoKey")) {
-    el.textContent = "";
-    el.className = "byok-note";
-  }
+  $("byokWarn").hidden = !($("smartEngine").value === "byok" && !byokKeyPresent);
 }
 
 // The one runtime permission ask: the origin of the chosen provider (or the
@@ -250,12 +247,18 @@ async function init() {
     }
   });
 
+  // chrome:// pages can't be plain hrefs, but extensions may open them.
+  $("onDeviceLink").addEventListener("click", (event) => {
+    event.preventDefault();
+    chrome.tabs.create({ url: "chrome://on-device-internals" });
+  });
+
   $("diagBtn").addEventListener("click", async () => {
     const dump = await send({ type: "ui:diagnostics" });
     await navigator.clipboard.writeText(JSON.stringify(dump, null, 2));
-    $("diagNote").style.visibility = "visible";
+    $("diagNote").textContent = t("optDiagCopied");
     setTimeout(() => {
-      $("diagNote").style.visibility = "hidden";
+      $("diagNote").textContent = "";
     }, 4000);
   });
 }

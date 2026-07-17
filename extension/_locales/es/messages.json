@@ -150,10 +150,10 @@
     "message": "Archivar también dentro de tus propios grupos"
   },
   "optArchiveForeignHint": {
-    "message": "Desactivado: los grupos hechos a mano son una elección deliberada y se omiten."
+    "message": "Si está desactivado, los grupos hechos a mano se consideran deliberados y se omiten."
   },
   "optDiscard": {
-    "message": "Liberar memoria antes (descargar)"
+    "message": "Liberar memoria antes"
   },
   "optDiscardHint": {
     "message": "Una pestaña a mitad del umbral de archivo se descarga de la memoria pero conserva su sitio en la barra; al hacer clic se recarga la página. Ahorra RAM antes del archivado."
@@ -363,10 +363,10 @@
     "message": "Sin título"
   },
   "groupExpand": {
-    "message": "Desplegar grupo"
+    "message": "Desplegar"
   },
   "groupCollapse": {
-    "message": "Plegar grupo"
+    "message": "Plegar"
   },
   "optSort": {
     "message": "Ordenar al organizar"
@@ -393,9 +393,42 @@
     "message": "Monocromo (estilo Chrome)"
   },
   "smartManagedNote": {
-    "message": "El modelo lo descarga y gestiona el propio Chrome. Para quitarlo luego: chrome://on-device-internals."
+    "message": "El modelo lo descarga y gestiona el propio Chrome. Para quitarlo luego, abre"
   },
   "byokNoKey": {
     "message": "Aún no hay clave API: la agrupación inteligente está inactiva hasta que la introduzcas."
+  },
+  "groupUngroup": {
+    "message": "Desagrupar"
+  },
+  "ungroupAll": {
+    "message": "Desagrupar todo"
+  },
+  "ungroupAllConfirm": {
+    "message": "¿Seguro?"
+  },
+  "groupDragTitle": {
+    "message": "Arrastra para reordenar"
+  },
+  "optGroupsOnTop": {
+    "message": "Mantener grupos al frente"
+  },
+  "optGroupsOnTopHint": {
+    "message": "Al organizar y al nacer un grupo, los grupos se colocan justo tras las pestañas fijadas; las sueltas van después."
+  },
+  "optSmartOther": {
+    "message": "Reunir lo restante en un grupo «Otros»"
+  },
+  "optSmartOtherHint": {
+    "message": "Las pestañas sin tema van a un grupo cajón de sastre, siempre al final."
+  },
+  "smartOtherName": {
+    "message": "Otros"
+  },
+  "optSmartRegroup": {
+    "message": "El orden inteligente puede rehacer los grupos automáticos"
+  },
+  "optSmartRegroupHint": {
+    "message": "Los grupos por sitio creados por la extensión se reagrupan por tema. Los grupos hechos a mano nunca se tocan."
   }
 }

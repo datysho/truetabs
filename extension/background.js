@@ -49,9 +49,12 @@ const DEFAULTS = {
   groupAuto: true, // group new tabs by site on their first commit
   groupCollapseAfter: "10m", // "off" | "5m" | "10m" | "30m"
   sortMode: "off", // "off" | "title" | "recent" | "opened" - applied on Organize now
+  groupsOnTop: false, // keep groups at the front of the strip (applied on Organize + new groups)
   // pillar 3b - smart (AI) grouping
   smartEngine: "off", // "off" | "builtin" | "byok"
   smartAutoAssign: false, // classify new loose tabs into existing smart groups
+  smartOther: true, // collect unassigned tabs into an "Other" group, always last
+  smartRegroupOurs: true, // Smart Organize may rebuild OUR auto groups (hand-made never)
   byokProvider: "openai", // "openai" | "gemini" | "grok" | "custom"
   byokModel: "",
   byokBaseUrl: "", // custom OpenAI-compatible endpoint (Ollama, LM Studio)
@@ -975,7 +978,7 @@ async function readoptGroups() {
   await putOurGroups(ourGroups);
 }
 
-async function createOurGroup(tabIds, windowId, { domain, title, color, smart = false }) {
+async function createOurGroup(tabIds, windowId, { domain, title, color, smart = false, other = false }) {
   const gid = await quiet(chrome.tabs.group, {
     tabIds,
     createProperties: { windowId },
@@ -993,6 +996,7 @@ async function createOurGroup(tabIds, windowId, { domain, title, color, smart = 
     lastTouchedAt: now(),
     collapsedByUs: false,
     smart,
+    other,
   };
   await putOurGroups(ourGroups);
   if (!smart) await upsertGroupSig({ domain, title, color, smart: false });
@@ -1002,6 +1006,13 @@ async function createOurGroup(tabIds, windowId, { domain, title, color, smart = 
       st.groupedByUs = gid;
       await putTabState(id, st);
     }
+  }
+  const settings = await getSettings();
+  if (other) {
+    // "Other" is the catch-all: it always sinks to the very end of the window.
+    await quiet(chrome.tabGroups.move, gid, { windowId, index: -1 });
+  } else if (settings.groupsOnTop) {
+    await moveGroupsToFront(windowId);
   }
   return gid;
 }
@@ -1115,6 +1126,8 @@ async function organizeNow(scope, currentWindowId) {
       }
     }
     await applySort(win.id);
+    const settings = await getSettings();
+    if (settings.groupsOnTop) await moveGroupsToFront(win.id);
   }
   await rememberOrganize(createdGids);
   return { grouped, groupsCreated };
@@ -1210,6 +1223,61 @@ async function collapseScan() {
     dirty = true;
   }
   if (dirty) await putOurGroups(ourGroups);
+}
+
+// Ungroup one group / all groups: explicit user commands from the popup.
+// Members get self-op markers so the dissolve never reads as user pull-outs.
+async function ungroupOne(gid, ourGroups) {
+  const members = await chrome.tabs.query({ groupId: gid });
+  if (members.length) {
+    for (const m of members) await markSelfOp("tabgroup", m.id);
+    await quiet(chrome.tabs.ungroup, members.map((m) => m.id));
+  }
+  if (ourGroups[gid]) {
+    if (!ourGroups[gid].smart) await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color);
+    delete ourGroups[gid];
+  }
+  return members.length;
+}
+
+async function ungroupAll() {
+  const ourGroups = await getOurGroups();
+  let ungrouped = 0;
+  let groupsGone = 0;
+  for (const group of (await quiet(chrome.tabGroups.query, {})) || []) {
+    const win = await quiet(chrome.windows.get, group.windowId);
+    if (!win || win.type !== "normal" || win.incognito) continue;
+    ungrouped += await ungroupOne(group.id, ourGroups);
+    groupsGone++;
+  }
+  await putOurGroups(ourGroups);
+  return { ungrouped, groupsGone };
+}
+
+// Keep groups at the front of the strip (after pins), preserving their
+// relative order; an "Other" smart group always sinks to the back of the
+// group block. Applied on Organize and when a new group is minted.
+async function moveGroupsToFront(windowId) {
+  const ourGroups = await getOurGroups();
+  const tabs = await chrome.tabs.query({ windowId });
+  const pinnedCount = tabs.filter((t) => t.pinned).length;
+  const groups = ((await quiet(chrome.tabGroups.query, { windowId })) || [])
+    .map((g) => {
+      const members = tabs.filter((t) => t.groupId === g.id);
+      return {
+        id: g.id,
+        size: members.length,
+        first: members.length ? Math.min(...members.map((t) => t.index)) : Infinity,
+        other: !!(ourGroups[g.id] && ourGroups[g.id].other),
+      };
+    })
+    .filter((g) => g.size > 0)
+    .sort((a, b) => Number(a.other) - Number(b.other) || a.first - b.first);
+  let cursor = pinnedCount;
+  for (const g of groups) {
+    await quiet(chrome.tabGroups.move, g.id, { windowId, index: cursor });
+    cursor += g.size;
+  }
 }
 
 // Restore an archived tab into its group context: join or recreate OUR group
@@ -1455,13 +1523,24 @@ async function smartOrganize(scope, currentWindowId) {
   let groupsCreated = 0;
   let fellBack = false;
   const smartCreatedGids = [];
+  const settings2 = await getSettings();
   for (const win of targets) {
-    const loose = (await chrome.tabs.query({ windowId: win.id, pinned: false })).filter(
-      (t) => (t.groupId === -1 || t.groupId == null) && dupeKey(t.url),
-    );
-    if (loose.length < 2) continue;
-    for (let offset = 0; offset < loose.length; offset += SMART_BATCH) {
-      const batch = loose.slice(offset, offset + SMART_BATCH);
+    const ourGroups = await getOurGroups();
+    // The pool: loose tabs, plus members of OUR auto groups when the user
+    // lets Smart Organize rebuild them (hand-made groups are never touched -
+    // Chrome re-seats pooled tabs into the new topic groups automatically).
+    const all = await chrome.tabs.query({ windowId: win.id, pinned: false });
+    const pool = all.filter((t) => {
+      if (!dupeKey(t.url)) return false;
+      if (t.groupId === -1 || t.groupId == null) return true;
+      return settings2.smartRegroupOurs && !!ourGroups[t.groupId];
+    });
+    if (pool.length < 2) continue;
+    const grouping = []; // {name, ids} accumulated across batches
+    const unassigned = [];
+    let batchFailed = false;
+    for (let offset = 0; offset < pool.length; offset += SMART_BATCH) {
+      const batch = pool.slice(offset, offset + SMART_BATCH);
       const items = batch.map((t) => ({
         domain: registrableDomain(t.url),
         title: (t.title || t.url).slice(0, 120),
@@ -1473,30 +1552,77 @@ async function smartOrganize(scope, currentWindowId) {
         traceDiag(`smart call failed: ${err && err.message}`);
       }
       if (!groups) {
-        fellBack = true;
+        batchFailed = true;
         continue;
       }
+      const assigned = new Set();
       for (const g of groups) {
-        const tabIds = g.tabIndices.map((i) => batch[i].id);
-        const live = [];
-        for (const id of tabIds) {
-          const t = await quiet(chrome.tabs.get, id);
-          if (t && !t.pinned && (t.groupId === -1 || t.groupId == null)) live.push(id);
-        }
-        if (live.length < 2) continue;
-        const gid = await createOurGroup(live, win.id, {
-          title: g.name,
-          color: colorFor(g.name),
-          smart: true,
-        });
-        if (gid != null) {
+        grouping.push({ name: g.name, ids: g.tabIndices.map((i) => batch[i].id) });
+        for (const i of g.tabIndices) assigned.add(i);
+      }
+      batch.forEach((t, i) => {
+        if (!assigned.has(i)) unassigned.push(t.id);
+      });
+    }
+    if (batchFailed && !grouping.length) {
+      fellBack = true;
+      continue;
+    }
+    for (const g of grouping) {
+      const live = [];
+      for (const id of g.ids) {
+        const t = await quiet(chrome.tabs.get, id);
+        if (t && !t.pinned) live.push(id);
+      }
+      if (live.length < 2) continue;
+      const gid = await createOurGroup(live, win.id, {
+        title: g.name,
+        color: colorFor(g.name),
+        smart: true,
+      });
+      if (gid != null) {
+        grouped += live.length;
+        groupsCreated++;
+        smartCreatedGids.push(gid);
+      }
+    }
+    // The catch-all: whatever fit no topic lands in a localized "Other",
+    // always at the very end of the window.
+    if (settings2.smartOther && unassigned.length >= 2) {
+      await ensureI18n();
+      const live = [];
+      for (const id of unassigned) {
+        const t = await quiet(chrome.tabs.get, id);
+        if (t && !t.pinned && (t.groupId === -1 || t.groupId == null)) live.push(id);
+      }
+      if (live.length >= 2) {
+        const existingOther = Object.entries(await getOurGroups()).find(
+          ([, g]) => g.other && g.windowId === win.id,
+        );
+        if (existingOther) {
+          for (const id of live) await addToOurGroup(id, Number(existingOther[0]));
+          await quiet(chrome.tabGroups.move, Number(existingOther[0]), {
+            windowId: win.id,
+            index: -1,
+          });
           grouped += live.length;
-          groupsCreated++;
-          smartCreatedGids.push(gid);
+        } else {
+          const gid = await createOurGroup(live, win.id, {
+            title: ttI18n.t("smartOtherName"),
+            color: "grey",
+            smart: true,
+            other: true,
+          });
+          if (gid != null) {
+            grouped += live.length;
+            groupsCreated++;
+            smartCreatedGids.push(gid);
+          }
         }
       }
     }
     await applySort(win.id);
+    if (settings2.groupsOnTop) await moveGroupsToFront(win.id);
   }
   if (fellBack) {
     const fallback = await organizeNow(scope, currentWindowId);
@@ -1706,6 +1832,14 @@ async function handleUi(request) {
       await quiet(chrome.windows.update, target.windowId, { focused: true });
       return { ok: true };
     }
+    case "ui:groupUngroup": {
+      const ourGroups = await getOurGroups();
+      const ungrouped = await ungroupOne(request.gid, ourGroups);
+      await putOurGroups(ourGroups);
+      return { ungrouped };
+    }
+    case "ui:groupsUngroupAll":
+      return ungroupAll();
     case "ui:groupMove": {
       // Popup drag-reorder within a window: index is the target position in
       // the tab strip. A user command, not automation.
