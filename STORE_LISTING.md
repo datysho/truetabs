@@ -23,9 +23,11 @@ no vertical sidebar, no new-tab takeover, Chrome stays Chrome.
 
 WHAT IT DOES
 
-- Duplicate prevention: opening a URL you already have focuses the existing
-  tab and closes the new one. One click sweeps the duplicates you already
-  accumulated (they are archived, so it's always reversible).
+- Duplicate prevention: opening a URL you already have switches you to the
+  existing tab instantly - before the duplicate even loads. Typing an open
+  URL into an existing tab works the other way round: your tab wins and the
+  stale copy merges into it (archived, so it's always reversible). One click
+  sweeps the duplicates you already accumulated.
 - Auto-archive: tabs untouched for 24 hours (configurable 6h-7d, or off) are
   saved to a local archive and closed. Searchable archive page, one-click
   restore, a notification with Undo after every batch.

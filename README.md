@@ -32,7 +32,7 @@ sidebar, no new-tab page takeover - Chrome stays Chrome, the mess just stops.
 
 | | Feature | How |
 |---|---|---|
-| 1 | **Duplicate prevention** | Opening a URL you already have focuses the existing tab and closes the new one. Manual "Sweep duplicates" for the pile you already have (victims land in the archive - free undo). |
+| 1 | **Duplicate prevention** | Opening a URL you already have focuses the existing tab instantly - a fresh duplicate is pre-empted before the page even loads. Re-typing an open URL into an EXISTING tab works the other way round: your tab wins, the stale copy merges into it (archived first) and the tab is re-filed by your rules. Manual "Sweep duplicates" for the pile you already have. |
 | 2 | **Auto-archive** | A tab untouched for 24h (configurable 6h-7d, or off) is saved to a local archive and closed. Searchable archive page, restore in one click, notification with Undo after every batch. |
 | 3 | **Auto-group** | One selector: new tabs group by *site* (stable colors, clean names) or by *topic* via AI. Idle groups collapse. One-click "Organize now" for everything else. |
 | 3b | **Smart groups (AI)** | Cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / any OpenAI-compatible endpoint like Ollama). Groups appear batch by batch with live progress. |
@@ -73,8 +73,9 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 - URL identity: normalized (host case, default ports, trailing slash, sorted
   query, tracking params like `utm_*`/`fbclid` stripped, `#/` SPA routes
   kept) - `?v=` on YouTube stays significant.
-- Dedup only touches a tab's FIRST committed page: navigating an existing tab
-  onto a duplicate never closes it (its back-history survives).
+- A navigated tab is never the dedup victim: its back-history survives. On an
+  address-bar/bookmark navigation the roles flip - the OTHER copy is merged
+  into the tab you are in (archived first).
 - Groups this extension creates are tracked by id in session storage and
   re-adopted after a restart only on a 3-of-3 signature (title + color +
   member-domain majority). Rename or recolor a group and it is yours forever.
@@ -86,8 +87,12 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 
 ## Honest limits
 
-- Dedup acts on fresh opens (first commit). A tab you navigate onto an
-  already-open page in-place is left alone by design.
+- Fresh-tab dedup acts before the page loads, ahead of navigation
+  classification; the one theoretical miss is a target=_blank form POST to an
+  URL you already have open - its origin page stays open, and two strikes
+  retire the key anyway.
+- In-place merge triggers only on address-bar and bookmark navigations; link
+  browsing never merges or reshuffles anything.
 - The tabs API cannot see camera/microphone use - meeting sites are protected
   by an editable allowlist (meet/zoom/teams seeded) instead.
 - macOS may hide notification buttons; the popup's "Undo last batch" is the
@@ -112,7 +117,7 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 ```bash
 cd test
 npm install
-npm test          # 28 e2e contracts against a real Chrome for Testing
+npm test          # 52 e2e contracts against a real Chrome for Testing
 HEADFUL=1 npm test
 node shots.mjs    # regenerate store screenshots
 ./package.sh      # build the store zip (strips the dev key)

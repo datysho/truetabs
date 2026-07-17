@@ -14,6 +14,10 @@ I have everything I need: TruePin's full architecture (background.js 2083 lines,
 > routed before all automation), smart v3 (rule pre-pass, batches of 15 applied incrementally, streamed
 > per-tab progress on Nano, refinement pass for leftovers), close-vs-pullout fix (a closed grouped tab
 > never strikes), popup live drag-reorder via `ui:groupReorder`.
+> v1.5 pre-commit dedup (`onBeforeNavigate` fast path for fresh tabs, strike-aware, prerender-guarded),
+> attention-wins merge on address/bookmark re-navigation of an existing tab (`mergeIntoNavigated`:
+> archive-first, victim's OUR-group inherited) + `rehomeNavigated` (rule > victim group > domain group >
+> release from a mismatched site group), popup hero relayout (labels above centered numbers).
 
 Sibling of TruePin (reference implementation: `/Users/datysho/Projects/truepin`). Recommended repo root: `/Users/datysho/Projects/truetabs`. Plain JS, no build step, MV3 classic service worker.
 

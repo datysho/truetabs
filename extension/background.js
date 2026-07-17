@@ -772,6 +772,87 @@ async function dedupOnCommit(tabId, url, kind, st) {
   traceDiag(`dedup ${kind} ${key} -> kept ${survivor.id}`);
 }
 
+// Fast pre-empt: a FRESH tab heading to an already-open page is resolved at
+// onBeforeNavigate - before network and paint - so the switch feels instant
+// instead of "load, pause, merge". Classification is not available this
+// early, but a fresh tab carries no history to lose; the one theoretical
+// loss (a target=_blank form POST duplicating an open URL) keeps its origin
+// page open, and the strike ledger covers any disagreement. Non-fresh tabs
+// wait for the classified commit path.
+async function dedupBeforeNavigate(details) {
+  const st = await getTabState(details.tabId);
+  if (st && st.committedCount > 0) return; // in-place navigation: commit path
+  const key = dupeKey(details.url);
+  if (!key) return;
+  // Re-open detection normally lives on the commit; a pre-empted tab never
+  // commits, so the strike check must happen here as well.
+  const { dedupRecent = {} } = await chrome.storage.session.get("dedupRecent");
+  const recent = dedupRecent[key];
+  if (recent && now() - recent.closedAt < STRIKE_WINDOW_MS) {
+    delete dedupRecent[key];
+    await chrome.storage.session.set({ dedupRecent });
+    await strike("dedup", key);
+  }
+  await dedupOnCommit(details.tabId, details.url, "pre-commit", st || newTabState(null));
+}
+
+// The user re-navigated an EXISTING tab (address bar, bookmark) to a page
+// already open elsewhere. Attention wins: this tab is where the user is -
+// the stale copy merges INTO it. Victims are archived first (one click away
+// in the archive) and never pinned, audible, active, or inside a hand-made
+// group. Returns the victim's OUR-group id for inheritance, if any.
+async function mergeIntoNavigated(tabId, url, st) {
+  const settings = await getSettings();
+  if (!settings.dedupAuto || !(await isSettled()) || (await isPaused())) return null;
+  const key = dupeKey(url);
+  if (!key || (await isStruck("dedup", key))) return null;
+  const tab = await quiet(chrome.tabs.get, tabId);
+  if (!tab || tab.incognito || tab.pinned) return null;
+  const win = await quiet(chrome.windows.get, tab.windowId);
+  if (!win || win.type !== "normal") return null;
+  const all = await normalTabs(settings.dedupScope === "window" ? tab.windowId : null);
+  const ourGroups = await getOurGroups();
+  const stale = all.filter(
+    (t) =>
+      t.id !== tabId &&
+      dupeKey(t.url) === key &&
+      !t.pinned &&
+      !t.active &&
+      !t.audible &&
+      (t.groupId === -1 || t.groupId == null || ourGroups[t.groupId]),
+  );
+  if (!stale.length) return null;
+  let inheritGid = null;
+  const batchId = newBatchId();
+  const cache = new Map();
+  const entries = [];
+  for (const t of stale) {
+    entries.push(makeEntry(t, await groupInfoOf(t, cache), "merge", batchId));
+    if (
+      inheritGid == null &&
+      t.groupId !== -1 &&
+      t.groupId != null &&
+      ourGroups[t.groupId] &&
+      t.windowId === tab.windowId
+    ) {
+      inheritGid = t.groupId;
+    }
+  }
+  await archiveRMW((archive) => {
+    archive.entries = [...entries, ...archive.entries];
+    return archive;
+  });
+  const closed = await closeTabsGuarded(stale.map((t) => t.id), "merge");
+  if (closed) {
+    const { dedupRecent = {} } = await chrome.storage.session.get("dedupRecent");
+    dedupRecent[key] = { closedAt: now(), survivorId: tabId };
+    await chrome.storage.session.set({ dedupRecent });
+    await bumpCounter("dedupedToday", closed);
+    traceDiag(`merge into navigated ${key}: closed ${closed}`);
+  }
+  return inheritGid;
+}
+
 // Count duplicates for the popup: tabs beyond the survivor in each bucket,
 // plus surplus EMPTY new-tab pages (a pile of "New Tab" is duplicates too -
 // they carry no content, so all but the active ones count).
@@ -1211,6 +1292,52 @@ async function customAssign(tabId, st) {
   if (!rule) return false;
   if (await isStruck("group", `custom:${rule.id}`)) return false;
   return (await ensureCustomGroup(rule, tab.windowId, [tab.id])) != null;
+}
+
+// After an address-bar/bookmark navigation the tab may sit in the wrong
+// place: re-file it with the same standing orders that route new tabs.
+// Priority: the user's rule, then the merged victim's group (the survivor
+// literally takes its place), then an existing OUR group of the new domain;
+// with no destination, a mismatched OUR site group releases the tab so the
+// group's name stays honest. Hand-made groups are never touched - neither
+// joined nor pulled from - and smart topic groups keep their members (a
+// navigation does not necessarily leave the topic).
+async function rehomeNavigated(tabId, st, inheritGid) {
+  if (!(await isSettled()) || (await isPaused())) return;
+  if (st.ungroupedByUser) return;
+  const tab = await quiet(chrome.tabs.get, tabId);
+  if (!tab || tab.pinned || tab.incognito) return;
+  const win = await quiet(chrome.windows.get, tab.windowId);
+  if (!win || win.type !== "normal") return;
+  const ourGroups = await getOurGroups();
+  const grouped = tab.groupId !== -1 && tab.groupId != null;
+  const inOur = grouped ? ourGroups[tab.groupId] : null;
+  if (grouped && !inOur) return; // a hand-made group is not ours to rearrange
+  const domain = st.domain;
+
+  const customs = await getCustomGroups();
+  const rule = customRuleFor(customs, tab.url);
+  if (rule && !(await isStruck("group", `custom:${rule.id}`))) {
+    if (inOur && inOur.customId === rule.id) return; // already home
+    await ensureCustomGroup(rule, tab.windowId, [tab.id]);
+    return;
+  }
+  if (
+    inheritGid != null &&
+    inheritGid !== tab.groupId &&
+    (await quiet(chrome.tabGroups.get, inheritGid))
+  ) {
+    if (await addToOurGroup(tab.id, inheritGid)) return;
+  }
+  if (domain && !(await isStruck("group", domain))) {
+    const existing = findOurGroup(ourGroups, tab.windowId, domain);
+    if (existing === tab.groupId) return; // already right
+    if (existing != null && (await addToOurGroup(tab.id, existing))) return;
+  }
+  if (inOur && !inOur.smart && !inOur.customId && inOur.domain && inOur.domain !== domain) {
+    await markSelfOp("tabgroup", tab.id);
+    await quiet(chrome.tabs.ungroup, [tab.id]);
+  }
 }
 
 // Rule pre-pass over a pool of tabs (Organize / Smart Organize): domain-rule
@@ -2663,6 +2790,18 @@ async function handleCommit(details) {
   const kind = classifyCommit(details);
   if (kind) await dedupOnCommit(details.tabId, details.url, kind, st);
 
+  // In-place re-navigation via the address bar or a bookmark: attention wins.
+  // The stale copy elsewhere merges INTO this tab, and the tab is re-filed
+  // by the same standing orders that route new tabs. Link browsing inside a
+  // group is a reading flow and never reshuffles anything.
+  if ((kind === "address" || kind === "bookmark") && st.committedCount > FRESH_COMMIT_LIMIT) {
+    const stNow = await getTabState(details.tabId);
+    if (stNow) {
+      const inheritGid = await mergeIntoNavigated(details.tabId, details.url, stNow);
+      await rehomeNavigated(details.tabId, stNow, inheritGid);
+    }
+  }
+
   // The tab may be gone (dedup closed it); grouping re-checks liveness.
   // Routing order: the user's rules first (a standing order, active in every
   // mode), then the autoGroup mode - by site, or by topic with a site
@@ -2684,6 +2823,13 @@ async function handleCommit(details) {
     }
   }
 }
+
+chrome.webNavigation.onBeforeNavigate.addListener((details) => {
+  if (details.frameId !== 0) return;
+  // Prerender/speculative navigations are not user acts - never dedup them.
+  if (details.documentLifecycle && details.documentLifecycle !== "active") return;
+  enqueue(() => dedupBeforeNavigate(details), "before-nav");
+});
 
 chrome.webNavigation.onCommitted.addListener((details) => {
   enqueue(() => handleCommit(details), "commit");

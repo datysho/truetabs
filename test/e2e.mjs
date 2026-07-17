@@ -266,11 +266,17 @@ const archiveEntries = () =>
 function startServer() {
   const server = http.createServer((req, res) => {
     const name = req.url.replace(/\W/g, "") || "index";
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
-    res.end(
-      `<!doctype html><html><head><title>page-${name}</title></head>` +
-        `<body style="height:100vh;margin:0">page ${name}</body></html>`,
-    );
+    const respond = () => {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+      res.end(
+        `<!doctype html><html><head><title>page-${name}</title></head>` +
+          `<body style="height:100vh;margin:0">page ${name}</body></html>`,
+      );
+    };
+    // /slow* pages take 1.5s to respond: lets tests prove that pre-commit
+    // dedup acts BEFORE the page load, not after it.
+    if (req.url.startsWith("/slow")) setTimeout(respond, 1500);
+    else respond();
   });
   return new Promise((resolve) => {
     server.listen(0, "127.0.0.1", () => resolve(server));
@@ -1551,6 +1557,113 @@ async function main() {
     await swEval(() => globalThis.__ttSetMockAi(null));
     await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
     await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("pre-commit dedup: a fresh duplicate dies before the page even loads", async () => {
+    await resetWorld();
+    // the existing copy loads once (1.5s page), then sits open
+    const keeper = await openViaCommit(`${baseUrl}/slowKeeper`, { active: false });
+    await waitFor("keeper committed", async () => {
+      const st = await tabState(keeper.id);
+      return st && st.committedCount >= 1;
+    });
+    // a fresh tab heads to the same URL: it must be pre-empted at
+    // onBeforeNavigate - far sooner than the 1.5s the page needs to commit
+    const t0 = Date.now();
+    const dupe = await createTab({ url: "about:blank", active: true });
+    await swEval(
+      (id, u) =>
+        new Promise((r) =>
+          chrome.tabs.update(id, { url: u }, () => {
+            void chrome.runtime.lastError;
+            r();
+          }),
+        ),
+      dupe.id,
+      `${baseUrl}/slowKeeper`,
+    );
+    await waitFor("duplicate pre-empted", async () => (await getTab(dupe.id)) === null);
+    const elapsed = Date.now() - t0;
+    assert(elapsed < 1200, `closed before the load could finish (${elapsed}ms < 1200ms)`);
+    const keeperNow = await getTab(keeper.id);
+    assert(keeperNow.active, "focus jumped to the existing copy");
+  });
+
+  await test("address-bar re-navigation: the stale copy merges INTO the user's tab", async () => {
+    await resetWorld();
+    const stale = await openViaCommit(`${baseUrl}/mergeTarget`, { active: false });
+    // the user's tab lives in a site group and has history
+    const mine = await openViaCommit(`${altUrl}/mineA`, { active: false });
+    const mine2 = await openViaCommit(`${altUrl}/mineB`, { active: false });
+    await waitFor("grouped", async () => (await getTab(mine.id)).groupId !== -1);
+    await swEval((id) => chrome.tabs.update(id, { active: true }), mine.id);
+    // navigate it for real (commits as "link" - harmless), then replay the
+    // commit as TYPED: the API cannot produce a typed transition itself
+    await swEval(
+      (id, u) => new Promise((r) => chrome.tabs.update(id, { url: u }, () => r())),
+      mine.id,
+      `${baseUrl}/mergeTarget`,
+    );
+    await waitFor("navigated", async () => (await getTab(mine.id)).url.includes("mergeTarget"));
+    await swEval(
+      (id, u) => globalThis.__ttSimulateCommit({ tabId: id, url: u, transitionType: "typed" }),
+      mine.id,
+      `${baseUrl}/mergeTarget`,
+    );
+    await waitFor("stale copy merged away", async () => (await getTab(stale.id)) === null);
+    assert((await getTab(mine.id)) !== null, "the user's tab survives");
+    assert((await getTab(mine.id)).active, "and keeps the focus");
+    const entries = await archiveEntries();
+    assert(
+      entries.some((e) => e.url.includes("mergeTarget") && e.reason === "merge"),
+      "victim archived before closing",
+    );
+    // and the survivor left the now-wrong site group (localhost group,
+    // 127.0.0.1 page) - the group's name stays honest
+    await waitFor("released from the mismatched group", async () => (await getTab(mine.id)).groupId === -1);
+  });
+
+  await test("re-home on typed navigation: the user's rule wins, else the domain's group", async () => {
+    await resetWorld();
+    await ui({
+      type: "ui:customGroups:set",
+      list: [{ id: "rv", name: "Video", domains: ["localhost"], hint: "", on: true }],
+    });
+    // an old loose tab types a rule-matched URL -> re-filed into "Video"
+    const t = await openViaCommit(`${baseUrl}/plainStart`, { active: false });
+    await swEval(
+      (id, u) => new Promise((r) => chrome.tabs.update(id, { url: u }, () => r())),
+      t.id,
+      `${altUrl}/videoLand`,
+    );
+    await waitFor("navigated", async () => (await getTab(t.id)).url.includes("videoLand"));
+    await swEval(
+      (id, u) => globalThis.__ttSimulateCommit({ tabId: id, url: u, transitionType: "typed" }),
+      t.id,
+      `${altUrl}/videoLand`,
+    );
+    await waitFor("re-filed by the rule", async () => (await getTab(t.id)).groupId !== -1);
+    const ruleGroup = await swEval((g) => chrome.tabGroups.get(g), (await getTab(t.id)).groupId);
+    assert(ruleGroup.title === "Video", `rule group (got "${ruleGroup.title}")`);
+    await ui({ type: "ui:customGroups:set", list: [] });
+    // no rule: an old loose tab types a URL whose domain has OUR group -> joins it
+    const g1 = await openViaCommit(`${baseUrl}/homeSite1`, { active: false });
+    const g2 = await openViaCommit(`${baseUrl}/homeSite2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(g2.id)).groupId !== -1);
+    const siteGid = (await getTab(g2.id)).groupId;
+    const j = await openViaCommit(`${altUrl}/joinerStart`, { active: false });
+    await swEval(
+      (id, u) => new Promise((r) => chrome.tabs.update(id, { url: u }, () => r())),
+      j.id,
+      `${baseUrl}/homeSite3`,
+    );
+    await waitFor("navigated", async () => (await getTab(j.id)).url.includes("homeSite3"));
+    await swEval(
+      (id, u) => globalThis.__ttSimulateCommit({ tabId: id, url: u, transitionType: "typed" }),
+      j.id,
+      `${baseUrl}/homeSite3`,
+    );
+    await waitFor("joined the domain's group", async () => (await getTab(j.id)).groupId === siteGid);
   });
 
   await test("closing grouped tabs is not a pull-out: no strikes, domain keeps grouping", async () => {
