@@ -1,0 +1,79 @@
+# The third verification layer (dev-process): someone else's machine runs the
+# same contracts. Two full passes per push - a flake here is a bug to fix,
+# never a re-roll; the family job proves the live TruePin protocol on every
+# change. Local x2 stays the pre-push gate; CI is the independent witness.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: test/package-lock.json
+      - name: Cache Chrome for Testing
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('test/package-lock.json') }}
+      - run: npm ci
+      - name: e2e, run 1 of 2
+        run: npm test
+      - name: e2e, run 2 of 2 (flake gate)
+        run: npm test
+
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Guarded store package builds clean
+        run: ./package.sh
+      - name: The zip matches the manifest version
+        run: |
+          V=$(python3 -c "import json;print(json.load(open('extension/manifest.json'))['version'])")
+          test -f "dist/truetabs-$V.zip"
+
+  family:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: truetabs
+      - uses: actions/checkout@v4
+        with:
+          repository: datysho/truepin
+          path: truepin
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: truetabs/test/package-lock.json
+      - name: Cache Chrome for Testing
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/puppeteer
+          key: puppeteer-${{ runner.os }}-${{ hashFiles('truetabs/test/package-lock.json') }}
+      - run: npm ci
+        working-directory: truetabs/test
+      - name: Family smoke - both extensions, the live protocol
+        run: node family.mjs
+        working-directory: truetabs/test
