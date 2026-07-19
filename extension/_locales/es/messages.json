@@ -520,5 +520,20 @@
   },
   "optSortAutoHint": {
     "message": "Activado: los órdenes de arriba son invariantes: las pestañas nuevas se colocan, los arrastres manuales vuelven. Desactivado: solo se aplican al pulsar Organizar, y entre tanto nada se mueve solo."
+  },
+  "groupProtect": {
+    "message": "Proteger"
+  },
+  "groupUnprotect": {
+    "message": "Quitar protección"
+  },
+  "groupProtectedTitle": {
+    "message": "Protegido: TrueTabs nunca saca pestañas de este grupo"
+  },
+  "optProtected": {
+    "message": "Grupos protegidos"
+  },
+  "optProtectedHint": {
+    "message": "Un nombre de grupo por línea. TrueTabs nunca saca pestañas de estos grupos: ni al navegar, ni con «Organizar». También se activa en la fila del grupo en el popup."
   }
 }

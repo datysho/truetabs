@@ -25,18 +25,19 @@ Triggers:
 - T1 instant: `handleCommit` kinds `address`/`bookmark`, `committedCount > 1` (existing call site) - now applies to ALL our group kinds.
 - T2 at-rest: commit kinds `link`/`redirect` on a tab in one of OUR groups where `registrableDomain(post.url)` differs from the group's identity. Mark `st.mismatch = {domain, key, since}` from the EVENT payload (lesson event-vs-reread). The minute tick re-homes marked tabs when: mismatch age >= REST_MS (120s), tab not active, tab still in the same group, stored mismatch still current (a later commit updates or clears the mark). Returning to a matching domain clears the mark.
 
-Destination chain (inside `rehomeTab`, in order):
+Destination chain (inside `rehomeNavigated`, in order; build amendments from the G4 review, 2026-07-19, marked *):
 1. Gates: settle, paused, `ungroupedByUser`, strikes, pinned, protected group (below), foreign group.
 2. User rule match (`customAssign` precedence unchanged) - move to rule group.
-3. Existing OUR group for the new domain in this window - join it.
-4. Topic mode with engine ready: single-tab match against EXISTING topic titles only ("does this page belong to one of: [titles]? answer title or none"), off-queue with 2500 ms timeout, apply via enqueue with liveness re-check; "none"/timeout/engine-off falls through. Never creates a group.
-5. `otherGroup` enabled - park to Other (committed pages only; blanks never reach here by construction).
-6. Else ungroup (leave loose; layout engine owns its position).
+3. Existing OUR group for the new domain in this window - join it. Steps 2-3 need no model and pull the tab out of ANY of our groups, topics included - the headline case (typed bank URL out of a topic) works with the engine off.
+4. *Topic-ORIGIN policy (replaces the release-then-ask draft): the engine is asked BEFORE anything moves (`pickTopicFor`, existing candidates only, never creates a group). Same answer as the current group - stay, zero churn. A pick - move directly. "None" - release to the catch-all. Engine off or mid-hiccup - membership STANDS (the old protection, kept for exactly the moment the AI cannot speak), with one deterministic override: a typed jump to a DIFFERENT registrable domain (`st.prevDomain` vs the committed domain) is a new intent and releases without a model. This kills both review findings at once: a same-topic re-typed URL no longer lands in "Other" on an AI hiccup, and the no-AI user still gets the bank-URL re-file.*
+5. Site/rule-origin misfit (`claimMisfit`, the ONE predicate shared with the at-rest marker) - release; topic mode may re-place via `smartAssign` on the user's own action only.
+6. `otherGroup` enabled - park to Other (committed pages only); else leave loose.
+7. *The at-rest pass calls the chain with `allowSmart: false`: a timer never spends the user's tokens (the project's own rejected "background AI on a schedule" decision, kept honest) - only the user's own click or keystroke may reach the model.*
 
 Group identity for mismatch: site groups - registry domain; rule groups - any of the rule's domains OR the rule's AI hint said yes at assignment (mismatch = new domain not in rule domains); topic groups - no domain identity, so T2 does not fire for them on link browsing (reading flows inside a topic are legitimate); T1 typed DOES re-home out of topic groups (typing a new address is a new intent regardless of topic).
 
 Protected groups ("never touch"):
-- New synced setting `protectedGroups: string[]` (group titles, max 20 entries, each <= 40 chars, normalized like custom group names).
+- New synced setting `protectedGroups: string[]` (group titles, max 20 entries, each <= 40 chars, normalized like custom group names). *One canonical `protectKey` (trim + 40-char cap) at every comparison site - store, engine check, popup ring - or long titles silently fail their own lock (G4 finding, fixed).*
 - UI: lock toggle on the popup group row (writes/removes the title); also editable as a list in options next to "My groups".
 - Semantics: automation never REMOVES tabs from a protected group (no T1/T2 re-home out, no smart re-shuffle dissolve, no Other-review pull). Adding tabs to it stays allowed (rules/domain routing may still target it). Explicit bulk commands (Organize) also leave protected groups alone - "never" means never; only a direct user drag changes membership. Precedence over rules: protection wins (rule cannot pull a tab out of a protected group).
 

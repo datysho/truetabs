@@ -72,6 +72,7 @@ const ARCHIVE_CAP = 5000; // FIFO
 const ARCHIVE_BATCH_MAX = 20; // per tick - gradual, keeps notifications sane
 const SIG_TTL_MS = 30 * 86400e3; // group signatures wait this long for their window
 const SMART_BATCH = 15; // tabs per AI call: finer progress, themes still merge across batches
+const REHOME_REST_MS = 2 * 60_000; // link-nav domain mismatch must sit this long before re-filing
 
 const TRACKING_PARAMS = /^(utm_|__hs|_hs)/;
 const TRACKING_EXACT = new Set([
@@ -314,8 +315,10 @@ function newTabState(tab) {
     url: tabUrl(tab),
     key: dupeKey(tabUrl(tab)),
     domain: registrableDomain(tabUrl(tab)),
+    prevDomain: null, // the domain the PREVIOUS commit held (new-intent signal)
     groupedByUs: null,
     ungroupedByUser: false,
+    mismatch: null, // at-rest clock payload {domain, key, since}
   };
 }
 
@@ -809,7 +812,7 @@ async function mergeIntoNavigated(tabId, url, st) {
 // plus surplus EMPTY new-tab pages (a pile of "New Tab" is duplicates too -
 // they carry no content, so all but the active ones count).
 function blankSurplus(tabs) {
-  return tabs.filter((t) => isEphemeralUrl(t.url) && !t.pinned && !t.active).length;
+  return tabs.filter(looseBlank).length;
 }
 
 function countDupes(tabs) {
@@ -852,8 +855,10 @@ async function sweepDuplicates(scope, currentWindowId) {
     }
   }
   // Surplus empty new-tab pages are duplicates of nothing: close them too
-  // (not archived - there is no content to keep). Active/pinned blanks live.
-  const blanks = tabs.filter((t) => isEphemeralUrl(t.url) && !t.pinned && !t.active);
+  // (not archived - there is no content to keep). Active/pinned/grouped
+  // blanks live - a blank the user parked inside a group is a decision, and
+  // the manual button honors the same line the automation draws.
+  const blanks = tabs.filter(looseBlank);
   if (!victims.length && !plainVictims.length && !blanks.length) return { closed: 0, batchId: null };
   const batchId = newBatchId();
   const groupInfoCache = new Map();
@@ -879,6 +884,119 @@ async function sweepDuplicates(scope, currentWindowId) {
     await chrome.storage.local.set({ lastBatch: { batchId, at: now(), count: entries.length } });
   }
   return { closed, batchId };
+}
+
+// Blank hygiene: a New Tab that nobody is using is noise, and it multiplies.
+// Steady state: at most one loose blank per window - the newest. Two
+// triggers, ONE scan: opening a new blank collapses the aged ones instantly,
+// and the minute tick sweeps whatever that missed. Rides the dedup umbrella
+// toggle; a blank carries no content, so no archive row (there is nothing to
+// restore - Cmd+T recreates it whole).
+//
+// The age floor is load-bearing, not politeness: software - session restore,
+// other extensions, our own tests - routinely creates a tab blank and
+// navigates it a beat later. A blank younger than the floor is a page in
+// flight, not an abandoned tab; closing it would eat someone's navigation.
+const BLANK_MIN_AGE_MS = 5_000;
+
+// The one definition of a collapsible blank, shared by the collapse trigger,
+// the tick sweep, the manual Sweep button and the popup's surplus count:
+// ephemeral page, not pinned, not active, not inside any group (a grouped
+// blank is the user's own decision - hands off).
+const looseBlank = (t) =>
+  isEphemeralUrl(t.url || t.pendingUrl || "") &&
+  !t.pinned &&
+  !t.active &&
+  (t.groupId === -1 || t.groupId == null);
+
+// One pass over a window's tabs: the survivor and the aged victims. The
+// survivor rule is the user's own attention: an ACTIVE ungrouped blank is
+// the scratch tab in use - every aged loose blank is then surplus; with no
+// active blank, the newest loose one survives (an unknown birth time reads
+// as just-created, i.e. newest of all). "No state = younger than young":
+// every post-install tab gains its state within its own queue turn, so
+// unknown can only mean the created-job has not run yet; treating unknown
+// as old once ate freshly-created neighbours whose state write was still
+// queued behind a storm.
+async function scanBlanks(tabs) {
+  const loose = tabs.filter(looseBlank);
+  if (!loose.length) return { keepId: null, victims: [] };
+  const activeBlank = tabs.some(
+    (t) =>
+      t.active &&
+      !t.pinned &&
+      (t.groupId === -1 || t.groupId == null) &&
+      isEphemeralUrl(t.url || t.pendingUrl || ""),
+  );
+  const born = new Map();
+  for (const t of loose) {
+    const st = await getTabState(t.id);
+    born.set(t.id, st ? st.firstSeenAt || 0 : Infinity);
+  }
+  let keepId = null;
+  if (!activeBlank) {
+    let newest = -1;
+    for (const t of loose) {
+      const b = born.get(t.id);
+      if (b > newest) {
+        newest = b;
+        keepId = t.id;
+      }
+    }
+  }
+  const victims = loose
+    .filter(
+      (t) =>
+        t.id !== keepId &&
+        born.get(t.id) !== Infinity &&
+        now() - born.get(t.id) >= BLANK_MIN_AGE_MS,
+    )
+    .map((t) => t.id);
+  return { keepId, victims };
+}
+
+async function closeBlankSet(victims, reason) {
+  if (!victims.length) return;
+  const closed = await closeTabsGuarded(victims, reason);
+  if (closed) {
+    await bumpCounter("dedupedToday", closed);
+    traceDiag(`${reason}: closed ${closed}`);
+  }
+}
+
+async function collapseBlanks(newTab) {
+  if (!newTab || newTab.incognito) return;
+  if (!isEphemeralUrl(newTab.pendingUrl || newTab.url || "")) return;
+  const settings = await getSettings();
+  if (!settings.dedupAuto) return;
+  if (!(await isSettled()) || (await isPaused())) return;
+  const win = await quiet(chrome.windows.get, newTab.windowId);
+  if (!win || win.type !== "normal") return;
+  // The FULL window goes into the scan: the newcomer is the active scratch
+  // (or the newest) and the age floor shields it either way - filtering it
+  // out would blind the survivor rule to the very tab the user just opened.
+  const tabs = await chrome.tabs.query({ windowId: newTab.windowId });
+  const { victims } = await scanBlanks(tabs);
+  await closeBlankSet(victims, "blank-collapse");
+}
+
+// The tick's half of the same rule: blanks that were too young at collapse
+// time (or accumulated with no new blank to trigger on) age out of the
+// strip. One global query; windows with no surplus cost nothing further.
+async function reviewBlanks() {
+  const settings = await getSettings();
+  if (!settings.dedupAuto) return;
+  const normals = new Set((await normalWindows()).map((w) => w.id));
+  const byWindow = new Map();
+  for (const t of await chrome.tabs.query({})) {
+    if (!normals.has(t.windowId)) continue;
+    if (!byWindow.has(t.windowId)) byWindow.set(t.windowId, []);
+    byWindow.get(t.windowId).push(t);
+  }
+  for (const tabs of byWindow.values()) {
+    const { victims } = await scanBlanks(tabs);
+    await closeBlankSet(victims, "blank-sweep");
+  }
 }
 
 async function groupInfoOf(tab, cache) {
@@ -1102,12 +1220,12 @@ async function removeGroupSig(title, color) {
 // without this they turn "foreign" after every restart and every ownership
 // feature (recency rise, regroup, Other reuse, collapse) silently dies.
 // Rename or recolor a group and its signature is gone: it is yours forever.
-async function readoptGroups() {
+async function readoptGroups(candidates = null) {
   const { ourGroupSigs = [] } = await chrome.storage.local.get("ourGroupSigs");
   if (!ourGroupSigs.length) return;
   const ourGroups = await getOurGroups();
   const known = new Set(Object.keys(ourGroups).map(Number));
-  const groups = (await quiet(chrome.tabGroups.query, {})) || [];
+  const groups = candidates || (await quiet(chrome.tabGroups.query, {})) || [];
   for (const group of groups) {
     if (known.has(group.id)) continue;
     const sig = ourGroupSigs.find((s) => s.title === group.title && s.color === group.color);
@@ -1139,7 +1257,52 @@ async function createOurGroup(
   tabIds,
   windowId,
   { domain, title, color, smart = false, other = false, customId = null },
+  meta = null, // out-param: meta.adopted = the returned gid was a reused twin, NOT a new group
 ) {
+  // Twin guard (native-groups-compat): one live group per OUR title per
+  // window. A same-titled group already live here - ours, or a chip-restored
+  // copy still carrying our signature - is REUSED, never twinned: same-named
+  // live twins are the raw material of Chrome's duplicate saved-group chips.
+  // A same-titled hand-made group with an alien signature keeps its
+  // independence and we mint ours beside it.
+  let finalTitle = title;
+  const twin = ((await quiet(chrome.tabGroups.query, { windowId })) || []).find(
+    (g) => (g.title || "") === title,
+  );
+  if (twin) {
+    let ourGroupsNow = await getOurGroups();
+    if (!ourGroupsNow[twin.id]) {
+      await readoptGroups([twin]);
+      ourGroupsNow = await getOurGroups();
+    }
+    const entry = ourGroupsNow[twin.id];
+    // Reuse needs the same KIND, not just the same words: a site tab has no
+    // business inside a topic that happens to share its label ("News" the
+    // theme vs News the site), and vice versa. Kind = the claim the group
+    // makes; the registry entry carries it.
+    const kindMatches =
+      !!entry &&
+      !!entry.other === !!other &&
+      (entry.customId || null) === (customId || null) &&
+      !!entry.smart === !!smart &&
+      (smart || customId ? true : entry.domain === domain);
+    if (kindMatches) {
+      let joined = 0;
+      for (const id of tabIds) {
+        if (await addToOurGroup(id, twin.id)) joined++;
+      }
+      if (meta) meta.adopted = true;
+      // Never mint a same-title group beside its twin: zero joins means the
+      // tabs are gone or mid-flight - a beside-mint would be the exact
+      // duplicate the guard exists to prevent.
+      return joined ? twin.id : null;
+    }
+    // A same-titled group of a DIFFERENT kind lives here. Site groups fall
+    // back to the full domain as the title (the registered-collision rule,
+    // extended to live groups); other kinds mint beside - rare, and honest
+    // about being different groups.
+    if (!smart && !customId && domain) finalTitle = domain;
+  }
   // Mark BEFORE the call: a tab moving out of one of our groups (a stray
   // leaving the catch-all for its real site group) emits a leave event, and
   // an unmarked leave reads as "the user pulled it out" - two of those retire
@@ -1151,11 +1314,11 @@ async function createOurGroup(
     createProperties: { windowId },
   });
   if (gid == null) return null;
-  await quiet(chrome.tabGroups.update, gid, { title, color });
+  await quiet(chrome.tabGroups.update, gid, { title: finalTitle, color });
   const ourGroups = await getOurGroups();
   ourGroups[gid] = {
     domain: smart || customId ? null : domain,
-    title,
+    title: finalTitle,
     color,
     windowId,
     createdAt: now(),
@@ -1169,10 +1332,10 @@ async function createOurGroup(
   // Every group we make carries a signature, so ownership survives restarts.
   await upsertGroupSig(
     customId
-      ? { title, color, smart: false, customId }
+      ? { title: finalTitle, color, smart: false, customId }
       : smart
-        ? { title, color, smart: true, other }
-        : { domain, title, color, smart: false },
+        ? { title: finalTitle, color, smart: true, other }
+        : { domain, title: finalTitle, color, smart: false },
   );
   for (const id of tabIds) {
     const st = await getTabState(id);
@@ -1281,25 +1444,140 @@ async function customAssign(tabId, st) {
   return (await ensureCustomGroup(rule, tab.windowId, [tab.id])) != null;
 }
 
-// After an address-bar/bookmark navigation the tab may sit in the wrong
-// place: re-file it with the same standing orders that route new tabs.
-// Priority: the user's rule, then the merged victim's group (the survivor
-// literally takes its place), then an existing OUR group of the new domain;
-// with no destination, a mismatched OUR site group releases the tab so the
-// group's name stays honest. Hand-made groups are never touched - neither
-// joined nor pulled from - and smart topic groups keep their members (a
-// navigation does not necessarily leave the topic).
-async function rehomeNavigated(tabId, st, inheritGid) {
+// Protection: automation never removes tabs from a group whose title the
+// user put on the protected list. Adding tabs stays allowed - the lock guards
+// membership, not entry. ONE canonical key everywhere: the stored list is
+// capped at 40 chars, so every comparison must run through the same cap or
+// long titles silently fail to match their own lock.
+const protectKey = (title) => String(title || "").trim().slice(0, 40);
+function isProtectedTitle(settings, title) {
+  const key = protectKey(title);
+  return !!key && settings.protectedGroups.includes(key);
+}
+
+// Does the page still satisfy its own group's claim? Site groups claim a
+// domain, rule groups claim their rule. Smart topics and "Other" make no
+// claim HERE - their policies live with the callers (one predicate, two
+// callers: the at-rest marker and the release step must never disagree).
+function claimMisfit(owner, url, domain, customs) {
+  if (!owner || owner.other || owner.smart) return false;
+  if (owner.customId) {
+    const rule = customs.find((c) => c.id === owner.customId);
+    return !(rule && customRuleFor([rule], url));
+  }
+  return owner.domain != null && owner.domain !== domain;
+}
+
+// At-rest ledger for link navigations that left a tab's page on a domain
+// foreign to its group. The payload rides the tab's OWN state
+// (st.mismatch = {domain, key, since} - the reason, captured at commit
+// time); a session index of tab ids keeps the minute tick from scanning
+// every tab. ONE choke point mutates both - clearing sprinkled by hand is
+// how the two would drift apart.
+async function setTabMismatch(tabId, payload) {
+  const { mismatchIdx = {} } = await chrome.storage.session.get("mismatchIdx");
+  const st = await getTabState(tabId);
+  if (!st) {
+    if (mismatchIdx[tabId] != null) {
+      delete mismatchIdx[tabId];
+      await chrome.storage.session.set({ mismatchIdx });
+    }
+    return;
+  }
+  st.mismatch = payload;
+  await putTabState(tabId, st);
+  const indexed = mismatchIdx[tabId] != null;
+  if (!!payload !== indexed) {
+    if (payload) mismatchIdx[tabId] = 1;
+    else delete mismatchIdx[tabId];
+    await chrome.storage.session.set({ mismatchIdx });
+  }
+}
+
+// Judge a committed link navigation: does the tab now sit in one of OUR
+// groups whose claim its page no longer satisfies? The clock measures a
+// STABLE landing: hopping onward to a DIFFERENT foreign domain restarts it -
+// two minutes settled somewhere, never two minutes since a redirect chain
+// began. Topic groups make no domain claim on link browsing (reading flows
+// stay intact) and "Other" claims nothing.
+async function updateMismatch(tabId, st, settings, ourGroups) {
+  const gid = st.groupedByUs;
+  const owner = gid != null ? ourGroups[gid] : null;
+  let misfit = false;
+  if (owner && st.key && !isProtectedTitle(settings, owner.title)) {
+    misfit = claimMisfit(owner, st.url, st.domain, await getCustomGroups());
+  }
+  if (!misfit) return setTabMismatch(tabId, null);
+  if (st.mismatch && st.mismatch.domain === st.domain) return; // clock keeps running
+  return setTabMismatch(tabId, { domain: st.domain, key: st.key, since: now() });
+}
+
+// The tick's at-rest pass: marks past the rest window, on tabs the user is
+// not looking at, get one re-file attempt each. Pass-level gates come FIRST
+// and keep every clock intact - clearing a mark the engine could not act on
+// would strand an idle tab in the wrong group forever (no further commit
+// ever re-marks a tab nobody navigates). The attempt judges by the MARK and
+// acts only while the live page still is the marked page.
+async function reviewMismatched() {
+  const { mismatchIdx = {} } = await chrome.storage.session.get("mismatchIdx");
+  const ids = Object.keys(mismatchIdx);
+  if (!ids.length) return;
+  if (!(await isSettled()) || (await isPaused())) return; // clocks survive the pause
+  for (const idStr of ids) {
+    const tabId = Number(idStr);
+    const st = await getTabState(tabId);
+    const mark = st && st.mismatch;
+    if (!mark) {
+      await setTabMismatch(tabId, null);
+      continue;
+    }
+    if (now() - mark.since < REHOME_REST_MS) continue;
+    const tab = await quiet(chrome.tabs.get, tabId);
+    if (!tab) {
+      await setTabMismatch(tabId, null);
+      continue;
+    }
+    if (tab.active) continue; // never under the cursor; the clock keeps running
+    if (st.domain !== mark.domain || st.key !== mark.key) {
+      // The page moved on after the mark aged; its own commit owns the fresh
+      // clock - acting here would re-home on a stale reason.
+      await setTabMismatch(tabId, null);
+      continue;
+    }
+    await setTabMismatch(tabId, null); // one attempt per settled mark
+    await rehomeNavigated(tabId, st, null, { allowSmart: false });
+  }
+}
+
+// After an address-bar/bookmark navigation - or once a link navigation has
+// settled on a foreign domain (the tick's at-rest pass, opts.allowSmart
+// false) - the tab may sit in the wrong place: re-file it with the same
+// standing orders that route new tabs. Priority: the user's rule, then the
+// merged victim's group (the survivor literally takes its place), then an
+// existing OUR group of the new domain - these three need no model and pull
+// the tab out of ANY of our groups, topics included. What remains is the
+// "no destination" question, and it splits by origin: site/rule groups
+// release a misfit to the catch-all; topic groups ask the engine BEFORE
+// anything moves (same answer = zero churn, engine silent = membership
+// stands), with one deterministic override - a typed jump to a DIFFERENT
+// domain is a new intent and releases even without a model. Hand-made
+// groups are never touched, protected groups never release anything, and
+// the timer path never spends the user's tokens (allowSmart=false) - only
+// their own click may.
+async function rehomeNavigated(tabId, st, inheritGid, opts = {}) {
   if (!(await isSettled()) || (await isPaused())) return;
   if (st.ungroupedByUser) return;
+  const allowSmart = opts.allowSmart !== false;
   const tab = await quiet(chrome.tabs.get, tabId);
   if (!tab || tab.pinned || tab.incognito) return;
   const win = await quiet(chrome.windows.get, tab.windowId);
   if (!win || win.type !== "normal") return;
+  const settings = await getSettings();
   const ourGroups = await getOurGroups();
   const grouped = tab.groupId !== -1 && tab.groupId != null;
   const inOur = grouped ? ourGroups[tab.groupId] : null;
   if (grouped && !inOur) return; // a hand-made group is not ours to rearrange
+  if (inOur && isProtectedTitle(settings, inOur.title)) return; // the user's lock
   const domain = st.domain;
 
   const customs = await getCustomGroups();
@@ -1321,9 +1599,51 @@ async function rehomeNavigated(tabId, st, inheritGid) {
     if (existing === tab.groupId) return; // already right
     if (existing != null && (await addToOurGroup(tab.id, existing))) return;
   }
-  if (inOur && !inOur.smart && !inOur.customId && inOur.domain && inOur.domain !== domain) {
+  if (!inOur || inOur.other) return; // loose stays loose here; Other IS the fallback
+
+  const releaseToOther = async () => {
     await markSelfOp("tabgroup", tab.id);
     await quiet(chrome.tabs.ungroup, [tab.id]);
+    if (!(await quiet(chrome.tabs.get, tab.id))) return;
+    if (settings.autoGroup !== "off" && settings.otherGroup && st.key) {
+      await ensureOtherGroup(tab.windowId, [tab.id]);
+    }
+  };
+
+  if (inOur.smart) {
+    if (!allowSmart) return; // the at-rest pass never judges topics
+    const jumped = st.prevDomain != null && domain != null && st.prevDomain !== domain;
+    const answer = await pickTopicFor(tab, st, ourGroups);
+    if (answer.state === "pick") {
+      if (answer.pick.custom) {
+        await ensureCustomGroup(answer.pick.custom, tab.windowId, [tab.id]);
+        return;
+      }
+      if (answer.pick.gid === tab.groupId) return; // same topic: stay, zero churn
+      if (await addToOurGroup(tab.id, answer.pick.gid)) return;
+      return;
+    }
+    if (answer.state === "none") return releaseToOther(); // the model says nothing fits
+    // Engine off or mid-hiccup: it cannot judge the topic, so membership
+    // stands - EXCEPT for the one signal that needs no model: a typed jump
+    // to a different domain is a new intent, and holding the tab would break
+    // the promise that typing an address re-files the tab.
+    if (jumped) return releaseToOther();
+    return;
+  }
+
+  if (!claimMisfit(inOur, tab.url, domain, customs)) return;
+  await markSelfOp("tabgroup", tab.id);
+  await quiet(chrome.tabs.ungroup, [tab.id]);
+  if (!(await quiet(chrome.tabs.get, tab.id))) return;
+  // Released from a site/rule group. Topic mode may re-place it - on the
+  // user's own action only; the catch-all takes the rest.
+  if (allowSmart && settings.autoGroup === "topic") {
+    const fresh = await getTabState(tabId);
+    if (fresh && (await smartAssign(tabId, fresh)) === true) return;
+  }
+  if (settings.autoGroup !== "off" && settings.otherGroup && st.key) {
+    await ensureOtherGroup(tab.windowId, [tab.id]);
   }
 }
 
@@ -1371,13 +1691,23 @@ async function ensureOtherGroup(windowId, tabIds) {
     return { joined, created: null };
   }
   if (live.length < 2) return { joined: 0, created: null };
-  const gid = await createOurGroup(live, windowId, {
-    title: ttI18n.t("smartOtherName"),
-    color: "grey",
-    smart: true,
-    other: true,
-  });
-  return gid == null ? { joined: 0, created: null } : { joined: live.length, created: gid };
+  const meta = {};
+  const gid = await createOurGroup(
+    live,
+    windowId,
+    {
+      title: ttI18n.t("smartOtherName"),
+      color: "grey",
+      smart: true,
+      other: true,
+    },
+    meta,
+  );
+  // An adopted twin is a REUSED group: joined, but never "created" - undo
+  // must not dissolve a pre-existing group over it.
+  return gid == null
+    ? { joined: 0, created: null }
+    : { joined: live.length, created: meta.adopted ? null : gid };
 }
 
 // Rule pre-pass over a pool of tabs (Organize / Smart Organize): domain-rule
@@ -1490,15 +1820,19 @@ async function organizePool(windowId, pool, { siteBuckets, park, createdGids }) 
           if (await addToOurGroup(t.id, existing)) grouped++;
         }
       } else if (list.length >= 2) {
+        const meta = {};
         const gid = await createOurGroup(
           list.map((t) => t.id),
           windowId,
           { domain, title: groupTitleFor(ourGroups, windowId, domain), color: colorFor(domain) },
+          meta,
         );
         if (gid != null) {
           grouped += list.length;
-          groupsCreated++;
-          createdGids.push(gid);
+          if (!meta.adopted) {
+            groupsCreated++;
+            createdGids.push(gid); // undo dissolves only what THIS run minted
+          }
         }
       }
     }
@@ -2283,6 +2617,7 @@ async function applySmartBatch(windowId, parsed, batch, themes, customs, setting
           const known = themes.get(key);
           if (known && known.gid === t.groupId) continue; // already where it belongs
           if (!owner || owner.customId || !settings.smartRegroupOurs) continue; // not ours to move
+          if (isProtectedTitle(settings, owner.title)) continue; // the user's lock holds
         }
         live.push(t.id);
       }
@@ -2314,15 +2649,23 @@ async function applySmartBatch(windowId, parsed, batch, themes, customs, setting
         bounced.push(...live);
         continue;
       }
-      const gid = await createOurGroup(live, windowId, {
-        title: g.name,
-        color: colorFor(g.name),
-        smart: true,
-      });
+      const meta = {};
+      const gid = await createOurGroup(
+        live,
+        windowId,
+        {
+          title: g.name,
+          color: colorFor(g.name),
+          smart: true,
+        },
+        meta,
+      );
       if (gid != null) {
         run.grouped += live.length;
-        run.groupsCreated++;
-        run.createdGids.push(gid);
+        if (!meta.adopted) {
+          run.groupsCreated++;
+          run.createdGids.push(gid); // undo dissolves only what THIS run minted
+        }
         themes.set(key, { name: g.name, gid });
       } else {
         bounced.push(...live);
@@ -2463,6 +2806,7 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings, op
       for (const [domain, list] of byDomain) {
         if (list.length >= 2) {
           const ourGroups = await getOurGroups();
+          const meta = {};
           const gid = await createOurGroup(
             list.map((t) => t.id),
             windowId,
@@ -2471,11 +2815,14 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings, op
               title: groupTitleFor(ourGroups, windowId, domain),
               color: colorFor(domain),
             },
+            meta,
           );
           if (gid != null) {
             run.grouped += list.length;
-            run.groupsCreated++;
-            run.createdGids.push(gid);
+            if (!meta.adopted) {
+              run.groupsCreated++;
+              run.createdGids.push(gid); // undo dissolves only what THIS run minted
+            }
           }
         } else {
           loose.push(...list);
@@ -2524,7 +2871,8 @@ async function smartOrganize(scope, currentWindowId) {
           if (isEphemeralUrl(t.url) || !t.url) return false;
           if (t.groupId === -1 || t.groupId == null) return true;
           const owner = ourGroups[t.groupId];
-          return !!owner && !owner.customId && settings.smartRegroupOurs;
+          if (!owner || owner.customId || !settings.smartRegroupOurs) return false;
+          return !isProtectedTitle(settings, owner.title); // the user's lock holds
         })
         .sort((a, b) => registrableDomain(a.url).localeCompare(registrableDomain(b.url)));
       if (pool.length >= 2) {
@@ -2554,6 +2902,53 @@ async function smartOrganize(scope, currentWindowId) {
 // groups plus the user's rule groups with hints are the candidates. Returns
 // "fallback" when the tier is structurally unavailable (no model, no key) -
 // the caller then groups by site, so topic mode never silently does nothing.
+// The one question the engine answers for a single tab: which EXISTING
+// candidate (topic group in this window, or a hinted rule) fits - or none.
+// No placement gates here; the callers own policy (smartAssign for fresh
+// tabs, re-home for navigated ones). Returns {state: "off" | "none" |
+// "error" | "pick", pick?} - "off" is a structurally silent engine, "error"
+// a hiccup mid-answer; the distinction matters to callers that must decide
+// between waiting and acting without a model.
+async function pickTopicFor(tab, st, ourGroups) {
+  const settings = await getSettings();
+  if (settings.smartEngine === "off") return { state: "off" };
+  if (settings.smartEngine === "builtin" && (await smartAvailability()) !== "available") {
+    return { state: "off" };
+  }
+  if (settings.smartEngine === "byok" && !(await getByokKey()) && !globalThis.__ttMockAi) {
+    return { state: "off" };
+  }
+  const candidates = [];
+  for (const [gid, g] of Object.entries(ourGroups)) {
+    if (g.smart && !g.other && g.windowId === tab.windowId) {
+      candidates.push({ label: g.title, gid: Number(gid) });
+    }
+  }
+  for (const c of await getCustomGroups()) {
+    if (!c.on || !c.hint) continue;
+    if (candidates.some((x) => x.label.toLowerCase() === c.name.toLowerCase())) continue;
+    if (await isStruck("group", `custom:${c.id}`)) continue;
+    candidates.push({ label: `${c.name} - ${c.hint}`, custom: c });
+  }
+  if (!candidates.length) return { state: "none" };
+  const promptText =
+    "Pick the best topic group for this browser tab, or none.\n" +
+    `Tab: [${st.domain}] ${(tab.title || tab.url).slice(0, 120)}\n` +
+    `Groups: ${candidates.map((c, i) => `${i}. ${c.label}`).join(", ")}\n` +
+    'Answer with ONLY JSON: {"group": <index or null>}';
+  try {
+    const data = JSON.parse(
+      String(await smartCall(promptText)).replace(/^```(?:json)?\s*|\s*```$/g, ""),
+    );
+    if (Number.isInteger(data.group) && data.group >= 0 && data.group < candidates.length) {
+      return { state: "pick", pick: candidates[data.group] };
+    }
+    return { state: "none" };
+  } catch {
+    return { state: "error" }; // a hiccup, not an answer
+  }
+}
+
 async function smartAssign(tabId, st) {
   const settings = await getSettings();
   if (settings.smartEngine === "off") return "fallback";
@@ -2568,37 +2963,9 @@ async function smartAssign(tabId, st) {
   const ourGroups = await getOurGroups();
   if (!placeable(tab, ourGroups)) return false;
   if (st.ungroupedByUser) return false;
-  const candidates = [];
-  for (const [gid, g] of Object.entries(ourGroups)) {
-    if (g.smart && !g.other && g.windowId === tab.windowId) {
-      candidates.push({ label: g.title, gid: Number(gid) });
-    }
-  }
-  for (const c of await getCustomGroups()) {
-    if (!c.on || !c.hint) continue;
-    if (candidates.some((x) => x.label.toLowerCase() === c.name.toLowerCase())) continue;
-    if (await isStruck("group", `custom:${c.id}`)) continue;
-    candidates.push({ label: `${c.name} - ${c.hint}`, custom: c });
-  }
-  if (!candidates.length) return false;
-  const promptText =
-    "Pick the best topic group for this browser tab, or none.\n" +
-    `Tab: [${st.domain}] ${(tab.title || tab.url).slice(0, 120)}\n` +
-    `Groups: ${candidates.map((c, i) => `${i}. ${c.label}`).join(", ")}\n` +
-    'Answer with ONLY JSON: {"group": <index or null>}';
-  let idx = null;
-  try {
-    const data = JSON.parse(
-      String(await smartCall(promptText)).replace(/^```(?:json)?\s*|\s*```$/g, ""),
-    );
-    if (Number.isInteger(data.group) && data.group >= 0 && data.group < candidates.length) {
-      idx = data.group;
-    }
-  } catch {
-    return false; // silent: assignment is best-effort sugar
-  }
-  if (idx == null) return false;
-  const pick = candidates[idx];
+  const answer = await pickTopicFor(tab, st, ourGroups);
+  if (answer.state !== "pick") return false; // silent: assignment is best-effort sugar
+  const pick = answer.pick;
   if (pick.custom) return (await ensureCustomGroup(pick.custom, tab.windowId, [tab.id])) != null;
   return addToOurGroup(tab.id, pick.gid);
 }
@@ -2643,6 +3010,10 @@ async function tick() {
     await chrome.storage.session.set({ placeableGenSeen: placeableGen });
     await reviewPlaceable();
   }
+  // At-rest re-homing: link navigations that settled on a foreign domain.
+  await reviewMismatched();
+  // Aged surplus blanks: the collapse trigger's tick-side half.
+  await reviewBlanks();
 }
 
 function ensureAlarm() {
@@ -2785,6 +3156,21 @@ async function handleUi(request) {
       await chrome.storage.sync.set({ customGroups: list });
       await bumpPlaceableGen(); // a new rule reclaims what is already parked
       return { ok: true, customGroups: list };
+    }
+    case "ui:protectGroup": {
+      // The popup row's lock: one title in or out of the protected list.
+      // Rides the same normalized settings write as ui:setSetting - both
+      // pages repaint from THIS answer, never from an optimistic guess.
+      const title = String(request.title || "").trim();
+      if (!title) return { ok: false };
+      const { settings = {} } = await chrome.storage.sync.get("settings");
+      const list = new Set(normalizeSettings(settings).protectedGroups);
+      if (request.on) list.add(title.slice(0, 40));
+      else list.delete(title.slice(0, 40));
+      settings.protectedGroups = [...list];
+      const next = normalizeSettings(settings);
+      await chrome.storage.sync.set({ settings: next });
+      return { ok: true, settings: next };
     }
     case "ui:organizeNow":
       return organizeNow(request.scope || "window", request.windowId);
@@ -3120,6 +3506,7 @@ async function handleCommit(details) {
   if (details.frameId !== 0) return;
   const st = (await getTabState(details.tabId)) || newTabState(null);
   if (!st.firstSeenAt) st.firstSeenAt = now();
+  st.prevDomain = st.domain ?? null;
   st.url = details.url;
   st.key = dupeKey(details.url);
   st.domain = registrableDomain(details.url);
@@ -3160,6 +3547,18 @@ async function handleCommit(details) {
     if (stNow) {
       const inheritGid = await mergeIntoNavigated(details.tabId, details.url, stNow);
       await rehomeNavigated(details.tabId, stNow, inheritGid);
+    }
+    await setTabMismatch(details.tabId, null); // the address path resolves NOW
+  } else if (st.key) {
+    // Link/redirect browsing never reshuffles anything immediately - but it
+    // starts (or restarts) the at-rest clock: a page settled on a domain
+    // foreign to its group gets re-filed by the tick (nav-rehome spec).
+    // Zero-read fast path: an ungrouped tab has no claim to break, and any
+    // stale clock dies with the membership-change listeners - the majority
+    // of commits pay nothing here.
+    const stNow = await getTabState(details.tabId);
+    if (stNow && stNow.groupedByUs != null) {
+      await updateMismatch(details.tabId, stNow, await getSettings(), await getOurGroups());
     }
   }
 
@@ -3244,6 +3643,7 @@ chrome.webNavigation.onCommitted.addListener((details) => {
 chrome.tabs.onCreated.addListener((tab) => {
   enqueue(async () => {
     if (!(await getTabState(tab.id))) await putTabState(tab.id, newTabState(tab));
+    await collapseBlanks(tab);
   }, "created");
 });
 
@@ -3280,6 +3680,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
           }
         }
         await putTabState(tabId, st);
+        await setTabMismatch(tabId, null); // membership changed: the clock is stale
       } else if (changeInfo.groupId !== -1) {
         // A marker covers exactly ONE group event, whichever kind. Our own
         // grouping produces a JOIN, so the join must burn the marker too -
@@ -3292,6 +3693,7 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
         const ourGroups = await getOurGroups();
         st.groupedByUs = ourGroups[changeInfo.groupId] ? changeInfo.groupId : null;
         await putTabState(tabId, st);
+        await setTabMismatch(tabId, null); // membership changed: the clock is stale
       }
     }
   }, "updated");
@@ -3316,6 +3718,7 @@ chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   enqueue(async () => {
     await dropTabState(tabId);
+    await setTabMismatch(tabId, null); // prunes the index; the state is already gone
   }, "removed");
 });
 
@@ -3351,14 +3754,38 @@ chrome.tabs.onAttached.addListener((tabId, { newWindowId }) => {
       st.groupedByUs = null;
       await putTabState(tabId, st);
     }
+    await setTabMismatch(tabId, null); // a window move is a membership change too
   }, "attached");
+});
+
+chrome.tabGroups.onCreated.addListener((group) => {
+  enqueue(async () => {
+    // A group can appear mid-session from OUTSIDE the engine - most notably
+    // Chrome's saved-groups chip restoring one of ours. Same adoption rules
+    // as startup: signature match (title+color, domain majority for site
+    // groups) or it stays foreign. Our own creations fire this too, with an
+    // empty title - no named signature matches an empty title, so they pass
+    // through untouched. Settle-gated: session restore replays groups
+    // wholesale and the startup pass owns that moment.
+    if (!(await isSettled())) return;
+    if ((await getOurGroups())[group.id]) return;
+    await readoptGroups([group]);
+  }, "group-created");
 });
 
 chrome.tabGroups.onUpdated.addListener((group) => {
   enqueue(async () => {
     const ourGroups = await getOurGroups();
     const ours = ourGroups[group.id];
-    if (!ours) return;
+    if (!ours) {
+      // A foreign group that carries OUR signature is a returning copy of a
+      // group we made - typically a saved-groups chip restore, which lands
+      // titled through an update, not a creation. Same adoption rules as
+      // startup; a disowned group left no signature behind, so it stays the
+      // user's forever. (native-groups-compat)
+      if (group.title && (await isSettled())) await readoptGroups([group]);
+      return;
+    }
     // Our own ops echo the registry values (same title/color; collapsed only
     // ever set to TRUE by us), so a difference below is the user's act - with
     // one exception: creating a group fires an onUpdated echo with an EMPTY

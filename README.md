@@ -55,9 +55,9 @@ already use.
 
 | | Feature | How |
 |---|---|---|
-| 1 | **Duplicate prevention** | Opening a page you already have focuses the existing tab instantly - a fresh duplicate is pre-empted before it even loads. Any real page counts: websites, local `file://` pages, extension and `chrome://` pages. Re-typing an open URL into an EXISTING tab works the other way round: your tab wins, the stale copy merges into it (archived first) and the tab is re-filed by your rules. Manual "Sweep duplicates" for the pile you already have. |
+| 1 | **Duplicate prevention** | Opening a page you already have focuses the existing tab instantly - a fresh duplicate is pre-empted before it even loads. Any real page counts: websites, local `file://` pages, extension and `chrome://` pages. Re-typing an open URL into an EXISTING tab works the other way round: your tab wins, the stale copy merges into it (archived first) and the tab is re-filed by your rules. Manual "Sweep duplicates" for the pile you already have. Empty "New Tab" pages stop multiplying too: opening a new one closes the abandoned ones (never the active, pinned or grouped; a just-created blank is a page in flight and is left alone). |
 | 2 | **Auto-archive** | A tab untouched for 24h (configurable 6h-7d, or off) is saved to a local archive and closed. Searchable archive page, restore in one click, notification with Undo after every batch. |
-| 3 | **Auto-group** | One selector: new tabs group by *site* (stable colors, clean names) or by *topic* via AI. Idle groups collapse. One-click "Organize now" for everything else. |
+| 3 | **Auto-group** | One selector: new tabs group by *site* (stable colors, clean names) or by *topic* via AI. Idle groups collapse. One-click "Organize now" for everything else. Groups stay honest as you move on: type a new address in a grouped tab and it is re-filed instantly (your rule, the new domain's group, an existing topic, or "Other"); wander off through links and the tab is re-filed only after it settles on the foreign site for a couple of minutes - reading flows are never interrupted. Mark any of your groups protected (the lock on its popup row) and automation never takes tabs out of it. |
 | 3b | **Smart groups (AI)** | Cluster tabs by *topic*, not just site - on-device Gemini Nano (free, no keys, nothing leaves your machine) or your own API key (OpenAI / Gemini / Grok / a local OpenAI-compatible server like Ollama or LM Studio). Groups appear batch by batch with live progress. With the "Other" catch-all on, nothing is left loose - new tabs that fit no topic join it. |
 | 3c | **My groups (rules)** | Your named groups with routing rules: a site list (deterministic) and/or a plain-language AI hint. Rules outrank every automatic grouping. |
 | 3e | **"Other" catch-all** | With it on, nothing is left loose: a tab that fits no topic, no site group and no rule parks in a grey "Other" at the end. Works with plain site grouping too - no AI required. It is a parking lot, never a decision: a real group always wins its tabs back, and the parking lot re-empties itself when you add a rule or switch modes. Hover it in the popup for a one-click **Organize** of the pile alone - by rule and by domain in any mode; with AI on it also asks the strays whether they form a topic together. |
@@ -134,6 +134,29 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 - Maintained sort orders only groups TrueTabs made (groups you arranged
   yourself keep their places), and the "Other" catch-all keeps the end of
   the group block.
+- Link browsing re-files a grouped tab only "at rest" (a couple of minutes
+  settled on the foreign site, and never while you are on the tab); typed
+  and bookmark navigations re-file immediately.
+
+### Chrome's saved tab groups (the chips) - what TrueTabs can and cannot do
+
+Chrome can *save* a group: a chip that survives closing the group and syncs
+across your devices. Extensions have **no API** for saved groups - TrueTabs
+cannot see whether a group is saved, cannot unsave one, and cannot delete a
+chip. Two platform facts multiply chips: groups live *per window* (each
+window has its own "Other", its own "GitHub"), and saved chips sync *per
+device* - save the same-named groups in three windows on two machines and
+the strip shows six chips.
+
+What TrueTabs does about it: it never mints a second live group with the
+same name (a returning chip-restored copy of its own group is recognized by
+signature and reused), which removes the raw material for new duplicates.
+
+What only you can do about the chips you already have: right-click each
+stale chip - **Delete group**; and if you do not want chips synced at all,
+turn off "Saved tab groups" under Chrome Sync settings. Simplest of all:
+do not use *Save group* on groups TrueTabs manages - it re-creates them
+from signatures after every restart anyway, so the chip adds nothing.
 
 ## Install (until the Web Store listing is live)
 

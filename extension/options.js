@@ -349,6 +349,18 @@ function paintControls() {
     setSetting("archiveAllowlist", domains);
   });
 
+  // Protected groups: one title per line; automation never removes tabs from
+  // them. The popup rows carry the same lock as a one-click action.
+  $("protectedGroups").value = (settings.protectedGroups || []).join("\n");
+  $("protectedGroups").addEventListener("change", (e) => {
+    const titles = e.target.value
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    e.target.value = titles.join("\n");
+    setSetting("protectedGroups", titles);
+  });
+
   $("byokModel").value = settings.byokModel || "";
   $("byokBaseUrl").value = settings.byokBaseUrl || "";
   if (byokKeyPresent) $("byokKey").value = "********";

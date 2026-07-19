@@ -205,6 +205,18 @@ async function openViaCommit(url, { windowId, active = true } = {}) {
 // (NOT the settle flag) so each test builds its own world.
 async function resetWorld() {
   await swEval(async () => {
+    // The reset rearranges the world BY HAND - blank juggling included - and
+    // the engine must not co-manage it: the blank-collapse trigger and the
+    // reset's own keep-one-blank rule would each close the other's survivor
+    // (a race that can empty the window entirely). Pause automation for the
+    // duration; the cleanup below lifts the pause with the other session keys.
+    await chrome.storage.session.set({ pausedUntil: Date.now() + 10_000 });
+    // Deterministic time is the suite's contract (__ttTick drives every
+    // scan): the REAL minute alarm firing mid-test is uncontrolled - its job
+    // refreshes the engine-activity stamp and blind-windows the drag
+    // detector for ~1s, a phase-dependent landmine that moves with every
+    // upstream edit. Kill it; ensureAlarm only re-arms on install/startup.
+    await new Promise((r) => chrome.alarms.clear("tt-tick", () => r()));
     // Keep the browser alive: a sweep may have closed the initial blank tab,
     // and emptying the last window would take the whole window down.
     const wins = (await chrome.windows.getAll({ windowTypes: ["normal"] })).filter(
@@ -249,6 +261,7 @@ async function resetWorld() {
       "createAllowance",
       "pausedUntil",
       "breakerNotifiedAt",
+      "mismatchIdx",
     ]);
     await chrome.storage.local.remove(["ourGroupSigs", "lastBatch", "counters"]);
     const { archive } = await chrome.storage.local.get("archive");
@@ -2455,6 +2468,463 @@ async function main() {
     );
     await page.close();
     await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
+  });
+
+  // --- 1.15.0: universal re-home, blank hygiene, twin guard --------------------
+  // (specs: nav-rehome, blank-collapse, native-groups-compat)
+
+  // Fabricate one of OUR groups straight in the registry: the engine's own
+  // creation paths are exercised elsewhere; these contracts need a group of a
+  // chosen KIND (smart topic / Other) without dragging the AI machinery in.
+  const fabricateOurGroup = async (tabIds, patch) => {
+    const gid = await swEval((ids) => chrome.tabs.group({ tabIds: ids }), tabIds);
+    await swEval(
+      (g, t, c) => chrome.tabGroups.update(g, { title: t, color: c }),
+      gid,
+      patch.title,
+      patch.color || "blue",
+    );
+    await swEval(
+      async (g, entry) => {
+        const { ourGroups = {} } = await chrome.storage.session.get("ourGroups");
+        const live = await chrome.tabGroups.get(g);
+        ourGroups[g] = {
+          domain: null,
+          title: live.title,
+          color: live.color,
+          windowId: live.windowId,
+          createdAt: Date.now(),
+          lastTouchedAt: Date.now(),
+          collapsedByUs: false,
+          smart: false,
+          other: false,
+          customId: null,
+          ...entry,
+        };
+        await chrome.storage.session.set({ ourGroups });
+      },
+      gid,
+      patch,
+    );
+    return gid;
+  };
+  const typedCommit = (tabId, url) =>
+    swEval(
+      (id, u) => globalThis.__ttSimulateCommit({ tabId: id, url: u, transitionType: "typed" }),
+      tabId,
+      url,
+    );
+  const realNav = async (tabId, url, marker) => {
+    await swEval(
+      (id, u) => new Promise((r) => chrome.tabs.update(id, { url: u }, () => r())),
+      tabId,
+      url,
+    );
+    await waitFor("navigated", async () => ((await getTab(tabId)) || {}).url.includes(marker));
+  };
+  const newBlank = (opts = {}) => swEval((o) => chrome.tabs.create(o), opts);
+
+  await test("re-home: a typed navigation leaves a topic group for the domain's group", async () => {
+    await resetWorld();
+    const d1 = await openViaCommit(`${baseUrl}/reTg1`, { active: false });
+    const d2 = await openViaCommit(`${baseUrl}/reTg2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(d2.id)).groupId !== -1);
+    const siteGid = (await getTab(d2.id)).groupId;
+    const s1 = await openViaCommit(`${altUrl}/reTopicSeed`, { active: false });
+    await fabricateOurGroup([s1.id], { title: "Research", smart: true });
+    await realNav(s1.id, `${baseUrl}/reTyped`, "reTyped");
+    await typedCommit(s1.id, `${baseUrl}/reTyped`);
+    await waitFor(
+      "left the topic for the domain's group",
+      async () => (await getTab(s1.id)).groupId === siteGid,
+    );
+  });
+
+  await test("re-home: typed with no destination parks into the existing Other", async () => {
+    await resetWorld();
+    const v = await openViaCommit(`${altUrl}/rePark`, { active: false });
+    await fabricateOurGroup([v.id], { title: "Trip", smart: true, color: "green" });
+    const seed = await openViaCommit(`${altUrl}/reOtherSeed`, { active: false });
+    const otherGid = await fabricateOurGroup([seed.id], {
+      title: "Other",
+      smart: true,
+      other: true,
+      color: "grey",
+    });
+    // A typed JUMP to a different domain is a new intent even with no engine
+    // to consult - the topic releases the tab and the catch-all takes it.
+    // Simulate the typed commit directly: a prior real navigation would burn
+    // the prevDomain jump signal on itself (a harness artifact a real
+    // address-bar keystroke does not have).
+    await typedCommit(v.id, `${baseUrl}/reParkLanding`);
+    await waitFor("parked into Other", async () => (await getTab(v.id)).groupId === otherGid);
+  });
+
+  await test("re-home: typed joins an existing topic via the engine", async () => {
+    await resetWorld();
+    // build the world in SITE mode first, so nothing gets AI-routed early
+    const v1 = await openViaCommit(`${baseUrl}/reAi1`, { active: false });
+    const v2 = await openViaCommit(`${baseUrl}/reAi2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(v2.id)).groupId !== -1);
+    const r1 = await openViaCommit(`${altUrl}/reResearchSeed`, { active: false });
+    const topicGid = await fabricateOurGroup([r1.id], { title: "Research", smart: true });
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: () => JSON.stringify({ group: 0 }),
+      }),
+    );
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "byok" }); // pairs autoGroup=topic
+    const fileUrl = `file://${filePagePath}`;
+    await realNav(v2.id, fileUrl, "truetabs-e2e-page");
+    await typedCommit(v2.id, fileUrl);
+    await waitFor(
+      "joined the existing topic the engine picked",
+      async () => (await getTab(v2.id)).groupId === topicGid,
+    );
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+  });
+
+  await test("re-home: link browsing keeps membership and only starts the clock", async () => {
+    await resetWorld();
+    const a1 = await openViaCommit(`${baseUrl}/reLink1`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/reLink2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(a2.id)).groupId !== -1);
+    const gid = (await getTab(a2.id)).groupId;
+    await realNav(a2.id, `${altUrl}/reWandered`, "reWandered"); // commits as link
+    await sleep(500);
+    assert((await getTab(a2.id)).groupId === gid, "still in its group");
+    const mark = (await tabState(a2.id)) || {};
+    assert(mark.mismatch != null, "the at-rest clock is running");
+    // wandering back clears the clock
+    await realNav(a2.id, `${baseUrl}/reHomeAgain`, "reHomeAgain");
+    await sleep(400);
+    const cleared = (await tabState(a2.id)) || {};
+    assert(cleared.mismatch == null, "returning to the group's domain clears the mark");
+  });
+
+  await test("re-home: a link mismatch at rest re-files by the standing orders", async () => {
+    await resetWorld();
+    const a1 = await openViaCommit(`${baseUrl}/reRest1`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/reRest2`, { active: false });
+    await waitFor("site group A", async () => (await getTab(a2.id)).groupId !== -1);
+    const b1 = await openViaCommit(`${altUrl}/reDest1`, { active: false });
+    const b2 = await openViaCommit(`${altUrl}/reDest2`, { active: false });
+    await waitFor("site group B", async () => (await getTab(b2.id)).groupId !== -1);
+    const destGid = (await getTab(b2.id)).groupId;
+    await realNav(a2.id, `${altUrl}/reMoved`, "reMoved");
+    await sleep(400);
+    const future = Date.now() + 3 * 60_000;
+    await swEval((n) => globalThis.__ttTick({ now: n }), future);
+    await waitFor(
+      "re-filed into the new domain's group",
+      async () => (await getTab(a2.id)).groupId === destGid,
+    );
+  });
+
+  await test("re-home: an active tab is immune to the at-rest pass", async () => {
+    await resetWorld();
+    const a1 = await openViaCommit(`${baseUrl}/reAct1`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/reAct2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(a2.id)).groupId !== -1);
+    const gid = (await getTab(a2.id)).groupId;
+    await realNav(a2.id, `${altUrl}/reActMoved`, "reActMoved");
+    await sleep(400);
+    await swEval((id) => chrome.tabs.update(id, { active: true }), a2.id);
+    const future = Date.now() + 3 * 60_000;
+    await swEval((n) => globalThis.__ttTick({ now: n }), future);
+    await sleep(500);
+    assert((await getTab(a2.id)).groupId === gid, "still in its group while the user is on it");
+  });
+
+  await test("re-home: a protected group never releases a tab", async () => {
+    await resetWorld();
+    const p1 = await openViaCommit(`${baseUrl}/rePro1`, { active: false });
+    const p2 = await openViaCommit(`${baseUrl}/rePro2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(p2.id)).groupId !== -1);
+    const gid = (await getTab(p2.id)).groupId;
+    const title = (await swEval((g) => chrome.tabGroups.get(g), gid)).title;
+    const r = await ui({ type: "ui:protectGroup", title, on: true });
+    assert(r.ok && r.settings.protectedGroups.includes(title), "the lock landed in settings");
+    await realNav(p2.id, `${altUrl}/reProTyped`, "reProTyped");
+    await typedCommit(p2.id, `${altUrl}/reProTyped`);
+    await sleep(600);
+    assert((await getTab(p2.id)).groupId === gid, "typed navigation could not pull it out");
+    const marks = (await tabState(p2.id)) || {};
+    assert(marks.mismatch == null, "protected groups never even start the clock");
+    await ui({ type: "ui:protectGroup", title, on: false });
+  });
+
+  await test("re-home: a hand-made group is inviolable", async () => {
+    await resetWorld();
+    const f1 = await openViaCommit(`${baseUrl}/reFor1`, { active: false });
+    const f2 = await openViaCommit(`${altUrl}/reFor2`, { active: false });
+    await swEval((ids) => chrome.tabs.group({ tabIds: ids }), [f1.id, f2.id]); // user act, no registry
+    await sleep(300);
+    const gid = (await getTab(f1.id)).groupId;
+    await realNav(f1.id, `${altUrl}/reForTyped`, "reForTyped");
+    await typedCommit(f1.id, `${altUrl}/reForTyped`);
+    await sleep(600);
+    assert((await getTab(f1.id)).groupId === gid, "foreign membership untouched");
+  });
+
+  await test("re-home: a struck domain is not joined again", async () => {
+    await resetWorld();
+    const d1 = await openViaCommit(`${baseUrl}/reStr1`, { active: false });
+    const d2 = await openViaCommit(`${baseUrl}/reStr2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(d2.id)).groupId !== -1);
+    const siteGid = (await getTab(d2.id)).groupId;
+    await swEval(async () => {
+      const { strikes = {} } = await chrome.storage.session.get("strikes");
+      strikes["group:127.0.0.1"] = { count: 2, lastAt: Date.now() };
+      await chrome.storage.session.set({ strikes });
+    });
+    const v = await openViaCommit(`${altUrl}/reStrLoose`, { active: false });
+    await realNav(v.id, `${baseUrl}/reStrTyped`, "reStrTyped");
+    await typedCommit(v.id, `${baseUrl}/reStrTyped`);
+    await sleep(600);
+    assert((await getTab(v.id)).groupId !== siteGid, "the retired key stays retired");
+  });
+
+  await test("blanks: an aged blank collapses the instant a new one opens", async () => {
+    await resetWorld();
+    const b1 = await newBlank({ active: false });
+    await sleep(5400); // past the in-flight floor
+    const b2 = await newBlank({ active: true });
+    await waitFor("old blank closed", async () => (await getTab(b1.id)) === null);
+    assert((await getTab(b2.id)) !== null, "the newcomer lives");
+    const entries = await archiveEntries();
+    assert(
+      !entries.some((e) => /newtab|about:blank/.test(e.url)),
+      "no archive residue for blanks",
+    );
+  });
+
+  await test("blanks: a just-created blank is in flight, not a victim", async () => {
+    await resetWorld();
+    const b1 = await newBlank({ active: false });
+    const b2 = await newBlank({ active: true });
+    await sleep(600);
+    assert((await getTab(b1.id)) !== null && (await getTab(b2.id)) !== null, "both alive");
+  });
+
+  await test("blanks: the tick sweeps aged surplus down to the newest", async () => {
+    await resetWorld();
+    const b1 = await newBlank({ active: false });
+    await sleep(150);
+    const b2 = await newBlank({ active: false });
+    await sleep(150);
+    const b3 = await newBlank({ active: true });
+    const future = Date.now() + 10_000;
+    await swEval((n) => globalThis.__ttTick({ now: n }), future);
+    await waitFor("older blanks swept", async () => (await getTab(b1.id)) === null && (await getTab(b2.id)) === null);
+    assert((await getTab(b3.id)) !== null, "the newest survives");
+  });
+
+  await test("blanks: active and pinned blanks always survive", async () => {
+    await resetWorld();
+    const b1 = await newBlank({ active: true });
+    const bp = await newBlank({ active: false });
+    await swEval((id) => chrome.tabs.update(id, { pinned: true }), bp.id);
+    await sleep(5400);
+    const b2 = await newBlank({ active: false });
+    await sleep(600);
+    assert((await getTab(b1.id)) !== null, "the active blank lives");
+    assert((await getTab(bp.id)) !== null, "the pinned blank lives");
+    assert((await getTab(b2.id)) !== null, "the newcomer lives");
+  });
+
+  await test("blanks: a grouped blank is the user's decision and survives", async () => {
+    await resetWorld();
+    const bg = await newBlank({ active: false });
+    await swEval((ids) => chrome.tabs.group({ tabIds: ids }), [bg.id]);
+    await sleep(5400);
+    await newBlank({ active: true });
+    await sleep(600);
+    assert((await getTab(bg.id)) !== null, "grouped blank untouched");
+  });
+
+  await test("blanks: the dedup toggle governs the collapse", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "dedupAuto", value: false });
+    const b1 = await newBlank({ active: false });
+    await sleep(5400);
+    const b2 = await newBlank({ active: true });
+    await sleep(600);
+    assert((await getTab(b1.id)) !== null && (await getTab(b2.id)) !== null, "collapse is off");
+    await ui({ type: "ui:setSetting", key: "dedupAuto", value: true });
+  });
+
+  await test("native: one live group per OUR title - the twin is reused, never minted", async () => {
+    await resetWorld();
+    const x1 = await openViaCommit(`${baseUrl}/twinA1`, { active: false });
+    const x2 = await openViaCommit(`${baseUrl}/twinA2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(x2.id)).groupId !== -1);
+    const gid = (await getTab(x2.id)).groupId;
+    // ownership lost (a restart analog: session gone, signatures persist)
+    await swEval(async () => chrome.storage.session.set({ ourGroups: {} }));
+    const y1 = await openViaCommit(`${baseUrl}/twinB1`, { active: false });
+    const y2 = await openViaCommit(`${baseUrl}/twinB2`, { active: false });
+    await waitFor(
+      "the live twin was adopted and reused",
+      async () => (await getTab(y2.id)).groupId === gid && (await getTab(y1.id)).groupId === gid,
+    );
+    const groups = await swEval(() => chrome.tabGroups.query({}));
+    assert(
+      groups.filter((g) => g.id === gid).length === 1 && groups.length === 1,
+      `one group, not twins (got ${groups.length})`,
+    );
+  });
+
+  await test("native: a returning copy with our signature is re-adopted mid-session", async () => {
+    await resetWorld();
+    const x1 = await openViaCommit(`${baseUrl}/adoptA1`, { active: false });
+    const x2 = await openViaCommit(`${baseUrl}/adoptA2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(x2.id)).groupId !== -1);
+    const gid = (await getTab(x2.id)).groupId;
+    await swEval(async () => chrome.storage.session.set({ ourGroups: {} })); // ownership lost
+    // any titled update event on the foreign-but-signed group triggers adoption
+    await swEval((g) => chrome.tabGroups.update(g, { collapsed: true }), gid);
+    await waitFor("re-adopted", async () => {
+      const reg = await swEval(async () => (await chrome.storage.session.get("ourGroups")).ourGroups || {});
+      return !!reg[gid];
+    });
+  });
+
+  await test("native: a disowned group stays the user's forever", async () => {
+    await resetWorld();
+    const x1 = await openViaCommit(`${baseUrl}/disA1`, { active: false });
+    const x2 = await openViaCommit(`${baseUrl}/disA2`, { active: false });
+    await waitFor("site group exists", async () => (await getTab(x2.id)).groupId !== -1);
+    const gid = (await getTab(x2.id)).groupId;
+    await swEval((g) => chrome.tabGroups.update(g, { title: "Mine now" }), gid); // user rename
+    await waitFor("disowned", async () => {
+      const reg = await swEval(async () => (await chrome.storage.session.get("ourGroups")).ourGroups || {});
+      return !reg[gid];
+    });
+    await swEval((g) => chrome.tabGroups.update(g, { collapsed: true }), gid); // adoption bait
+    await sleep(500);
+    const reg = await swEval(async () => (await chrome.storage.session.get("ourGroups")).ourGroups || {});
+    assert(!reg[gid], "no signature, no adoption: renamed means yours");
+  });
+
+  await test("native: a topic and a site that share a label never merge", async () => {
+    await resetWorld();
+    const t1 = await openViaCommit(`${altUrl}/kindSeed`, { active: false });
+    const topicGid = await fabricateOurGroup([t1.id], { title: "127", smart: true, color: "pink" });
+    // two fresh 127.0.0.1 tabs: site grouping wants the label "127" too
+    const s1 = await openViaCommit(`${baseUrl}/kindA`, { active: false });
+    const s2 = await openViaCommit(`${baseUrl}/kindB`, { active: false });
+    await waitFor("site tabs grouped", async () => (await getTab(s2.id)).groupId !== -1);
+    const siteGid = (await getTab(s2.id)).groupId;
+    assert(siteGid !== topicGid, "site tabs never joined the same-label topic");
+    const g = await swEval((id) => chrome.tabGroups.get(id), siteGid);
+    assert(
+      g.title === "127.0.0.1",
+      `the site group fell back to the full domain (got "${g.title}")`,
+    );
+  });
+
+  await test("re-home: protection holds for titles longer than the stored cap", async () => {
+    await resetWorld();
+    const long = "A very long research group title that keeps going on";
+    const v = await openViaCommit(`${altUrl}/lpSeed`, { active: false });
+    const gid = await fabricateOurGroup([v.id], { title: long, smart: true });
+    const r = await ui({ type: "ui:protectGroup", title: long, on: true });
+    assert(r.ok, "lock stored");
+    // A cross-domain typed jump WOULD release an unprotected topic member
+    // (the deterministic new-intent rule) - so a tab that stays proves the
+    // lock matched despite the 40-char storage cap.
+    await typedCommit(v.id, `${baseUrl}/lpTyped`);
+    await sleep(600);
+    assert((await getTab(v.id)).groupId === gid, "the lock matched despite the 40-char cap");
+    await ui({ type: "ui:protectGroup", title: long, on: false });
+  });
+
+  await test("re-home: hopping onward restarts the rest clock", async () => {
+    await resetWorld();
+    const a1 = await openViaCommit(`${baseUrl}/hopA`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/hopB`, { active: false });
+    await waitFor("site group", async () => (await getTab(a2.id)).groupId !== -1);
+    await realNav(a2.id, `${altUrl}/hop1`, "hop1"); // foreign landing #1
+    await sleep(300);
+    const m1 = ((await tabState(a2.id)) || {}).mismatch;
+    assert(m1 && m1.domain === "localhost", "clock started on the first landing");
+    const fileUrl = `file://${filePagePath}`;
+    await realNav(a2.id, fileUrl, "truetabs-e2e-page"); // the chain hops on
+    await sleep(300);
+    const m2 = ((await tabState(a2.id)) || {}).mismatch;
+    assert(m2 && m2.domain !== "localhost", "the mark follows the new landing");
+    assert(m2.since >= m1.since, "the clock restarted, never inherited");
+  });
+
+  await test("re-home: the timer never wakes the model - only the user's own act may", async () => {
+    await resetWorld();
+    const a1 = await openViaCommit(`${baseUrl}/tickA`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/tickB`, { active: false });
+    await waitFor("site group", async () => (await getTab(a2.id)).groupId !== -1);
+    await swEval(() => {
+      globalThis.__ttMockAiCalls = 0;
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: () => {
+          globalThis.__ttMockAiCalls++;
+          return JSON.stringify({ group: null });
+        },
+      });
+    });
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "byok" }); // pairs topic mode
+    await realNav(a2.id, `${altUrl}/tickMoved`, "tickMoved");
+    await sleep(400);
+    const future = Date.now() + 3 * 60_000;
+    await swEval((n) => globalThis.__ttTick({ now: n }), future);
+    await waitFor("released by the deterministic pass", async () => {
+      const t = await getTab(a2.id);
+      const anchor = await getTab(a1.id);
+      return t && anchor && t.groupId !== anchor.groupId;
+    });
+    const calls = await swEval(() => globalThis.__ttMockAiCalls);
+    assert(calls === 0, `the tick asked the model ${calls} times (must be 0)`);
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+  });
+
+  await test("blanks: manual Sweep honors the grouped-blank line too", async () => {
+    await resetWorld();
+    const bg = await newBlank({ active: false });
+    await swEval((ids) => chrome.tabs.group({ tabIds: ids }), [bg.id]);
+    const loose1 = await newBlank({ active: false });
+    await sleep(300);
+    await ui({ type: "ui:sweepDupes", scope: "all" });
+    assert((await getTab(bg.id)) !== null, "the grouped blank survives the manual sweep");
+    assert((await getTab(loose1.id)) === null, "the loose surplus blank is swept");
+  });
+
+  await test("native: undo after an adopting Organize leaves the pre-existing group whole", async () => {
+    await resetWorld();
+    const x1 = await openViaCommit(`${baseUrl}/undoA1`, { active: false });
+    const x2 = await openViaCommit(`${baseUrl}/undoA2`, { active: false });
+    await waitFor("site group", async () => (await getTab(x2.id)).groupId !== -1);
+    const gid = (await getTab(x2.id)).groupId;
+    await swEval(async () => chrome.storage.session.set({ ourGroups: {} })); // restart analog
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const y1 = await openViaCommit(`${baseUrl}/undoB1`, { active: false });
+    const y2 = await openViaCommit(`${baseUrl}/undoB2`, { active: false });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    await waitFor(
+      "organize adopted the twin and joined the strays",
+      async () => (await getTab(y2.id)).groupId === gid,
+    );
+    await ui({ type: "ui:undoOrganize" });
+    await sleep(600);
+    for (const t of [x1, x2, y1, y2]) {
+      assert(
+        (await getTab(t.id)).groupId === gid,
+        "undo dissolved nothing: the adopted group was never 'created'",
+      );
+    }
   });
 
   await test("host access: the manifest can never ask for an arbitrary site", async () => {

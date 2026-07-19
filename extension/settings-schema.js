@@ -29,6 +29,7 @@ const ttSchema = (() => {
     smartEngine: "off", // "off" | "builtin" | "byok"
     otherGroup: true, // collect whatever found no home into "Other", always last
     smartRegroupOurs: true, // Smart Organize may rebuild OUR auto groups (hand-made never)
+    protectedGroups: [], // group titles automation never removes tabs from
     byokProvider: "openai", // "openai" | "gemini" | "grok" | "custom"
     byokModel: "",
     byokBaseUrl: "", // custom OpenAI-compatible endpoint (Ollama, LM Studio)
@@ -110,6 +111,11 @@ const ttSchema = (() => {
         out[key] = value.slice(0, 500);
       }
     }
+    // Protection list: titles, trimmed and deduped - it rides sync, so the
+    // same caps as rule names keep it inside the per-item quota.
+    out.protectedGroups = [
+      ...new Set(out.protectedGroups.map((t) => t.trim().slice(0, 40)).filter(Boolean)),
+    ].slice(0, 20);
     return out;
   }
 

@@ -526,5 +526,20 @@
   },
   "optSortAutoHint": {
     "message": "On: the orders above are invariants - new tabs slot in, manual drags snap back. Off: they apply only when you press Organize, and nothing moves on its own in between."
+  },
+  "groupProtect": {
+    "message": "Protect"
+  },
+  "groupUnprotect": {
+    "message": "Unprotect"
+  },
+  "groupProtectedTitle": {
+    "message": "Protected: TrueTabs never moves tabs out of this group"
+  },
+  "optProtected": {
+    "message": "Protected groups"
+  },
+  "optProtectedHint": {
+    "message": "One group name per line. TrueTabs never moves tabs out of these groups - not on navigation, not on Organize. You can also toggle this on any group row in the popup."
   }
 }

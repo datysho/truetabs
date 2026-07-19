@@ -520,5 +520,20 @@
   },
   "optSortAutoHint": {
     "message": "An: Die Reihenfolgen oben sind Invarianten - neue Tabs reihen sich ein, manuelles Ziehen springt zurück. Aus: Sie gelten nur beim Klick auf Organisieren, dazwischen bewegt sich nichts von selbst."
+  },
+  "groupProtect": {
+    "message": "Schützen"
+  },
+  "groupUnprotect": {
+    "message": "Schutz aufheben"
+  },
+  "groupProtectedTitle": {
+    "message": "Geschützt: TrueTabs entfernt keine Tabs aus dieser Gruppe"
+  },
+  "optProtected": {
+    "message": "Geschützte Gruppen"
+  },
+  "optProtectedHint": {
+    "message": "Ein Gruppenname pro Zeile. TrueTabs entfernt aus diesen Gruppen keine Tabs - weder bei Navigation noch über „Aufräumen“. Auch per Klick in der Gruppenzeile des Popups umschaltbar."
   }
 }

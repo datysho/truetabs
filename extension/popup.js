@@ -159,6 +159,19 @@ function groupRow(group) {
   name.textContent = group.title || t("groupUntitled");
   row.appendChild(name);
 
+  // The user's lock: automation never removes tabs from a protected group.
+  // Shown as a ring on the colour dot (no glyphs - words do the talking in
+  // the hover actions); only OUR groups can carry it, and never "Other" -
+  // the parking lot is a fallback, not a decision.
+  const isProtected =
+    state &&
+    group.title &&
+    state.settings.protectedGroups.includes(group.title.trim().slice(0, 40));
+  if (isProtected) {
+    row.classList.add("protected");
+    row.title = t("groupProtectedTitle");
+  }
+
   const count = document.createElement("span");
   count.className = "count";
   count.textContent = ttI18n.tabsCount(group.tabCount);
@@ -184,6 +197,20 @@ function groupRow(group) {
     });
   });
   actions.appendChild(ungroup);
+  // The lock, in words. Ours only (a hand-made group is untouchable anyway)
+  // and never on "Other" - protecting the parking lot would mean nothing.
+  if (group.ours && !group.other && group.title) {
+    const lock = document.createElement("button");
+    lock.textContent = t(isProtected ? "groupUnprotect" : "groupProtect");
+    lock.addEventListener("click", (event) => {
+      event.stopPropagation();
+      send({ type: "ui:protectGroup", title: group.title, on: !isProtected }).then((r) => {
+        if (r && r.settings) state.settings = r.settings; // repaint from the answer
+        refresh();
+      });
+    });
+    actions.appendChild(lock);
+  }
   // The parking lot earns one more word - the same verb as the big button,
   // scoped to this pile: sort it out NOW. It works in every mode (rules and
   // site buckets need no model); with AI on it also asks the strays whether

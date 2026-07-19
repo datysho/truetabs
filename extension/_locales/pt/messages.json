@@ -520,5 +520,20 @@
   },
   "optSortAutoHint": {
     "message": "Ligado: as ordens acima são invariantes - novas guias entram no lugar, arrastes manuais voltam. Desligado: aplicam-se apenas ao clicar em Organizar, e nada se move sozinho nesse meio-tempo."
+  },
+  "groupProtect": {
+    "message": "Proteger"
+  },
+  "groupUnprotect": {
+    "message": "Remover proteção"
+  },
+  "groupProtectedTitle": {
+    "message": "Protegido: o TrueTabs nunca tira abas deste grupo"
+  },
+  "optProtected": {
+    "message": "Grupos protegidos"
+  },
+  "optProtectedHint": {
+    "message": "Um nome de grupo por linha. O TrueTabs nunca tira abas desses grupos - nem ao navegar, nem com «Organizar». Também alternável na linha do grupo no popup."
   }
 }

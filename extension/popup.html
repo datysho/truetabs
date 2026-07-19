@@ -202,6 +202,12 @@
         border-radius: 3px;
         flex: none;
       }
+      /* Protected: a ring on the colour dot - visible at a glance, no glyph. */
+      .group-row.protected .dot {
+        box-shadow:
+          0 0 0 2px var(--surface),
+          0 0 0 3.5px var(--muted);
+      }
       .group-row .name {
         flex: 1;
         overflow: hidden;

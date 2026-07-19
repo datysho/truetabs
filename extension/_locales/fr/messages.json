@@ -520,5 +520,20 @@
   },
   "optSortAutoHint": {
     "message": "Activé : les ordres ci-dessus sont des invariants - les nouveaux onglets se rangent, les glissements manuels reviennent. Désactivé : ils ne s'appliquent qu'au clic sur Organiser, et rien ne bouge tout seul entre-temps."
+  },
+  "groupProtect": {
+    "message": "Protéger"
+  },
+  "groupUnprotect": {
+    "message": "Ne plus protéger"
+  },
+  "groupProtectedTitle": {
+    "message": "Protégé : TrueTabs ne retire aucun onglet de ce groupe"
+  },
+  "optProtected": {
+    "message": "Groupes protégés"
+  },
+  "optProtectedHint": {
+    "message": "Un nom de groupe par ligne. TrueTabs ne retire aucun onglet de ces groupes - ni à la navigation, ni via « Organiser ». Réglable aussi depuis la ligne du groupe dans le popup."
   }
 }
