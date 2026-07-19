@@ -2927,6 +2927,81 @@ async function main() {
     }
   });
 
+  await test("family: locked tabs reserve the front zone and the engine never touches them", async () => {
+    await resetWorld();
+    const L = await openViaCommit(`${baseUrl}/famLock`, { active: false });
+    await swEval((id) => chrome.tabs.move(id, { index: 0 }), L.id); // TruePin put it up front
+    await swEval((ids) => globalThis.__ttFamilySet(ids), [L.id]);
+    await ui({ type: "ui:setSetting", key: "groupsOnTop", value: true });
+    const g1 = await openViaCommit(`${altUrl}/famG1`, { active: false });
+    const g2 = await openViaCommit(`${altUrl}/famG2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(g2.id)).groupId !== -1);
+    await waitFor(
+      "the locked tab holds the zone with the block packed after it",
+      async () => {
+        const l = await getTab(L.id);
+        const gFirst = Math.min((await getTab(g1.id)).index, (await getTab(g2.id)).index);
+        return l.index === 0 && l.groupId === -1 && gFirst === 1;
+      },
+    );
+    await ui({ type: "ui:setSetting", key: "groupsOnTop", value: false });
+    await swEval(() => globalThis.__ttFamilySet([]));
+  });
+
+  await test("family: a locked tab is no dedup victim and never archives", async () => {
+    await resetWorld();
+    const L = await openViaCommit(`${baseUrl}/famKeep`, { active: false });
+    await swEval((ids) => globalThis.__ttFamilySet(ids), [L.id]);
+    // the directed merge would normally eat the stale copy - the zone shields it
+    const T = await openViaCommit(`${altUrl}/famT`, { active: false });
+    await realNav(T.id, `${baseUrl}/famKeep`, "famKeep");
+    await typedCommit(T.id, `${baseUrl}/famKeep`);
+    await sleep(600);
+    assert((await getTab(L.id)) !== null, "the locked copy was not merged away");
+    // and the stale sweep skips it
+    const future = Date.now() + 25 * 3600e3;
+    await swEval((n) => globalThis.__ttTick({ now: n }), future);
+    await sleep(400);
+    assert((await getTab(L.id)) !== null, "the locked tab never archives");
+    await swEval(() => globalThis.__ttFamilySet([]));
+  });
+
+  await test("family: the router obeys the allowlist and grouping skips the zone", async () => {
+    await resetWorld();
+    const L = await openViaCommit(`${baseUrl}/famZone`, { active: false });
+    const ok = await swEval(
+      (id) =>
+        globalThis.__ttFamilyExternal(
+          { v: 1, type: "family:lockedFront:changed", mode: "always", tabIds: [id] },
+          "fkgkfmhkdgpeopigpbgohoblocpjakcf",
+        ),
+      L.id,
+    );
+    assert(ok === true, "the sibling's broadcast is routed");
+    await waitFor("zone applied", async () =>
+      (await swEval(() => globalThis.__ttFamilyState())).includes(L.id),
+    );
+    const alien = await swEval(() =>
+      globalThis.__ttFamilyExternal(
+        { v: 1, type: "family:lockedFront:changed", mode: "always", tabIds: [] },
+        "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      ),
+    );
+    assert(alien === false, "strangers get silence");
+    const wrongType = await swEval(() =>
+      globalThis.__ttFamilyExternal({ v: 1, type: "ui:getState" }, "fkgkfmhkdgpeopigpbgohoblocpjakcf"),
+    );
+    assert(wrongType === false, "alien types are not routed");
+    // a same-domain peer commits: the locked tab can never seed a site group
+    const P = await openViaCommit(`${baseUrl}/famZonePeer`, { active: false });
+    await sleep(700);
+    assert(
+      (await getTab(L.id)).groupId === -1 && (await getTab(P.id)).groupId === -1,
+      "the locked tab never seeds a site group",
+    );
+    await swEval(() => globalThis.__ttFamilySet([]));
+  });
+
   await test("host access: the manifest can never ask for an arbitrary site", async () => {
     // The privacy promise is structural, not behavioural: what the extension
     // MAY request is the manifest's ceiling. A broad pair here would read as

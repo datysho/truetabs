@@ -387,8 +387,67 @@ function ensureSettleBootstrap() {
     await chrome.storage.session.set({ settled: true });
     await bumpPlaceableGen(); // tabs that landed while we were gated: look now
     traceDiag(`settled at ${lastCount} tabs`);
+    familyQueryLockedFront(); // the sibling's zone, learned once the world stands still
   }, "settle");
 }
+
+// --- family interop (TruePin) -----------------------------------------------
+// TruePin's "Always keep at the front" and our "groups at front" used to
+// contest the same stretch of strip - two enforcers, 200ms apart, forever.
+// The truce is one agreed contract: [pinned][TruePin-locked][group block]
+// [loose][Other]. TruePin answers WHO is locked (browser-attested sender
+// ids, one message family, silence to strangers); we reserve the zone and
+// treat those tabs as untouchable - never grouped, never a dedup victim,
+// never archived, never moved by the layout engine. TruePin stays the
+// zone's enforcer; our targets simply agree with his, so the oscillation
+// has nothing left to feed on. Either extension absent = exactly today's
+// standalone behavior. Spec: docs/specs/family-interop.md.
+const FAMILY_IDS = [
+  "fkgkfmhkdgpeopigpbgohoblocpjakcf", // TruePin, Chrome Web Store
+  "oappigoogllpddngpkmmdpfpbhcncnid", // TruePin, dev key (unpacked)
+];
+
+// In-memory for sync hot paths (placeable, layout, blank scans); mirrored in
+// session so a worker death mid-session forgets nothing. Top-level rebuild
+// runs on every worker wake.
+let familyLockedSet = new Set();
+const isFamilyLocked = (tabId) => familyLockedSet.has(tabId);
+
+async function familyApplyLockedFront(payload) {
+  const ids =
+    payload && payload.mode === "always" && Array.isArray(payload.tabIds) ? payload.tabIds : [];
+  familyLockedSet = new Set(ids.filter((n) => Number.isInteger(n)));
+  await chrome.storage.session.set({ familyLocked: [...familyLockedSet] });
+}
+
+function familyQueryLockedFront() {
+  for (const id of FAMILY_IDS) {
+    try {
+      chrome.runtime.sendMessage(id, { v: 1, type: "family:lockedFront:get" }, (resp) => {
+        void chrome.runtime.lastError; // sibling absent: silence is the contract
+        if (resp && resp.v === 1) enqueue(() => familyApplyLockedFront(resp), "family-zone");
+      });
+    } catch {
+      // not installed - nothing to do
+    }
+  }
+}
+
+chrome.storage.session.get("familyLocked").then(({ familyLocked }) => {
+  if (Array.isArray(familyLocked)) familyLockedSet = new Set(familyLocked);
+});
+
+// One gate for the real listener and the suite's mirror hook: allowlisted
+// sibling, contract version, the one message type - everything else is
+// silence. Returns whether the message was routed.
+function familyExternal(msg, senderId) {
+  if (!senderId || !FAMILY_IDS.includes(senderId)) return false; // strangers get silence
+  if (!msg || msg.v !== 1 || msg.type !== "family:lockedFront:changed") return false;
+  enqueue(() => familyApplyLockedFront(msg), "family-zone");
+  return true;
+}
+
+chrome.runtime.onMessageExternal.addListener((msg, sender) => familyExternal(msg, sender.id));
 
 // --- selfClosed / self-op markers ---------------------------------------------------
 
@@ -691,6 +750,7 @@ async function dedupOnCommit(tabId, url, kind, st) {
   if (await wasSelfOp("created", tabId)) return; // our own undo/restore tabs
   const tab = await quiet(chrome.tabs.get, tabId);
   if (!tab || tab.incognito || tab.pinned) return; // pinned is NEVER a victim
+  if (isFamilyLocked(tab.id)) return; // TruePin's zone: never a victim either
   const win = await quiet(chrome.windows.get, tab.windowId);
   if (!win || win.type !== "normal") return;
   // Only a tab's first real page is a victim: an existing tab that navigated
@@ -767,6 +827,7 @@ async function mergeIntoNavigated(tabId, url, st) {
       t.id !== tabId &&
       dupeKey(t.url) === key &&
       !t.pinned &&
+      !isFamilyLocked(t.id) &&
       !t.active &&
       !t.audible &&
       (t.groupId === -1 || t.groupId == null || ourGroups[t.groupId]),
@@ -850,7 +911,7 @@ async function sweepDuplicates(scope, currentWindowId) {
         (b.lastAccessed || 0) - (a.lastAccessed || 0),
     )[0];
     for (const t of bucket) {
-      if (t.id === survivor.id || t.pinned || t.active) continue;
+      if (t.id === survivor.id || t.pinned || t.active || isFamilyLocked(t.id)) continue;
       (normalizeUrl(t.url) ? victims : plainVictims).push(t);
     }
   }
@@ -907,6 +968,7 @@ const looseBlank = (t) =>
   isEphemeralUrl(t.url || t.pendingUrl || "") &&
   !t.pinned &&
   !t.active &&
+  !isFamilyLocked(t.id) &&
   (t.groupId === -1 || t.groupId == null);
 
 // One pass over a window's tabs: the survivor and the aged victims. The
@@ -1051,7 +1113,7 @@ async function archiveCandidates(settings, scopeWindowId = null) {
   };
   const out = [];
   for (const tab of tabs) {
-    if (tab.pinned || tab.active || tab.audible) continue;
+    if (tab.pinned || tab.active || tab.audible || isFamilyLocked(tab.id)) continue;
     const key = normalizeUrl(tab.url);
     if (!key) continue; // websites only: an archived page must be restorable
     const st = states[stateKey(tab.id)] || null;
@@ -1569,7 +1631,7 @@ async function rehomeNavigated(tabId, st, inheritGid, opts = {}) {
   if (st.ungroupedByUser) return;
   const allowSmart = opts.allowSmart !== false;
   const tab = await quiet(chrome.tabs.get, tabId);
-  if (!tab || tab.pinned || tab.incognito) return;
+  if (!tab || tab.pinned || tab.incognito || isFamilyLocked(tab.id)) return;
   const win = await quiet(chrome.windows.get, tab.windowId);
   if (!win || win.type !== "normal") return;
   const settings = await getSettings();
@@ -1652,6 +1714,7 @@ async function rehomeNavigated(tabId, st, inheritGid, opts = {}) {
 // out of it; hand-made groups and topic groups are decisions and stay put.
 function placeable(tab, ourGroups) {
   if (!tab || tab.pinned || tab.incognito) return false;
+  if (isFamilyLocked(tab.id)) return false; // TruePin's zone: never grouped
   if (tab.groupId === -1 || tab.groupId == null) return true;
   const owner = ourGroups[tab.groupId];
   return !!(owner && owner.other);
@@ -1665,7 +1728,7 @@ async function ensureOtherGroup(windowId, tabIds) {
   const live = [];
   for (const id of tabIds) {
     const t = await quiet(chrome.tabs.get, id);
-    if (!t || t.pinned || t.windowId !== windowId) continue;
+    if (!t || t.pinned || t.windowId !== windowId || isFamilyLocked(t.id)) continue;
     if (t.groupId !== -1 && t.groupId != null) continue;
     // A blank or new-tab page is not a leftover, it is a page about to be:
     // parking it would put the tab in a group before it has any content -
@@ -1765,6 +1828,7 @@ async function groupOnCommit(tabId, st) {
   const peers = (await chrome.tabs.query({ windowId: tab.windowId, pinned: false })).filter(
     (t) =>
       t.id !== tab.id &&
+      !isFamilyLocked(t.id) &&
       (t.groupId === -1 ||
         t.groupId == null ||
         (ourGroups[t.groupId] && ourGroups[t.groupId].other)) &&
@@ -2059,9 +2123,14 @@ async function applySort(windowId) {
   if (otherIdx >= 0) seq.push(...seq.splice(otherIdx, 1));
 
   // 3) Lay the block out. With groupsOnTop the whole block packs right after
-  //    the pinned tabs; otherwise only the order inside the block changes,
+  //    the pinned tabs AND TruePin's locked-front zone - the family truce:
+  //    [pinned][locked][groups][loose][Other]. TruePin enforces the locked
+  //    stretch; our targets simply agree with his, so neither side ever
+  //    undoes the other. Otherwise only the order inside the block changes,
   //    the block itself stays where the user keeps it.
-  const pinnedCount = tabs.filter((t) => t.pinned).length;
+  const pinnedCount =
+    tabs.filter((t) => t.pinned).length +
+    tabs.filter((t) => !t.pinned && isFamilyLocked(t.id)).length;
   const laidOut = (list, start) => {
     let cursor = start;
     for (const g of list) {
@@ -2089,10 +2158,13 @@ async function applySort(windowId) {
     }
   }
 
-  // 4) Loose tabs go after the groups, in order.
+  // 4) Loose tabs go after the groups, in order. TruePin-locked tabs are not
+  //    ours to move - they live in the front zone he enforces.
   let looseMoved = false;
   if (tabMode !== "off") {
-    const looseNow = tabs.filter((t) => !t.pinned && (t.groupId === -1 || t.groupId == null));
+    const looseNow = tabs.filter(
+      (t) => !t.pinned && !isFamilyLocked(t.id) && (t.groupId === -1 || t.groupId == null),
+    );
     const loose = [...looseNow].sort(cmpBy(tabMode));
     // already true: sorted AND packed at the very end of the window
     const tailStart = tabs.length - loose.length;
@@ -2221,7 +2293,9 @@ async function ungroupAll() {
 async function moveGroupsToFront(windowId) {
   const ourGroups = await getOurGroups();
   const tabs = await chrome.tabs.query({ windowId });
-  const pinnedCount = tabs.filter((t) => t.pinned).length;
+  const pinnedCount =
+    tabs.filter((t) => t.pinned).length +
+    tabs.filter((t) => !t.pinned && isFamilyLocked(t.id)).length; // the family zone
   const groups = ((await quiet(chrome.tabGroups.query, { windowId })) || [])
     .map((g) => {
       const members = tabs.filter((t) => t.groupId === g.id);
@@ -2292,7 +2366,7 @@ async function mergeWindows(targetWindowId) {
       }
     }
     const loose = (await chrome.tabs.query({ windowId: win.id, pinned: false })).filter(
-      (t) => t.groupId === -1 || t.groupId == null,
+      (t) => (t.groupId === -1 || t.groupId == null) && !isFamilyLocked(t.id),
     );
     if (loose.length) {
       for (const t of loose) await markSelfOp("tabgroup", t.id);
@@ -2868,7 +2942,7 @@ async function smartOrganize(scope, currentWindowId) {
       // real http(s) domains - exotic schemes go straight to "Other".
       const pool = all
         .filter((t) => {
-          if (isEphemeralUrl(t.url) || !t.url) return false;
+          if (isEphemeralUrl(t.url) || !t.url || isFamilyLocked(t.id)) return false;
           if (t.groupId === -1 || t.groupId == null) return true;
           const owner = ourGroups[t.groupId];
           if (!owner || owner.customId || !settings.smartRegroupOurs) return false;
@@ -2984,7 +3058,8 @@ async function tick() {
     if (settings.discardStale) {
       const candidateIds = new Set(candidates.map((t) => t.id));
       for (const tab of await normalTabs()) {
-        if (tab.pinned || tab.active || tab.audible || tab.discarded) continue;
+        if (tab.pinned || tab.active || tab.audible || tab.discarded || isFamilyLocked(tab.id))
+          continue;
         if (candidateIds.has(tab.id)) continue;
         if (!normalizeUrl(tab.url)) continue; // websites only, mirroring archive
         if (allowlistMatch(settings.archiveAllowlist, tab.url)) continue;
@@ -3610,6 +3685,7 @@ async function handleCommit(details) {
             const peers = [];
             for (const t of await chrome.tabs.query({ windowId: still.windowId, pinned: false })) {
               if (t.id === still.id) continue;
+              if (isFamilyLocked(t.id)) continue;
               if (t.groupId !== -1 && t.groupId != null) continue;
               if (isEphemeralUrl(t.url) || !t.url) continue;
               const peerSt = await getTabState(t.id);
@@ -3718,6 +3794,9 @@ chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
 chrome.tabs.onRemoved.addListener((tabId) => {
   enqueue(async () => {
     await dropTabState(tabId);
+    if (familyLockedSet.delete(tabId)) {
+      await chrome.storage.session.set({ familyLocked: [...familyLockedSet] });
+    }
     await setTabMismatch(tabId, null); // prunes the index; the state is already gone
   }, "removed");
 });
@@ -3969,6 +4048,14 @@ globalThis.__ttSeedArchive = (entries) =>
       }),
     "seed-archive",
   );
+// Family-zone hooks: inject the sibling's locked-front set without a second
+// extension in the harness, read it back, and exercise the external router's
+// gate with a chosen sender id.
+globalThis.__ttFamilySet = (ids) =>
+  enqueue(() => familyApplyLockedFront({ v: 1, mode: "always", tabIds: ids || [] }), "family-test");
+globalThis.__ttFamilyState = () => [...familyLockedSet];
+globalThis.__ttFamilyExternal = (msg, senderId) => familyExternal(msg, senderId);
+
 globalThis.__ttSetMockAi = (mock) => {
   globalThis.__ttMockAi = mock || null;
 };
