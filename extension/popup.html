@@ -208,6 +208,17 @@
           0 0 0 2px var(--surface),
           0 0 0 3.5px var(--muted);
       }
+      /* A bookmark-born group whose working set drifted from its folder. */
+      .group-row.bmk-diverged .name::after {
+        content: "";
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-left: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        vertical-align: middle;
+      }
       .group-row .name {
         flex: 1;
         overflow: hidden;
@@ -376,6 +387,11 @@
         </div>
         <div class="group-list" id="groupList"></div>
         <p class="muted" id="groupsHint" data-i18n="groupsDragHint" style="margin: 6px 2px 0; font-size: 11px;"></p>
+      </section>
+
+      <section id="bmkSection" hidden>
+        <h3 data-i18n="bmkHeader"></h3>
+        <div class="group-list" id="bmkList"></div>
       </section>
 
       <section class="toggles">

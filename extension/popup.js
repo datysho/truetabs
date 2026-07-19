@@ -197,6 +197,27 @@ function groupRow(group) {
     });
   });
   actions.appendChild(ungroup);
+  // Bookmarks, in words: first save christens the folder, later saves update
+  // it. Ours only, never "Other" (a parking lot is not a definition), and the
+  // divergence dot marks a working set that drifted from its folder.
+  if (group.bookmark && group.diverged) row.classList.add("bmk-diverged");
+  if (state && state.bmk && state.bmk.on && group.ours && !group.other && group.title) {
+    const bmkBtn = document.createElement("button");
+    bmkBtn.textContent = t(group.bookmark ? "bmkUpdate" : "bmkSave");
+    bmkBtn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const clash =
+        !group.bookmark &&
+        (state.bmk.folders || []).some((f) => f.name === (group.title || "").trim());
+      if (clash && !window.confirm(t("bmkReplaceConfirm", [group.title]))) return;
+      bmkBtn.disabled = true;
+      send({ type: "ui:bmk:save", gid: group.id }).then((r) => {
+        setStatus(r && r.ok ? t("bmkSaved", [String(r.saved)]) : t("bmkFailed"));
+        refresh();
+      });
+    });
+    actions.appendChild(bmkBtn);
+  }
   // The lock, in words. Ours only (a hand-made group is untouchable anyway)
   // and never on "Other" - protecting the parking lot would mean nothing.
   if (group.ours && !group.other && group.title) {
@@ -290,18 +311,70 @@ function renderGroups() {
   const section = $("groupsSection");
   const groups = state.groups || [];
   section.hidden = groups.length === 0;
-  if (!groups.length) return;
-  $("groupsCount").textContent = groups.length;
-  const list = $("groupList");
-  if (list.querySelector(".group-row.dragging")) return; // never repaint mid-drag
+  if (groups.length) {
+    $("groupsCount").textContent = groups.length;
+    const list = $("groupList");
+    if (list.querySelector(".group-row.dragging")) return; // never repaint mid-drag
+    list.textContent = "";
+    for (const group of groups) list.appendChild(groupRow(group));
+  }
+  renderBookmarkFolders();
+}
+
+// The definition folders under "TrueTabs": one row each - name, count, Open.
+// Folders whose group is already live in this window read as that group's
+// row above; the section lists them all anyway (opening is idempotent: an
+// open twin is reused, never duplicated).
+function renderBookmarkFolders() {
+  const section = $("bmkSection");
+  const bmk = state.bmk || { on: false, folders: [] };
+  const folders = bmk.folders || [];
+  section.hidden = !bmk.on || folders.length === 0;
+  if (section.hidden) return;
+  const list = $("bmkList");
   list.textContent = "";
-  for (const group of groups) list.appendChild(groupRow(group));
+  for (const f of folders) {
+    const row = document.createElement("div");
+    row.className = "group-row";
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = f.name;
+    row.appendChild(name);
+    const count = document.createElement("span");
+    count.className = "count";
+    count.textContent = ttI18n.tabsCount(f.count);
+    row.appendChild(count);
+    const actions = document.createElement("span");
+    actions.className = "row-actions";
+    const open = document.createElement("button");
+    open.textContent = t("bmkOpen");
+    open.addEventListener("click", (event) => {
+      event.stopPropagation();
+      open.disabled = true;
+      send({ type: "ui:bmk:open", name: f.name, windowId }).then((r) => {
+        if (r && r.ok) {
+          setStatus(
+            r.cut > 0 ? t("bmkOpenedCut", [String(r.cut)]) : t("bmkOpened"),
+          );
+        } else {
+          setStatus(t("bmkFailed"));
+        }
+        refresh();
+      });
+    });
+    actions.appendChild(open);
+    row.appendChild(actions);
+    list.appendChild(row);
+  }
 }
 
 async function refresh() {
   const next = await send({ type: "ui:getState", windowId });
   if (next && next.settings) {
     state = next;
+    state.bmk = next.settings.bookmarkGroups
+      ? await send({ type: "ui:bmk:list" })
+      : { on: false, folders: [] };
     render();
   }
 }

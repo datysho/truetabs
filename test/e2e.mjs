@@ -3129,6 +3129,151 @@ async function main() {
     await ui({ type: "ui:customGroups:set", list: [] });
   });
 
+  const bmkEnable = async () => {
+    await swEval(() => globalThis.__ttBmkInstallMock());
+    await ui({ type: "ui:setSetting", key: "bookmarkGroups", value: true });
+  };
+  const bmkDisable = async () => {
+    await ui({ type: "ui:setSetting", key: "bookmarkGroups", value: false });
+    await swEval(() => globalThis.__ttBmkClearMock());
+  };
+  const bmkDump = () => swEval(() => globalThis.__ttBmkDump());
+
+  await test("bookmarks: saving a group writes its folder, in tab order, and adopts the kind", async () => {
+    await resetWorld();
+    await bmkEnable();
+    const a1 = await openViaCommit(`${baseUrl}/bmkA1`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/bmkA2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(a2.id)).groupId !== -1);
+    const gid = (await getTab(a2.id)).groupId;
+    const saved = await ui({ type: "ui:bmk:save", gid });
+    assert(saved.ok && saved.saved === 2, `folder written (${JSON.stringify(saved)})`);
+    const listed = await ui({ type: "ui:bmk:list" });
+    assert(listed.on && listed.folders.length === 1 && listed.folders[0].count === 2, "folder listed");
+    const reg = await swEval(async () => (await chrome.storage.session.get("ourGroups")).ourGroups || {});
+    assert(reg[gid] && reg[gid].bookmark === true, "the group now carries the bookmark kind");
+    const urls = (await bmkDump()).filter((n) => n.url).map((n) => n.url);
+    assert(urls.length === 2 && urls[0].includes("bmkA") && urls[1].includes("bmkA"), "both pages stored");
+    await bmkDisable();
+  });
+
+  await test("bookmarks: open adopts the live copy, recreates the missing, reuses the live twin", async () => {
+    await resetWorld();
+    await bmkEnable();
+    const a1 = await openViaCommit(`${baseUrl}/bmkO1`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/bmkO2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(a2.id)).groupId !== -1);
+    const gid = (await getTab(a2.id)).groupId;
+    const name = (await swEval((g) => chrome.tabGroups.get(g), gid)).title;
+    await ui({ type: "ui:bmk:save", gid });
+    await swEval((id) => chrome.tabs.remove(id), a2.id); // the working set shrinks
+    await sleep(400);
+    assert((await bmkDump()).filter((n) => n.url).length === 2, "closing a tab left the folder whole");
+    const winId = (await getTab(a1.id)).windowId;
+    const opened = await ui({ type: "ui:bmk:open", name, windowId: winId });
+    assert(opened.ok && opened.gid === gid, "the live twin was reused, not twinned");
+    assert(opened.adopted >= 1 && opened.created === 1, `adopt+create split (${JSON.stringify(opened)})`);
+    await waitFor("both members back", async () => {
+      const tabs = await swEval((g) => chrome.tabs.query({ groupId: g }), gid);
+      return tabs.length === 2;
+    });
+    await bmkDisable();
+  });
+
+  await test("bookmarks: automation never writes - the store is byte-identical after dedup, archive, dissolve", async () => {
+    await resetWorld();
+    await bmkEnable();
+    const a1 = await openViaCommit(`${baseUrl}/bmkAuto1`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/bmkAuto2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(a2.id)).groupId !== -1);
+    const gid = (await getTab(a2.id)).groupId;
+    await ui({ type: "ui:bmk:save", gid });
+    const winId = (await getTab(a1.id)).windowId;
+    const before = JSON.stringify(await bmkDump());
+    const dup = await openViaCommit(`${baseUrl}/bmkAuto1`, { active: false }); // auto-dedup food
+    await sleep(500);
+    const future = Date.now() + 25 * 3600e3; // stale archive food (archives a1/a2 too)
+    await swEval((n) => globalThis.__ttTick({ now: n }), future);
+    await sleep(400);
+    await ui({ type: "ui:groupsUngroupAll", windowId: winId });
+    await sleep(300);
+    assert(JSON.stringify(await bmkDump()) === before, "no automatic path holds a bookmark pen");
+    await bmkDisable();
+  });
+
+  await test("bookmarks: the toggle off means silence - no reads, no root, readable refusals", async () => {
+    await resetWorld();
+    await swEval(() => globalThis.__ttBmkInstallMock()); // store exists, feature OFF
+    const listed = await ui({ type: "ui:bmk:list" });
+    assert(listed.on === false && listed.folders.length === 0, "list reports off");
+    const saved = await ui({ type: "ui:bmk:save", gid: 1 });
+    assert(saved.ok === false && saved.error === "off", "save refuses readably");
+    assert((await bmkDump()).length === 0, "no root folder was ever created");
+    await swEval(() => globalThis.__ttBmkClearMock());
+  });
+
+  await test("bookmarks: the divergence dot follows the drift", async () => {
+    await resetWorld();
+    await bmkEnable();
+    const a1 = await openViaCommit(`${baseUrl}/bmkD1`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/bmkD2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(a2.id)).groupId !== -1);
+    const gid = (await getTab(a2.id)).groupId;
+    await ui({ type: "ui:bmk:save", gid });
+    let st = await ui({ type: "ui:getState" });
+    let row = st.groups.find((g) => g.id === gid);
+    assert(row && row.bookmark && row.diverged === false, "fresh save: no drift");
+    await swEval((id) => chrome.tabs.remove(id), a2.id);
+    await sleep(400);
+    st = await ui({ type: "ui:getState" });
+    row = st.groups.find((g) => g.id === gid);
+    assert(row && row.diverged === true, "a closed member reads as drift");
+    await bmkDisable();
+  });
+
+  await test("bookmarks: the cap opens the first thirty and says what it cut", async () => {
+    await resetWorld();
+    await bmkEnable();
+    await swEval(async (base) => {
+      const api = globalThis.__ttBmkMock;
+      const root = await api.create({ parentId: "2", title: "TrueTabs" });
+      const folder = await api.create({ parentId: root.id, title: "Big" });
+      for (let i = 0; i < 35; i++) {
+        await api.create({ parentId: folder.id, title: `p${i}`, url: `${base}/big${i}` });
+      }
+    }, baseUrl);
+    const winId = (await swEval(() => chrome.windows.getLastFocused())).id;
+    const opened = await ui({ type: "ui:bmk:open", name: "Big", windowId: winId });
+    assert(opened.ok && opened.cut === 5, `five over the cap named (${JSON.stringify(opened)})`);
+    const members = await swEval((g) => chrome.tabs.query({ groupId: g }), opened.gid);
+    assert(members.length === 30, `thirty opened (${members.length})`);
+    await bmkDisable();
+  });
+
+  await test("bookmarks: smart re-shuffle never rebuilds a definition", async () => {
+    await resetWorld();
+    await bmkEnable();
+    const a1 = await openViaCommit(`${baseUrl}/bmkS1`, { active: false });
+    const a2 = await openViaCommit(`${baseUrl}/bmkS2`, { active: false });
+    await waitFor("grouped", async () => (await getTab(a2.id)).groupId !== -1);
+    const gid = (await getTab(a2.id)).groupId;
+    await ui({ type: "ui:bmk:save", gid });
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: () => JSON.stringify({ groups: [{ name: "Stolen", tabIndices: [0, 1] }] }),
+      }),
+    );
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    await sleep(600);
+    assert(
+      (await getTab(a1.id)).groupId === gid && (await getTab(a2.id)).groupId === gid,
+      "definition members stayed put",
+    );
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await bmkDisable();
+  });
+
   await test("host access: the manifest can never ask for an arbitrary site", async () => {
     // The privacy promise is structural, not behavioural: what the extension
     // MAY request is the manifest's ceiling. A broad pair here would read as

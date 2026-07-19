@@ -28,6 +28,14 @@ labeled where you enable it.
 Nothing above ever leaves your machine except in the BYOK mode described
 below. Uninstalling the extension deletes all of it.
 
+Bookmark groups (off by default) ask for the optional bookmarks permission
+only when you switch the feature on, and release it when you switch it off.
+Bookmarks are read and written exclusively on your explicit clicks - "To
+bookmarks", "Update folder", "Open" - inside the "TrueTabs" folder; nothing
+automatic ever writes there, and TrueTabs never deletes a folder. Closing,
+archiving or deduplicating tabs never touches a bookmark: those code paths
+contain no bookmark calls at all.
+
 The Backup section in Options writes settings and "My groups" to a JSON
 file on your machine, only when you click Export - the file goes nowhere by
 itself. The API key is included only when you explicitly tick "Include the

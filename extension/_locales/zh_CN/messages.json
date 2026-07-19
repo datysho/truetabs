@@ -562,5 +562,38 @@
   },
   "dataImportKeyConfirm": {
     "message": "该文件包含 API 密钥。也一并导入吗?"
+  },
+  "optBmkGroups": {
+    "message": "书签分组"
+  },
+  "optBmkGroupsHint": {
+    "message": "书签中“TrueTabs”下的文件夹定义一个持久分组:在弹窗中打开它,或用当前分组更新文件夹。TrueTabs 绝不删除书签 - 关闭标签页不会动文件夹。需要书签权限(开启时询问)。"
+  },
+  "bmkHeader": {
+    "message": "来自书签"
+  },
+  "bmkOpen": {
+    "message": "打开"
+  },
+  "bmkOpened": {
+    "message": "已从文件夹打开分组"
+  },
+  "bmkOpenedCut": {
+    "message": "已打开前面的,少 $1 个 - 文件夹超出一次可开的量"
+  },
+  "bmkSave": {
+    "message": "存入书签"
+  },
+  "bmkUpdate": {
+    "message": "更新文件夹"
+  },
+  "bmkSaved": {
+    "message": "文件夹已更新:$1 个书签"
+  },
+  "bmkReplaceConfirm": {
+    "message": "用此分组替换“$1”文件夹的内容?"
+  },
+  "bmkFailed": {
+    "message": "书签已关闭,或文件夹已不存在。"
   }
 }

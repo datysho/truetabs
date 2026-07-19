@@ -562,5 +562,38 @@
   },
   "dataImportKeyConfirm": {
     "message": "Ce fichier contient une clé API. L'importer aussi ?"
+  },
+  "optBmkGroups": {
+    "message": "Groupes depuis les favoris"
+  },
+  "optBmkGroupsHint": {
+    "message": "Un dossier sous « TrueTabs » dans vos favoris définit un groupe durable : ouvrez-le depuis le popup, mettez le dossier à jour depuis le groupe vivant. TrueTabs ne supprime jamais de favoris - fermer des onglets ne touche pas aux dossiers. Nécessite la permission favoris (demandée à l'activation)."
+  },
+  "bmkHeader": {
+    "message": "Depuis les favoris"
+  },
+  "bmkOpen": {
+    "message": "Ouvrir"
+  },
+  "bmkOpened": {
+    "message": "Groupe ouvert depuis son dossier"
+  },
+  "bmkOpenedCut": {
+    "message": "Les premiers ouverts, $1 de moins - le dossier dépasse une fournée"
+  },
+  "bmkSave": {
+    "message": "Vers les favoris"
+  },
+  "bmkUpdate": {
+    "message": "Mettre à jour le dossier"
+  },
+  "bmkSaved": {
+    "message": "Dossier mis à jour : $1 favoris"
+  },
+  "bmkReplaceConfirm": {
+    "message": "Remplacer le contenu du dossier « $1 » par ce groupe ?"
+  },
+  "bmkFailed": {
+    "message": "Favoris désactivés ou dossier disparu."
   }
 }

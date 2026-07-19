@@ -468,6 +468,95 @@ function familyExternal(msg, senderId) {
 
 chrome.runtime.onMessageExternal.addListener((msg, sender) => familyExternal(msg, sender.id));
 
+// --- bookmark groups (opt-in) ----------------------------------------------
+// A folder under "TrueTabs" is a durable group DEFINITION: "Open"
+// materializes it (already-open tabs adopt, the rest are created), "Update
+// folder" pushes the live membership back. Nothing else ever writes:
+// closing, archiving, dedup and dissolve have no bookmark call sites at all
+// - "deleted the tab, lost the bookmark" is designed out structurally, not
+// guarded against. The permission is OPTIONAL and requested only when the
+// toggle is switched on; folders resolve BY NAME (bookmark ids differ per
+// device - sync maps them), and the root's title stays English across
+// locales so two differently-localized browsers meet in the same folder.
+// The adapter lets the suite exercise every contract with an in-memory
+// store - a harness cannot click Chrome's native permission prompt; the
+// live-API pass is a dogfood line. Spec: docs/specs/bookmark-groups.md.
+const BMK_ROOT_TITLE = "TrueTabs";
+const BMK_OPEN_CAP = 30;
+
+const bmkApi = () => globalThis.__ttBmkMock || chrome.bookmarks;
+
+async function hasBookmarks(settings = null) {
+  const s = settings || (await getSettings());
+  if (!s.bookmarkGroups) return false;
+  if (globalThis.__ttBmkMock) return true;
+  try {
+    return await chrome.permissions.contains({ permissions: ["bookmarks"] });
+  } catch {
+    return false;
+  }
+}
+
+async function bmkRoot(create = false) {
+  const api = bmkApi();
+  const hits = (await api.search({ title: BMK_ROOT_TITLE })) || [];
+  const root = hits.find((n) => !n.url);
+  if (root) return root;
+  if (!create) return null;
+  return api.create({ parentId: "2", title: BMK_ROOT_TITLE }); // "2" = Other Bookmarks
+}
+
+async function bmkFolders() {
+  const root = await bmkRoot(false);
+  if (!root) return [];
+  const kids = (await bmkApi().getChildren(root.id)) || [];
+  const out = [];
+  for (const k of kids) {
+    if (k.url) continue;
+    const items = (await bmkApi().getChildren(k.id)) || [];
+    out.push({ id: k.id, name: k.title, count: items.filter((i) => i.url).length });
+  }
+  return out;
+}
+
+// Replace a definition folder's ITEMS with the given tabs, in tab order.
+// Nested folders inside a definition are outside the one-level contract and
+// are left untouched; the definition folder itself is never deleted.
+async function bmkWriteFolder(name, tabs) {
+  const api = bmkApi();
+  const root = await bmkRoot(true);
+  const kids = (await api.getChildren(root.id)) || [];
+  let folder = kids.find((k) => !k.url && k.title === name);
+  if (!folder) folder = await api.create({ parentId: root.id, title: name });
+  for (const child of (await api.getChildren(folder.id)) || []) {
+    if (child.url) await api.remove(child.id);
+  }
+  let written = 0;
+  for (const t of tabs) {
+    const url = t.url || t.pendingUrl;
+    if (!url || isEphemeralUrl(url)) continue;
+    await api.create({ parentId: folder.id, title: t.title || url, url });
+    written++;
+  }
+  return written;
+}
+
+// The live membership of a bookmark-born group vs its folder: a cheap
+// key-set compare for the popup's divergence dot.
+async function bmkDiverged(name, memberTabs) {
+  const root = await bmkRoot(false);
+  if (!root) return true; // definition gone: diverged by definition
+  const kids = (await bmkApi().getChildren(root.id)) || [];
+  const folder = kids.find((k) => !k.url && k.title === name);
+  if (!folder) return true;
+  const items = ((await bmkApi().getChildren(folder.id)) || []).filter((i) => i.url);
+  const folderKeys = new Set(items.map((i) => dupeKey(i.url)).filter(Boolean));
+  const liveKeys = new Set(memberTabs.map((t) => dupeKey(t.url)).filter(Boolean));
+  if (folderKeys.size !== liveKeys.size) return true;
+  for (const k of liveKeys) if (!folderKeys.has(k)) return true;
+  return false;
+}
+
 // --- selfClosed / self-op markers ---------------------------------------------------
 
 async function markSelfClosed(tabIds) {
@@ -1313,12 +1402,12 @@ async function readoptGroups(candidates = null) {
     if (!sig) continue;
     const members = await chrome.tabs.query({ groupId: group.id });
     if (!members.length) continue;
-    if (!sig.smart && !sig.customId) {
+    if (!sig.smart && !sig.customId && !sig.bookmark) {
       const matching = members.filter((m) => registrableDomain(m.url) === sig.domain).length;
       if (matching < Math.ceil(members.length / 2)) continue;
     }
     ourGroups[group.id] = {
-      domain: sig.smart || sig.customId ? null : sig.domain,
+      domain: sig.smart || sig.customId || sig.bookmark ? null : sig.domain,
       title: group.title,
       color: group.color,
       windowId: group.windowId,
@@ -1328,6 +1417,7 @@ async function readoptGroups(candidates = null) {
       smart: !!sig.smart,
       other: !!sig.other,
       customId: sig.customId || null,
+      bookmark: !!sig.bookmark,
     };
     traceDiag(`re-adopted group ${group.id} (${sig.domain || sig.customId || "smart"})`);
   }
@@ -1337,7 +1427,7 @@ async function readoptGroups(candidates = null) {
 async function createOurGroup(
   tabIds,
   windowId,
-  { domain, title, color, smart = false, other = false, customId = null },
+  { domain, title, color, smart = false, other = false, customId = null, bookmark = false },
   meta = null, // out-param: meta.adopted = the returned gid was a reused twin, NOT a new group
 ) {
   // Twin guard (native-groups-compat): one live group per OUR title per
@@ -1366,7 +1456,8 @@ async function createOurGroup(
       !!entry.other === !!other &&
       (entry.customId || null) === (customId || null) &&
       !!entry.smart === !!smart &&
-      (smart || customId ? true : entry.domain === domain);
+      !!entry.bookmark === !!bookmark &&
+      (smart || customId || bookmark ? true : entry.domain === domain);
     if (kindMatches) {
       let joined = 0;
       for (const id of tabIds) {
@@ -1382,7 +1473,7 @@ async function createOurGroup(
     // back to the full domain as the title (the registered-collision rule,
     // extended to live groups); other kinds mint beside - rare, and honest
     // about being different groups.
-    if (!smart && !customId && domain) finalTitle = domain;
+    if (!smart && !customId && !bookmark && domain) finalTitle = domain;
   }
   // Mark BEFORE the call: a tab moving out of one of our groups (a stray
   // leaving the catch-all for its real site group) emits a leave event, and
@@ -1398,7 +1489,7 @@ async function createOurGroup(
   await quiet(chrome.tabGroups.update, gid, { title: finalTitle, color });
   const ourGroups = await getOurGroups();
   ourGroups[gid] = {
-    domain: smart || customId ? null : domain,
+    domain: smart || customId || bookmark ? null : domain,
     title: finalTitle,
     color,
     windowId,
@@ -1408,15 +1499,18 @@ async function createOurGroup(
     smart,
     other,
     customId,
+    bookmark,
   };
   await putOurGroups(ourGroups);
   // Every group we make carries a signature, so ownership survives restarts.
   await upsertGroupSig(
     customId
       ? { title: finalTitle, color, smart: false, customId }
-      : smart
-        ? { title: finalTitle, color, smart: true, other }
-        : { domain, title: finalTitle, color, smart: false },
+      : bookmark
+        ? { title: finalTitle, color, smart: false, bookmark: true }
+        : smart
+          ? { title: finalTitle, color, smart: true, other }
+          : { domain, title: finalTitle, color, smart: false },
   );
   for (const id of tabIds) {
     const st = await getTabState(id);
@@ -2709,7 +2803,7 @@ async function applySmartBatch(windowId, parsed, batch, themes, customs, setting
           const owner = ourGroupsNow[t.groupId];
           const known = themes.get(key);
           if (known && known.gid === t.groupId) continue; // already where it belongs
-          if (!owner || owner.customId || !settings.smartRegroupOurs) continue; // not ours to move
+          if (!owner || owner.customId || owner.bookmark || !settings.smartRegroupOurs) continue; // not ours to move
           if (isProtectedTitle(settings, owner.title)) continue; // the user's lock holds
         }
         live.push(t.id);
@@ -2964,7 +3058,7 @@ async function smartOrganize(scope, currentWindowId) {
           if (isEphemeralUrl(t.url) || !t.url || isFamilyLocked(t.id)) return false;
           if (t.groupId === -1 || t.groupId == null) return true;
           const owner = ourGroups[t.groupId];
-          if (!owner || owner.customId || !settings.smartRegroupOurs) return false;
+          if (!owner || owner.customId || owner.bookmark || !settings.smartRegroupOurs) return false;
           return !isProtectedTitle(settings, owner.title); // the user's lock holds
         })
         .sort((a, b) => registrableDomain(a.url).localeCompare(registrableDomain(b.url)));
@@ -3140,10 +3234,13 @@ async function uiGetState(request) {
   // flagged (the popup lets the user jump/collapse/reorder any of them -
   // explicit user acts, not automation).
   const ourGroups = await getOurGroups();
+  const bmkOn = await hasBookmarks(settings);
   const groups = [];
   for (const group of (await quiet(chrome.tabGroups.query, {})) || []) {
     if (!windows.some((w) => w.id === group.windowId)) continue;
     const members = tabs.filter((t) => t.groupId === group.id);
+    const entry = ourGroups[group.id];
+    const isBmk = !!(entry && entry.bookmark);
     groups.push({
       id: group.id,
       title: group.title || "",
@@ -3152,8 +3249,11 @@ async function uiGetState(request) {
       windowId: group.windowId,
       tabCount: members.length,
       firstTabIndex: members.length ? Math.min(...members.map((t) => t.index)) : -1,
-      ours: !!ourGroups[group.id],
-      other: !!(ourGroups[group.id] && ourGroups[group.id].other),
+      ours: !!entry,
+      other: !!(entry && entry.other),
+      bookmark: isBmk,
+      // The divergence dot: the working set drifted from its definition.
+      diverged: isBmk && bmkOn ? await bmkDiverged(group.title || "", members) : false,
     });
   }
   groups.sort((a, b) => a.windowId - b.windowId || a.firstTabIndex - b.firstTabIndex);
@@ -3299,6 +3399,91 @@ async function handleUi(request) {
       i18nReady = null; // language may have changed
       await bumpPlaceableGen(); // imported rules reclaim what is already parked
       return { ok: true, settings, customGroups: rules, keyImported: !!(request.withKey && p.byokKey) };
+    }
+    case "ui:bmk:list": {
+      // Read-only paint data for the popup section: the definition folders.
+      if (!(await hasBookmarks())) return { on: false, folders: [] };
+      return { on: true, folders: await bmkFolders() };
+    }
+    case "ui:bmk:save": {
+      // Snapshot OR push-back - one semantic: the folder becomes the group's
+      // current membership, in tab order. The popup words it per context.
+      if (!(await hasBookmarks())) return { ok: false, error: "off" };
+      // The router already runs this case ON the queue - an inner enqueue
+      // here would be the v1.3 nested-enqueue deadlock all over again.
+      {
+        const live = await quiet(chrome.tabGroups.get, request.gid);
+        if (!live) return { ok: false, error: "gone" };
+        const name = (live.title || "").trim();
+        if (!name) return { ok: false, error: "untitled" };
+        const members = (await chrome.tabs.query({ groupId: request.gid })).sort(
+          (a, b) => a.index - b.index,
+        );
+        const saved = await bmkWriteFolder(name, members);
+        // The folder now IS this group's definition: adopt the kind so the
+        // divergence dot and the re-shuffle exclusion apply from now on.
+        const ourGroups = await getOurGroups();
+        if (ourGroups[request.gid]) {
+          ourGroups[request.gid].bookmark = true;
+          await putOurGroups(ourGroups);
+          await upsertGroupSig({ title: name, color: live.color, smart: false, bookmark: true });
+        }
+        return { ok: true, saved };
+      }
+    }
+    case "ui:bmk:open": {
+      if (!(await hasBookmarks())) return { ok: false, error: "off" };
+      {
+        const root = await bmkRoot(false);
+        if (!root) return { ok: false, error: "gone" };
+        const kids = (await bmkApi().getChildren(root.id)) || [];
+        const folder = kids.find((k) => !k.url && k.title === request.name);
+        if (!folder) return { ok: false, error: "gone" };
+        const items = ((await bmkApi().getChildren(folder.id)) || []).filter((i) => i.url);
+        const cut = Math.max(0, items.length - BMK_OPEN_CAP);
+        const wanted = items.slice(0, BMK_OPEN_CAP);
+        const windowId = request.windowId;
+        const winTabs = await chrome.tabs.query({ windowId });
+        const ourGroups = await getOurGroups();
+        const byKey = new Map();
+        for (const t of winTabs) {
+          const k = dupeKey(t.url);
+          if (k && !byKey.has(k)) byKey.set(k, t);
+        }
+        const adopt = [];
+        const create = [];
+        for (const item of wanted) {
+          const k = dupeKey(item.url);
+          const open = k ? byKey.get(k) : null;
+          // Adoption takes what is free to take: loose tabs, Other's
+          // parking, members of OUR own groups. Pinned, TruePin-locked and
+          // hand-made group members stay - their copy opens fresh instead.
+          const takeable =
+            open &&
+            !open.pinned &&
+            !isFamilyLocked(open.id) &&
+            (open.groupId === -1 || open.groupId == null || ourGroups[open.groupId]);
+          if (takeable) adopt.push(open.id);
+          else create.push(item.url);
+        }
+        const createdIds = [];
+        await withCreateAllowance(create.length, async () => {
+          for (const url of create) {
+            const tab = await guardedCreate({ url, windowId, active: false }, "bmk-open");
+            if (tab) createdIds.push(tab.id);
+          }
+        });
+        const tabIds = [...adopt, ...createdIds];
+        if (!tabIds.length) return { ok: false, error: "empty" };
+        const meta = {};
+        const gid = await createOurGroup(
+          tabIds,
+          windowId,
+          { title: request.name, color: colorFor(request.name), bookmark: true },
+          meta,
+        );
+        return { ok: gid != null, gid, adopted: adopt.length, created: createdIds.length, cut };
+      }
     }
     case "ui:organizeNow":
       return organizeNow(request.scope || "window", request.windowId);
@@ -4145,6 +4330,38 @@ globalThis.__ttFamilySet = (ids) =>
   enqueue(() => familyApplyLockedFront({ v: 1, mode: "always", tabIds: ids || [] }), "family-test");
 globalThis.__ttFamilyState = () => [...familyLockedSet];
 globalThis.__ttFamilyExternal = (msg, senderId) => familyExternal(msg, senderId);
+
+// In-memory bookmarks store for the suite: the optional permission cannot be
+// granted from a harness (Chrome's prompt is native UI), so every contract
+// runs against this shim through bmkApi(); the live-API pass is a dogfood
+// line. Never installed outside the tests.
+globalThis.__ttBmkInstallMock = () => {
+  let seq = 100;
+  const nodes = new Map();
+  globalThis.__ttBmkMock = {
+    async search({ title }) {
+      return [...nodes.values()].filter((n) => n.title === title);
+    },
+    async create({ parentId, title, url }) {
+      const n = { id: String(seq++), parentId, title, url };
+      nodes.set(n.id, n);
+      return n;
+    },
+    async getChildren(id) {
+      return [...nodes.values()].filter((n) => n.parentId === id);
+    },
+    async remove(id) {
+      nodes.delete(id);
+    },
+    __dump: () => [...nodes.values()],
+  };
+  return true;
+};
+globalThis.__ttBmkClearMock = () => {
+  globalThis.__ttBmkMock = null;
+};
+globalThis.__ttBmkDump = () =>
+  globalThis.__ttBmkMock ? globalThis.__ttBmkMock.__dump() : null;
 
 globalThis.__ttSetMockAi = (mock) => {
   globalThis.__ttMockAi = mock || null;

@@ -361,6 +361,27 @@ function paintControls() {
     setSetting("protectedGroups", titles);
   });
 
+  // Bookmark groups: the toggle IS the permission flow. Switching on asks
+  // Chrome for the optional bookmarks permission inside this click (denial
+  // reverts the switch); switching off releases the grant - the mirror of
+  // the BYOK origin release: a grant without use is standing debt.
+  $("bookmarkGroups").checked = !!settings.bookmarkGroups;
+  $("bookmarkGroups").addEventListener("change", async (e) => {
+    if (e.target.checked) {
+      const granted = await chrome.permissions
+        .request({ permissions: ["bookmarks"] })
+        .catch(() => false);
+      if (!granted) {
+        e.target.checked = false;
+        return;
+      }
+      setSetting("bookmarkGroups", true);
+    } else {
+      setSetting("bookmarkGroups", false);
+      chrome.permissions.remove({ permissions: ["bookmarks"] }).catch(() => {});
+    }
+  });
+
   // --- backup: export / import ----------------------------------------------
   // One clean JSON file: settings + My groups. The BYOK key rides only behind
   // the explicit include toggle (export) and a second confirmation (import) -

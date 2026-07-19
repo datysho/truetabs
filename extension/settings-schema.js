@@ -30,6 +30,7 @@ const ttSchema = (() => {
     otherGroup: true, // collect whatever found no home into "Other", always last
     smartRegroupOurs: true, // Smart Organize may rebuild OUR auto groups (hand-made never)
     protectedGroups: [], // group titles automation never removes tabs from
+    bookmarkGroups: false, // folders under "TrueTabs" define durable groups (opt-in)
     byokProvider: "openai", // "openai" | "gemini" | "grok" | "custom"
     byokModel: "",
     byokBaseUrl: "", // custom OpenAI-compatible endpoint (Ollama, LM Studio)

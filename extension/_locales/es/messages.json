@@ -562,5 +562,38 @@
   },
   "dataImportKeyConfirm": {
     "message": "Este archivo contiene una clave API. ¿Importarla también?"
+  },
+  "optBmkGroups": {
+    "message": "Grupos desde marcadores"
+  },
+  "optBmkGroupsHint": {
+    "message": "Una carpeta dentro de «TrueTabs» en tus marcadores define un grupo duradero: ábrela desde el popup, actualiza la carpeta desde el grupo vivo. TrueTabs nunca borra marcadores - cerrar pestañas no toca las carpetas. Requiere el permiso de marcadores (se pide al activarlo)."
+  },
+  "bmkHeader": {
+    "message": "Desde marcadores"
+  },
+  "bmkOpen": {
+    "message": "Abrir"
+  },
+  "bmkOpened": {
+    "message": "Grupo abierto desde su carpeta"
+  },
+  "bmkOpenedCut": {
+    "message": "Abiertos los primeros, $1 menos - la carpeta supera una tanda"
+  },
+  "bmkSave": {
+    "message": "A marcadores"
+  },
+  "bmkUpdate": {
+    "message": "Actualizar carpeta"
+  },
+  "bmkSaved": {
+    "message": "Carpeta actualizada: $1 marcadores"
+  },
+  "bmkReplaceConfirm": {
+    "message": "¿Reemplazar el contenido de la carpeta «$1» con este grupo?"
+  },
+  "bmkFailed": {
+    "message": "Marcadores desactivados o carpeta desaparecida."
   }
 }

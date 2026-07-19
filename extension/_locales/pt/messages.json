@@ -562,5 +562,38 @@
   },
   "dataImportKeyConfirm": {
     "message": "Este arquivo contém uma chave de API. Importar também?"
+  },
+  "optBmkGroups": {
+    "message": "Grupos dos favoritos"
+  },
+  "optBmkGroupsHint": {
+    "message": "Uma pasta dentro de “TrueTabs” nos favoritos define um grupo duradouro: abra-a pelo popup, atualize a pasta a partir do grupo vivo. O TrueTabs nunca apaga favoritos - fechar abas não toca nas pastas. Requer a permissão de favoritos (pedida ao ativar)."
+  },
+  "bmkHeader": {
+    "message": "Dos favoritos"
+  },
+  "bmkOpen": {
+    "message": "Abrir"
+  },
+  "bmkOpened": {
+    "message": "Grupo aberto da sua pasta"
+  },
+  "bmkOpenedCut": {
+    "message": "Abertos os primeiros, $1 a menos - a pasta é maior que uma leva"
+  },
+  "bmkSave": {
+    "message": "Aos favoritos"
+  },
+  "bmkUpdate": {
+    "message": "Atualizar pasta"
+  },
+  "bmkSaved": {
+    "message": "Pasta atualizada: $1 favoritos"
+  },
+  "bmkReplaceConfirm": {
+    "message": "Substituir o conteúdo da pasta “$1” por este grupo?"
+  },
+  "bmkFailed": {
+    "message": "Favoritos desligados ou a pasta sumiu."
   }
 }

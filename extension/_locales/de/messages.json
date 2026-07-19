@@ -562,5 +562,38 @@
   },
   "dataImportKeyConfirm": {
     "message": "Diese Datei enthält einen API-Schlüssel. Auch importieren?"
+  },
+  "optBmkGroups": {
+    "message": "Lesezeichen-Gruppen"
+  },
+  "optBmkGroupsHint": {
+    "message": "Ein Ordner unter „TrueTabs“ in den Lesezeichen definiert eine dauerhafte Gruppe: aus dem Popup öffnen, den Ordner aus der Live-Gruppe aktualisieren. TrueTabs löscht nie Lesezeichen - das Schließen von Tabs lässt Ordner unangetastet. Braucht die Lesezeichen-Berechtigung (wird beim Einschalten erfragt)."
+  },
+  "bmkHeader": {
+    "message": "Aus Lesezeichen"
+  },
+  "bmkOpen": {
+    "message": "Öffnen"
+  },
+  "bmkOpened": {
+    "message": "Gruppe aus ihrem Ordner geöffnet"
+  },
+  "bmkOpenedCut": {
+    "message": "Die ersten geöffnet, $1 weniger - der Ordner ist größer als ein Zug"
+  },
+  "bmkSave": {
+    "message": "In Lesezeichen"
+  },
+  "bmkUpdate": {
+    "message": "Ordner aktualisieren"
+  },
+  "bmkSaved": {
+    "message": "Ordner aktualisiert: $1 Lesezeichen"
+  },
+  "bmkReplaceConfirm": {
+    "message": "Inhalt des Ordners „$1“ durch diese Gruppe ersetzen?"
+  },
+  "bmkFailed": {
+    "message": "Lesezeichen sind aus oder der Ordner ist weg."
   }
 }
