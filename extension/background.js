@@ -682,6 +682,15 @@ async function closeTabsGuarded(tabIds, reason) {
     }
   }
   if (!granted.length) return 0;
+  // Which windows could lose a group to this close? Only a victim sitting in
+  // one of OUR groups can shrink one, and it has to be read while the tab
+  // still exists.
+  const ourGroupsBefore = await getOurGroups();
+  const mayShrink = new Set();
+  for (const id of granted) {
+    const t = await quiet(chrome.tabs.get, id);
+    if (t && t.groupId !== -1 && ourGroupsBefore[t.groupId]) mayShrink.add(t.windowId);
+  }
   await markSelfClosed(granted);
   for (const id of granted) await quiet(chrome.tabs.remove, id);
   let closed = 0;
@@ -692,6 +701,15 @@ async function closeTabsGuarded(tabIds, reason) {
       gone = !(await quiet(chrome.tabs.get, id));
     }
     if (gone) closed++;
+  }
+  // The size floor, enforced at the choke point of every automatic close
+  // rather than at the four call sites that perform them - per-call-site
+  // wiring is exactly how the layout rules drifted apart in v1.8. OUR closes
+  // act on it now (the group vanishes together with the duplicate); a close
+  // by the user's own hand waits for the tick, so the strip never jumps under
+  // their fingers mid-series (customer, 2026-07-19).
+  for (const winId of mayShrink) {
+    if (await dissolveLoneGroups(winId)) await reviewPlaceable(winId);
   }
   return closed;
 }
@@ -2056,8 +2074,16 @@ async function organizePool(windowId, pool, { siteBuckets, park, createdGids }) 
   if (park) {
     // Whatever the pass could not place goes to the catch-all. Re-read: the
     // placement above moved tabs, and only what is STILL loose is a leftover.
+    // The re-read must not widen the pass: the POOL is this pass's definition
+    // of what it may touch (the background review excludes hands-off tabs,
+    // the explicit Organize includes them), and a re-query that ignores it
+    // parks tabs nobody was allowed to move. Latent until a dissolved lone
+    // group put a second leftover in the window - one leftover never mints
+    // an "Other", so the hole had no way to show.
+    const mayTouch = new Set(pool.map((t) => t.id));
     const leftovers = (await chrome.tabs.query({ windowId, pinned: false }))
       .filter((t) => (t.groupId === -1 || t.groupId == null) && !isEphemeralUrl(t.url) && t.url)
+      .filter((t) => mayTouch.has(t.id))
       .map((t) => t.id);
     if (leftovers.length) {
       const res = await ensureOtherGroup(windowId, leftovers);
@@ -2132,27 +2158,77 @@ async function bumpPlaceableGen() {
   await chrome.storage.session.set({ placeableGen: placeableGen + 1 });
 }
 
-async function reviewPlaceable() {
+// The size floor - "a one-tab group is churn, not organization" - lived only
+// in the creation guards (organizePool, ensureOtherGroup and applySmart each
+// wait for two). Nothing re-checked it once a tab LEFT, so dedup, merge,
+// sweep, archive and plain closing all left groups of one standing until the
+// browser restarted. ONE predicate for what may go, so the two triggers that
+// call the enforcer cannot drift apart on what a lone group is.
+// Exempt: a rule or bookmark group (a standing order from the user), a title
+// the user protected (they named it), and the catch-all (a parking lot whose
+// contract is "with parking on, nothing stays loose" - dissolving it would
+// strand its member). Foreign groups never reach here: we walk ourGroups.
+function isLoneDissolvable(owner, settings) {
+  if (!owner || owner.other || owner.customId || owner.bookmark) return false;
+  return !isProtectedTitle(settings, owner.title);
+}
+
+// The maintenance-time twin of the creation floor. Idempotent by design -
+// both triggers may run it over the same window. Members get self-op markers
+// BEFORE the call: an unmarked leave reads as "the user pulled it out", and
+// two of those retire grouping for the session.
+async function dissolveLoneGroups(windowId = null) {
   const settings = await getSettings();
-  if (settings.autoGroup === "off") return;
+  const ourGroups = await getOurGroups();
+  let dissolved = 0;
+  for (const [gid, owner] of Object.entries(ourGroups)) {
+    if (windowId != null && owner.windowId !== windowId) continue;
+    if (!isLoneDissolvable(owner, settings)) continue;
+    const members = await chrome.tabs.query({ groupId: Number(gid) });
+    // Zero members is Chrome's business: it drops empty groups itself and
+    // tabGroups.onRemoved already prunes the registry.
+    if (members.length !== 1) continue;
+    await markSelfOp("tabgroup", members[0].id);
+    await quiet(chrome.tabs.ungroup, [members[0].id]);
+    await removeGroupSig(owner.title, owner.color);
+    delete ourGroups[gid];
+    dissolved++;
+  }
+  if (dissolved) await putOurGroups(ourGroups);
+  return dissolved;
+}
+
+async function reviewPlaceable(windowId = null) {
+  const settings = await getSettings();
   for (const win of await normalWindows()) {
-    const ourGroups = await getOurGroups();
+    if (windowId != null && win.id !== windowId) continue;
+    // The floor runs BEFORE the pool is built, so a freed tab is simply
+    // another candidate in this same pass: dissolve, place, lay out - one
+    // answer to "where does this tab belong", in one place. The floor is not
+    // behind the autoGroup gate: "do not auto-group" is about FORMING groups,
+    // and a group of one is not a grouping (customer, 2026-07-19).
+    const dissolved = await dissolveLoneGroups(win.id);
     const pool = [];
-    for (const t of await chrome.tabs.query({ windowId: win.id, pinned: false })) {
-      if (!placeable(t, ourGroups) || isEphemeralUrl(t.url) || !t.url) continue;
-      const st = await getTabState(t.id);
-      if (st && st.ungroupedByUser) continue; // pulled out by hand: hands off
-      pool.push(t);
+    if (settings.autoGroup !== "off") {
+      const ourGroups = await getOurGroups();
+      for (const t of await chrome.tabs.query({ windowId: win.id, pinned: false })) {
+        if (!placeable(t, ourGroups) || isEphemeralUrl(t.url) || !t.url) continue;
+        const st = await getTabState(t.id);
+        if (st && st.ungroupedByUser) continue; // pulled out by hand: hands off
+        pool.push(t);
+      }
     }
-    if (!pool.length) continue;
     // No rememberOrganize: a background pass owns no undo slot. Overwriting
     // it would destroy the undo of the user's OWN Organize click.
-    await organizePool(win.id, pool, {
-      siteBuckets: settings.autoGroup === "site",
-      park: settings.otherGroup,
-      createdGids: [],
-    });
-    await applySort(win.id);
+    if (pool.length) {
+      await organizePool(win.id, pool, {
+        siteBuckets: settings.autoGroup === "site",
+        park: settings.otherGroup,
+        createdGids: [],
+      });
+    }
+    // A vanished group changes the layout even when nothing was placed.
+    if (pool.length || dissolved) await applySort(win.id);
   }
 }
 
@@ -4066,6 +4142,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
               "group",
               owner && owner.customId ? `custom:${owner.customId}` : st.domain,
             );
+          } else {
+            // Closed out of one of our groups: that group may now hold a
+            // single tab. This is the DEFERRED half of the size floor - the
+            // user's own closes ride the existing generation counter and the
+            // minute tick, never a second timer, so a series of closes by
+            // hand never moves the strip mid-series.
+            await bumpPlaceableGen();
           }
         }
         await putTabState(tabId, st);

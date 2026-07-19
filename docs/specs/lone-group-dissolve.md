@@ -38,7 +38,11 @@ Class: feature · Advisor score: 8/10 - closes a whole class (the size floor exi
 
 Re-entrancy checked: `organizePool`, `applySort` and `reviewPlaceable` contain no `enqueue` (the only one nearby lives in `scheduleSortAssert`'s debounce, outside these paths), so calling the review inline from inside a queue job is not a nested enqueue waiting on itself (lesson nested-enqueue-recurrence, v1.3 and again 19.07).
 
-**autoGroup = off.** Decided without asking, flagged for the approval: the enforcer runs regardless of the setting, re-filing keeps its existing `autoGroup !== "off"` gate. Rationale - "do not auto-group" is a statement about forming groups, and a group of one is not a grouping; with the setting off the freed tab simply goes loose. Overridable at approval by one line moving the enforcer behind the same gate.
+**autoGroup = off.** Decided without asking, flagged for the approval: the enforcer runs regardless of the setting, re-filing keeps its existing `autoGroup !== "off"` gate. Rationale - "do not auto-group" is a statement about forming groups, and a group of one is not a grouping; with the setting off the freed tab simply goes loose. Approved as specced (customer, 2026-07-19).
+
+**Build amendment (G2, found by the suite - `the review respects hands-off tabs`).** `organizePool`'s parking step did not park the pool; it re-queried the window for loose tabs and parked whatever it found. The pool is where the hands-off filter lives, so the re-query silently widened the pass: a tab the user had pulled out by hand was eligible for parking again. The hole predates this feature and was unreachable by arithmetic - a lone leftover never mints an "Other" (the creation floor), so a single hands-off tab always sat alone and safe. Dissolving a lone group puts a SECOND leftover in the window, the floor is met, and the "Other" mints over a tab nobody was allowed to move. Fix: the parking step intersects its re-query with the pool - one definition per pass of what it may touch, and the explicit Organize keeps parking hands-off tabs because its own pool includes them (the `two-explicit-commands-disagreed` rule: flags protect from automation, not from a click). Red/green is the existing contract itself: it failed on this feature without the fix and passes with it.
+
+Method note for the next feature: the interaction matrix walked features against features and missed this, because the collision was not between two features - it was between a feature and a HELPER that re-derives its own inputs. Where a pass re-queries the world mid-flight, the matrix has to ask what filter the re-query drops.
 
 ## Interaction matrix
 | Existing feature | Intersection | Resolution |
@@ -50,6 +54,7 @@ Re-entrancy checked: `organizePool`, `applySort` and `reviewPlaceable` contain n
 | Foreign groups | Never modified | Untouched by construction: the enforcer iterates `ourGroups` only |
 | Two-strikes anti-fight ledger | An ungroup looks like a user pull-out | `markSelfOp("tabgroup", id)` before the call; the `onUpdated` handler consumes it and records neither `ungroupedByUser` nor a strike (lessons selfop-mark-after-call, selfop-lingers-on-join) |
 | `ungroupedByUser` hands-off flag | A freed tab that was pulled out earlier | Stays hands-off: the review pool skips it, so it remains loose. Correct - the user's decision outlives the group |
+| "Other" parking step (build amendment) | A second leftover in the window makes the catch-all mintable, and the step re-queried past the pool's hands-off filter | The parking step may only touch the pool. One definition per pass of what it may move; see the build amendment |
 | Group signatures / restart adoption | A dissolved group must not be re-adopted | `removeGroupSig` on dissolve, same as `ungroupOne` |
 | Undo Organize | `lastOrganize.gids` may name a dissolved group | Already safe: `undoOrganize` skips gids with no members |
 | Smart / topic mode | "An automatic pass never mints a group another automatic pass would dissolve" | Holds: no pass mints a one-member group. A dissolved topic orphan re-clusters only when a real theme forms (>= 2), so there is no mint-dissolve loop |
@@ -80,18 +85,26 @@ n/a - no settings, no schema, no new storage key. `ourGroups` entries are delete
 - autoGroup off, an Organize-made domain group falls to one: dissolves, tab goes loose, nothing re-files it. Stated above, open to override at approval.
 
 ## Behavior-test table
-| Behavior | Test name |
-|---|---|
-| Dedup shrinking a domain group to one dissolves it and re-files the survivor | `groups: dedup down to one dissolves the group, survivor re-filed` |
-| Archive shrinking a group to one dissolves it in the same pass | `groups: archive down to one dissolves the group` |
-| A rule group, a renamed group and "Other" all survive at one member | `groups: rule, renamed and Other survive a single member` |
-| The user's own close does not move the strip instantly, converges on the tick | `groups: hand-closed down to one waits for the tick, then dissolves` |
-| The dissolve records no strike and no `ungroupedByUser` | `groups: lone dissolve is a self-op - no strike, no hands-off flag` |
-| The freed tab joins an existing "Other" when parking is on | `groups: freed lone tab parks in the existing Other` |
-| A foreign group of one is never touched | `groups: foreign group of one survives the enforcer` |
-| No mint-dissolve loop: a quiet browser with one lone-eligible tab settles | `groups: lone tab settles loose - no mint/dissolve churn across ticks` |
+| Behavior | Test name | Red on old code |
+|---|---|---|
+| A duplicate sweep shrinking a domain group to one dissolves it and frees the survivor | `groups: duplicate sweep down to one dissolves the group, survivor freed` | yes |
+| Archive shrinking a group to one dissolves it | `groups: archive down to one dissolves the group` | yes |
+| The user's own close does not move the strip instantly, converges on the tick | `groups: hand-closed down to one waits for the tick, then dissolves` | yes |
+| The dissolve records no strike and leaves no hands-off flag | `groups: lone dissolve is a self-op - no strike, freed tab regroups` | yes |
+| The freed tab joins an existing "Other" when parking is on | `groups: a freed lone tab parks in the existing Other` | yes |
+| A rule group survives at one member | `groups: a rule group survives a single member` | lock |
+| A protected title survives at one member | `groups: a protected title survives a single member` | lock |
+| The "Other" catch-all survives at one member | `groups: the Other catch-all survives a single member` | lock |
+| A foreign group of one is never touched | `groups: a foreign group of one survives the enforcer` | structural |
+| No mint-dissolve loop: a quiet browser with one lone-eligible tab settles | `groups: a lone tab settles loose - no mint/dissolve churn` | lock |
+| The parking step never moves a hands-off tab (build amendment) | `the review respects hands-off tabs and stays mute while paused` (existing) | yes |
 
-Every row must be proven red on current code before it goes green (QA invariant 2). Suite runs twice green before merge (invariant 4).
+Red column, honestly labelled - "green before and after" is not a test unless something proves it bites:
+- **yes** - verified failing on the pre-feature code, then passing.
+- **lock** - a guard that must NOT fire; green either way by design, so it was proven by mutation instead: stripping the exemptions from `isLoneDissolvable` turns all three exemption locks red. The churn lock is proven by the same mutation reaching for groups it must leave alone.
+- **structural** - green by construction (the enforcer walks `ourGroups`, which foreign groups never enter). It cannot be made red without rewriting the enforcer, so its value is forward-looking: it catches a future refactor that starts walking all groups. Recorded as such rather than counted as proof.
+
+Suite runs twice green before merge (invariant 4): 132/132, twice, verbatim.
 
 ## Build order
 1. `isLoneDissolvable` + `dissolveLoneGroups(windowId)`, `reviewPlaceable(windowId?)` head step - done when: a hand-built group of one dissolves on the tick and the tab re-files, red on old code.

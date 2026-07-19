@@ -853,6 +853,185 @@ async function main() {
     assert(!diag.ourGroups[String(gid)], "renamed group disowned");
   });
 
+  // The size floor after creation: a group of ours that falls to a single tab
+  // is leftover furniture, so it is dissolved and its tab re-filed. Our own
+  // closes act at once, the user's own closes wait for the tick.
+
+  await test("groups: duplicate sweep down to one dissolves the group, survivor freed", async () => {
+    await resetWorld();
+    // Two copies of one page: same URL for the sweep, same domain for the group.
+    await ui({ type: "ui:setSetting", key: "dedupAuto", value: false });
+    const keeper = await openViaCommit(`${altUrl}/loneSweep`, { active: false });
+    const doomed = await openViaCommit(`${altUrl}/loneSweep`, { active: false });
+    await ui({ type: "ui:setSetting", key: "dedupAuto", value: true });
+    await waitFor("group minted", async () => (await getTab(doomed.id)).groupId !== -1);
+    const gid = (await getTab(doomed.id)).groupId;
+    assert((await getTab(keeper.id)).groupId === gid, "both members of one group");
+    await ui({ type: "ui:sweepDupes", scope: "all" });
+    await waitFor("one copy left", async () => (await countTabsWith("/loneSweep")) === 1);
+    await waitFor("survivor freed", async () => {
+      const s = (await queryTabs()).find((t) => t.url.includes("/loneSweep"));
+      return s && s.groupId === -1 ? s : null;
+    });
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(!diag.ourGroups[String(gid)], "group dropped from the registry");
+  });
+
+  await test("groups: archive down to one dissolves the group", async () => {
+    await resetWorld();
+    const keep = await openViaCommit(`${altUrl}/loneKeep`, { active: false });
+    const doomed = await openViaCommit(`${altUrl}/loneDoomed`, { active: false });
+    await waitFor("group minted", async () => (await getTab(doomed.id)).groupId !== -1);
+    const gid = (await getTab(doomed.id)).groupId;
+    // keep is ACTIVE, so the archive never takes it; doomed is stale at +25h
+    await swEval(
+      (id) => new Promise((r) => chrome.tabs.update(id, { active: true }, () => r())),
+      keep.id,
+    );
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now() + 25 * 3600e3);
+    await waitFor("stale member archived", async () => (await getTab(doomed.id)) === null);
+    await waitFor("group dissolved", async () => (await getTab(keep.id)).groupId === -1);
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(!diag.ourGroups[String(gid)], "group dropped from the registry");
+  });
+
+  await test("groups: a rule group survives a single member", async () => {
+    await resetWorld();
+    await ui({ type: "ui:customGroups:set", list: [{ name: "Ruled", domains: ["127.0.0.1"] }] });
+    const only = await openViaCommit(`${baseUrl}/ruledOne`, { active: false });
+    await waitFor("rule group formed", async () => (await getTab(only.id)).groupId !== -1);
+    const gid = (await getTab(only.id)).groupId;
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now());
+    await sleep(400);
+    assert((await getTab(only.id)).groupId === gid, "a standing order outranks the size floor");
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(diag.ourGroups[String(gid)], "still registered as ours");
+    await ui({ type: "ui:customGroups:set", list: [] });
+  });
+
+  await test("groups: a protected title survives a single member", async () => {
+    await resetWorld();
+    const a = await openViaCommit(`${altUrl}/protA`, { active: false });
+    const b = await openViaCommit(`${altUrl}/protB`, { active: false });
+    await waitFor("group minted", async () => (await getTab(b.id)).groupId !== -1);
+    const gid = (await getTab(b.id)).groupId;
+    const group = await swEval((g) => chrome.tabGroups.get(g), gid);
+    await ui({ type: "ui:setSetting", key: "protectedGroups", value: [group.title] });
+    await swEval((id) => chrome.tabs.remove(id), a.id);
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now());
+    await sleep(400);
+    assert((await getTab(b.id)).groupId === gid, "the user's lock outranks the size floor");
+    await ui({ type: "ui:setSetting", key: "protectedGroups", value: [] });
+  });
+
+  await test("groups: the Other catch-all survives a single member", async () => {
+    await resetWorld();
+    const one = await openViaCommit(`${baseUrl}/otherOne`, { active: false });
+    const two = await openViaCommit(`${altUrl}/otherTwo`, { active: false });
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    await waitFor("parked in Other", async () => (await getTab(one.id)).groupId !== -1);
+    const gid = (await getTab(one.id)).groupId;
+    assert((await getTab(two.id)).groupId === gid, "both parked together");
+    await swEval((id) => chrome.tabs.remove(id), two.id);
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now());
+    await sleep(400);
+    // Dissolving the parking lot would strand its member loose - the exact
+    // thing "with parking on, nothing stays loose" promises never happens.
+    assert((await getTab(one.id)).groupId === gid, "the catch-all survives at one");
+  });
+
+  await test("groups: hand-closed down to one waits for the tick, then dissolves", async () => {
+    await resetWorld();
+    const a = await openViaCommit(`${altUrl}/handA`, { active: false });
+    const b = await openViaCommit(`${altUrl}/handB`, { active: false });
+    await waitFor("group minted", async () => (await getTab(b.id)).groupId !== -1);
+    const gid = (await getTab(b.id)).groupId;
+    await swEval((id) => chrome.tabs.remove(id), a.id); // the user's own hand
+    await sleep(700);
+    assert((await getTab(b.id)).groupId === gid, "the strip does not jump mid-series");
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now());
+    await waitFor("dissolved on the tick", async () => (await getTab(b.id)).groupId === -1);
+  });
+
+  await test("groups: lone dissolve is a self-op - no strike, freed tab regroups", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "dedupAuto", value: false });
+    await openViaCommit(`${altUrl}/selfopOne`, { active: false });
+    const dup = await openViaCommit(`${altUrl}/selfopOne`, { active: false });
+    await ui({ type: "ui:setSetting", key: "dedupAuto", value: true });
+    await waitFor("group minted", async () => (await getTab(dup.id)).groupId !== -1);
+    await ui({ type: "ui:sweepDupes", scope: "all" });
+    await waitFor("survivor freed", async () => {
+      const s = (await queryTabs()).find((t) => t.url.includes("/selfopOne"));
+      return s && s.groupId === -1 ? s : null;
+    });
+    const diag = await ui({ type: "ui:diagnostics" });
+    const groupStrike = Object.keys(diag.strikes).find((k) => k.startsWith("group:"));
+    assert(!groupStrike, `dissolve recorded no strike (got ${groupStrike})`);
+    // An unmarked leave would also have set the hands-off flag: prove it did
+    // not by letting the freed tab regroup with its next peer.
+    const peer = await openViaCommit(`${altUrl}/selfopPeer`, { active: false });
+    await waitFor("freed tab regroups with its peer", async () => {
+      const s = (await queryTabs()).find((t) => t.url.includes("/selfopOne"));
+      const p = await getTab(peer.id);
+      return s && p && p.groupId !== -1 && s.groupId === p.groupId;
+    });
+  });
+
+  await test("groups: a foreign group of one survives the enforcer", async () => {
+    await resetWorld();
+    const f1 = await createTab({ url: `${baseUrl}/foreignLone1` });
+    const f2 = await createTab({ url: `${baseUrl}/foreignLone2` });
+    await sleep(300);
+    const foreignGid = await swEval((ids) => chrome.tabs.group({ tabIds: ids }), [f1.id, f2.id]);
+    await swEval(
+      (gid) => chrome.tabGroups.update(gid, { title: "THEIRS", color: "red" }),
+      foreignGid,
+    );
+    await sleep(300);
+    await swEval((id) => chrome.tabs.remove(id), f2.id);
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now());
+    await sleep(400);
+    assert((await getTab(f1.id)).groupId === foreignGid, "foreign group of one untouched");
+    const g = await swEval((gid) => chrome.tabGroups.get(gid), foreignGid);
+    assert(g.title === "THEIRS", "foreign group keeps its name");
+  });
+
+  await test("groups: a freed lone tab parks in the existing Other", async () => {
+    await resetWorld();
+    const parked = await openViaCommit(`${baseUrl}/parkAnchor`, { active: false });
+    const alt1 = await openViaCommit(`${altUrl}/parkAlt1`, { active: false });
+    await ui({ type: "ui:organizeNow", scope: "all" });
+    await waitFor("Other minted", async () => (await getTab(parked.id)).groupId !== -1);
+    const otherGid = (await getTab(parked.id)).groupId;
+    const alt2 = await openViaCommit(`${altUrl}/parkAlt2`, { active: false });
+    await waitFor("alt pair takes its own group", async () => {
+      const a = await getTab(alt1.id);
+      const b = await getTab(alt2.id);
+      return a && b && a.groupId !== -1 && a.groupId === b.groupId && a.groupId !== otherGid;
+    });
+    await swEval((id) => chrome.tabs.remove(id), alt2.id);
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now());
+    await waitFor(
+      "freed tab parked in Other",
+      async () => (await getTab(alt1.id)).groupId === otherGid,
+    );
+  });
+
+  await test("groups: a lone tab settles loose - no mint/dissolve churn", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "otherGroup", value: false });
+    const solo = await openViaCommit(`${altUrl}/churnSolo`, { active: false });
+    for (let i = 0; i < 3; i++) {
+      await swEval((n) => globalThis.__ttTick({ now: n }), Date.now());
+      await sleep(250);
+    }
+    assert((await getTab(solo.id)).groupId === -1, "singleton stays loose across ticks");
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(Object.keys(diag.ourGroups).length === 0, "nothing minted just to be dissolved");
+    await ui({ type: "ui:setSetting", key: "otherGroup", value: true });
+  });
+
   await test("collapse: idle our-group collapses on tick; user expand strikes; twice retires", async () => {
     await resetWorld();
     const a = await openViaCommit(`${baseUrl}/colA`, { active: false });
