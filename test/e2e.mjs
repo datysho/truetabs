@@ -2389,8 +2389,13 @@ async function main() {
 
   await test("popup: a second window does not skew the hero row", async () => {
     await resetWorld();
+    // A real PAGE in the second window: a lone about:blank there is a loose
+    // scratch the instant-collapse may legally eat when puppeteer's newPage
+    // (itself born as about:blank, focused) lands in that window - and a
+    // window whose last tab dies closes itself under the cleanup.
     const win = await swEval(
-      () => new Promise((r) => chrome.windows.create({ url: "about:blank" }, (w) => r({ id: w.id }))),
+      (u) => new Promise((r) => chrome.windows.create({ url: u }, (w) => r({ id: w.id }))),
+      `${baseUrl}/heroSecondWin`,
     );
     await sleep(800);
     const extBase = (await findSwTarget()).url().replace("background.js", "");
@@ -2699,6 +2704,21 @@ async function main() {
       !entries.some((e) => /newtab|about:blank/.test(e.url)),
       "no archive residue for blanks",
     );
+  });
+
+  await test("blanks: the blank you just left dies instantly - no age floor for the human path", async () => {
+    await resetWorld();
+    // The customer's report verbatim: on a New Tab, open another New Tab -
+    // the one you LEFT must die now, not on the next sweep five seconds on.
+    const b1 = await newBlank({ active: true });
+    await sleep(250); // a breath, well under the in-flight floor
+    const b2 = await newBlank({ active: true });
+    await waitFor("the abandoned scratch closed instantly", async () => (await getTab(b1.id)) === null, 3000);
+    assert((await getTab(b2.id)) !== null, "the newcomer lives");
+    // and the chain: another Cmd+T kills the previous one just as fast
+    const b3 = await newBlank({ active: true });
+    await waitFor("the chain keeps one blank", async () => (await getTab(b2.id)) === null, 3000);
+    assert((await getTab(b3.id)) !== null, "the latest survives");
   });
 
   await test("blanks: a just-created blank is in flight, not a victim", async () => {

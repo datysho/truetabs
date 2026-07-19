@@ -1068,6 +1068,10 @@ async function sweepDuplicates(scope, currentWindowId) {
 // flight, not an abandoned tab; closing it would eat someone's navigation.
 const BLANK_MIN_AGE_MS = 5_000;
 
+// Focus history per window (in-memory; see the onActivated listener).
+const activeByWindow = new Map();
+const prevActiveByWindow = new Map();
+
 // The one definition of a collapsible blank, shared by the collapse trigger,
 // the tick sweep, the manual Sweep button and the popup's surplus count:
 // ephemeral page, not pinned, not active, not inside any group (a grouped
@@ -1088,7 +1092,7 @@ const looseBlank = (t) =>
 // unknown can only mean the created-job has not run yet; treating unknown
 // as old once ate freshly-created neighbours whose state write was still
 // queued behind a storm.
-async function scanBlanks(tabs) {
+async function scanBlanks(tabs, opts = {}) {
   const loose = tabs.filter(looseBlank);
   if (!loose.length) return { keepId: null, victims: [] };
   const activeBlank = tabs.some(
@@ -1118,8 +1122,12 @@ async function scanBlanks(tabs) {
     .filter(
       (t) =>
         t.id !== keepId &&
-        born.get(t.id) !== Infinity &&
-        now() - born.get(t.id) >= BLANK_MIN_AGE_MS,
+        // The blank the user JUST LEFT dies instantly, whatever its age: the
+        // user was on it, saw it empty and asked for another - that is the
+        // "instant" the customer chose, and it can never be a software tab
+        // in flight (those are never the tab under the user's fingers).
+        (t.id === opts.userLeftId ||
+          (born.get(t.id) !== Infinity && now() - born.get(t.id) >= BLANK_MIN_AGE_MS)),
     )
     .map((t) => t.id);
   return { keepId, victims };
@@ -1145,8 +1153,15 @@ async function collapseBlanks(newTab) {
   // The FULL window goes into the scan: the newcomer is the active scratch
   // (or the newest) and the age floor shields it either way - filtering it
   // out would blind the survivor rule to the very tab the user just opened.
+  // If the newcomer took the focus, the tab the user LEFT for it is fair
+  // game at any age (Cmd+T from a New Tab = the duplicate dies now, not on
+  // the next sweep).
+  const userLeftId =
+    activeByWindow.get(newTab.windowId) === newTab.id
+      ? prevActiveByWindow.get(newTab.windowId)
+      : null;
   const tabs = await chrome.tabs.query({ windowId: newTab.windowId });
-  const { victims } = await scanBlanks(tabs);
+  const { victims } = await scanBlanks(tabs, { userLeftId });
   await closeBlankSet(victims, "blank-collapse");
 }
 
@@ -4051,6 +4066,13 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 
 chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
+  // "Who did the user just leave" - the discriminator that lets the blank
+  // collapse be truly instant for the human path: a blank that WAS the
+  // active tab a moment ago is an abandoned scratch (the user saw it empty
+  // and asked for another), never a software create-then-navigate in flight.
+  // In-memory only: a worker death degrades to the age rule, gracefully.
+  prevActiveByWindow.set(windowId, activeByWindow.get(windowId) ?? null);
+  activeByWindow.set(windowId, tabId);
   // Recency follows use through the SAME layout engine as everything else -
   // one mechanism, one set of gates. The 150ms coalesce keeps Ctrl+Tab
   // cycling to a single re-sort after the hopping stops.
