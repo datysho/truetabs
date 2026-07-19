@@ -535,5 +535,32 @@
   },
   "optProtectedHint": {
     "message": "Un nombre de grupo por línea. TrueTabs nunca saca pestañas de estos grupos: ni al navegar, ni con «Organizar». También se activa en la fila del grupo en el popup."
+  },
+  "optDataHeader": {
+    "message": "Copia de seguridad"
+  },
+  "optDataHint": {
+    "message": "Los ajustes y Mis grupos se sincronizan solos entre tus navegadores mediante Chrome Sync. El archivo es para lo demás: mudarte a otro perfil, una reinstalación limpia o guardar una copia."
+  },
+  "dataExport": {
+    "message": "Exportar ajustes"
+  },
+  "dataImport": {
+    "message": "Importar desde archivo"
+  },
+  "dataExported": {
+    "message": "Exportado."
+  },
+  "dataFailed": {
+    "message": "No es un archivo de exportación de TrueTabs."
+  },
+  "dataIncludeKey": {
+    "message": "Incluir la clave API en la exportación"
+  },
+  "dataIncludeKeyWarn": {
+    "message": "El archivo contendrá tu clave en texto plano."
+  },
+  "dataImportKeyConfirm": {
+    "message": "Este archivo contiene una clave API. ¿Importarla también?"
   }
 }

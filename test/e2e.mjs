@@ -3009,6 +3009,126 @@ async function main() {
     await swEval(() => globalThis.__ttFamilySet([]));
   });
 
+  await test("platform: a newer version's keys survive this version's writes", async () => {
+    await resetWorld();
+    await swEval(() =>
+      chrome.storage.sync.set({ settings: { dedupScope: "all", futureKnob: "keep-me" } }),
+    );
+    await ui({ type: "ui:setSetting", key: "archiveNotify", value: false });
+    const raw = await swEval(async () => (await chrome.storage.sync.get("settings")).settings);
+    assert(raw.futureKnob === "keep-me", "the unknown key survived the write");
+    assert(raw.archiveNotify === false && raw.dedupScope === "all", "known keys applied and kept");
+    await ui({ type: "ui:setSetting", key: "archiveNotify", value: true });
+  });
+
+  await test("platform: the export carries the key only behind the explicit toggle", async () => {
+    await resetWorld();
+    await swEval(() => chrome.storage.local.set({ byokKey: "sk-test-secret" }));
+    const plain = await ui({ type: "ui:exportData" });
+    assert(plain.format === "truetabs-settings" && plain.schema === 1, "export envelope");
+    assert(!("byokKey" in plain), "no key without the toggle");
+    const withKey = await ui({ type: "ui:exportData", includeKey: true });
+    assert(withKey.byokKey === "sk-test-secret", "the toggle includes the key");
+    await swEval(() => chrome.storage.local.remove("byokKey"));
+  });
+
+  await test("platform: export-import round trip, key behind a second confirmation", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "dedupScope", value: "all" });
+    await ui({
+      type: "ui:customGroups:set",
+      list: [{ id: "rt", name: "Video", domains: ["localhost"], hint: "clips", on: true }],
+    });
+    const exported = await ui({ type: "ui:exportData" });
+    await swEval(() => chrome.storage.sync.remove(["settings", "customGroups"]));
+    const noKey = await ui({ type: "ui:importData", payload: { ...exported, byokKey: "sk-import" } });
+    assert(noKey.ok && !noKey.keyImported, "without the confirmation the key stays out");
+    let localKey = await swEval(async () => (await chrome.storage.local.get("byokKey")).byokKey);
+    assert(!localKey, "key not written");
+    const withKey = await ui({
+      type: "ui:importData",
+      payload: { ...exported, byokKey: "sk-import" },
+      withKey: true,
+    });
+    assert(withKey.ok && withKey.keyImported, "the confirmed import carries the key");
+    localKey = await swEval(async () => (await chrome.storage.local.get("byokKey")).byokKey);
+    assert(localKey === "sk-import", "key written on the double opt-in");
+    const after = await ui({ type: "ui:getState" });
+    assert(after.settings.dedupScope === "all", "settings restored");
+    const rules = await swEval(async () => (await chrome.storage.sync.get("customGroups")).customGroups);
+    assert(rules.length === 1 && rules[0].name === "Video", "rules restored");
+    await swEval(() => chrome.storage.local.remove("byokKey"));
+    await ui({ type: "ui:setSetting", key: "dedupScope", value: "window" });
+    await ui({ type: "ui:customGroups:set", list: [] });
+  });
+
+  await test("platform: the import rejects foreign files and oversized rules readably", async () => {
+    const foreign = await ui({ type: "ui:importData", payload: { format: "not-ours" } });
+    assert(foreign.ok === false && foreign.error === "format", "foreign file named");
+    const fat = {
+      format: "truetabs-settings",
+      schema: 1,
+      settings: {},
+      customGroups: Array.from({ length: 10 }, (_, i) => ({
+        id: `f${i}`,
+        name: `Group number ${i} with the longest legal name!!`,
+        domains: Array.from({ length: 12 }, (_, d) => `sub${d}.a-quite-long-domain-name-${i}.example.com`),
+        hint: "h".repeat(140),
+        on: true,
+      })),
+    };
+    const big = await ui({ type: "ui:importData", payload: fat });
+    assert(big.ok === false && big.error === "tooBig", "the sync quota guard holds on import");
+  });
+
+  await test("platform: a deferred update applies only at a quiet moment", async () => {
+    await resetWorld();
+    assert((await swEval(() => globalThis.__ttTryApplyUpdate(true))) === "none", "no pending, no action");
+    await swEval(() => chrome.storage.session.set({ updatePending: "9.9.9", smartRunning: Date.now() }));
+    assert(
+      (await swEval(() => globalThis.__ttTryApplyUpdate(true))) === "blocked:smart",
+      "an AI run blocks the apply",
+    );
+    await swEval(() => chrome.storage.session.remove("smartRunning"));
+    assert(
+      (await swEval(() => globalThis.__ttTryApplyUpdate(true))) === "applied",
+      "the quiet moment applies (dry run)",
+    );
+    await swEval(() => chrome.storage.session.remove("updatePending"));
+  });
+
+  await test("platform: settings, rules and archive survive a worker reload byte-identical", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "archiveTtl", value: "90d" });
+    await ui({
+      type: "ui:customGroups:set",
+      list: [{ id: "sv", name: "Docs", domains: ["localhost"], hint: "", on: true }],
+    });
+    await swEval(() =>
+      globalThis.__ttSeedArchive([
+        { url: "https://example.com/kept", title: "Kept", archivedAt: Date.now(), reason: "auto" },
+      ]),
+    );
+    const before = await swEval(async () => ({
+      sync: await chrome.storage.sync.get(null),
+      archive: (await chrome.storage.local.get("archive")).archive,
+    }));
+    await swEval(() => globalThis.__ttSimulateReload());
+    await forceSettle();
+    const after = await swEval(async () => ({
+      sync: await chrome.storage.sync.get(null),
+      archive: (await chrome.storage.local.get("archive")).archive,
+    }));
+    assert(
+      JSON.stringify(after.sync.settings) === JSON.stringify(before.sync.settings) &&
+        JSON.stringify(after.sync.customGroups) === JSON.stringify(before.sync.customGroups) &&
+        JSON.stringify(after.archive) === JSON.stringify(before.archive),
+      "durable state is byte-identical across the reload",
+    );
+    await ui({ type: "ui:setSetting", key: "archiveTtl", value: "30d" });
+    await ui({ type: "ui:customGroups:set", list: [] });
+  });
+
   await test("host access: the manifest can never ask for an arbitrary site", async () => {
     // The privacy promise is structural, not behavioural: what the extension
     // MAY request is the manifest's ceiling. A broad pair here would read as

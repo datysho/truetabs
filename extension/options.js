@@ -361,6 +361,57 @@ function paintControls() {
     setSetting("protectedGroups", titles);
   });
 
+  // --- backup: export / import ----------------------------------------------
+  // One clean JSON file: settings + My groups. The BYOK key rides only behind
+  // the explicit include toggle (export) and a second confirmation (import) -
+  // a plaintext key is a deliberate double-opted step, never a side effect.
+  const dataNote = (key) => {
+    const note = $("dataNote");
+    note.textContent = t(key);
+    note.style.visibility = "visible";
+    setTimeout(() => {
+      note.style.visibility = "hidden";
+    }, 2500);
+  };
+
+  $("exportBtn").addEventListener("click", async () => {
+    const payload = await send({
+      type: "ui:exportData",
+      includeKey: $("exportWithKey").checked,
+    });
+    if (!payload || payload.error) return dataNote("dataFailed");
+    const stamp = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `truetabs-settings-${payload.version}-${stamp}.json`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    dataNote("dataExported");
+  });
+
+  $("importBtn").addEventListener("click", () => $("importFile").click());
+
+  $("importFile").addEventListener("change", async (e) => {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = ""; // re-selecting the same file must fire again
+    if (!file) return;
+    if (file.size > 64 * 1024) return dataNote("dataFailed");
+    let parsed = null;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      return dataNote("dataFailed");
+    }
+    const withKey =
+      typeof parsed?.byokKey === "string" && parsed.byokKey
+        ? window.confirm(t("dataImportKeyConfirm"))
+        : false;
+    const result = await send({ type: "ui:importData", payload: parsed, withKey });
+    if (!result || !result.ok) return dataNote("dataFailed");
+    location.reload(); // repaint every control from the imported truth
+  });
+
   $("byokModel").value = settings.byokModel || "";
   $("byokBaseUrl").value = settings.byokBaseUrl || "";
   if (byokKeyPresent) $("byokKey").value = "********";

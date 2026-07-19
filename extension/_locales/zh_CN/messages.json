@@ -535,5 +535,32 @@
   },
   "optProtectedHint": {
     "message": "每行一个分组名称。TrueTabs 不会把标签页移出这些分组 - 导航时不会,点击“整理”时也不会。也可在弹窗的分组行中切换。"
+  },
+  "optDataHeader": {
+    "message": "备份"
+  },
+  "optDataHint": {
+    "message": "设置与“我的分组”会通过 Chrome 同步在你的浏览器之间自动同步。文件用于其余场景:迁移到其他配置文件、全新重装或留一份副本。"
+  },
+  "dataExport": {
+    "message": "导出设置"
+  },
+  "dataImport": {
+    "message": "从文件导入"
+  },
+  "dataExported": {
+    "message": "已导出。"
+  },
+  "dataFailed": {
+    "message": "不是 TrueTabs 导出文件。"
+  },
+  "dataIncludeKey": {
+    "message": "在导出中包含 API 密钥"
+  },
+  "dataIncludeKeyWarn": {
+    "message": "文件将以明文包含你的密钥。"
+  },
+  "dataImportKeyConfirm": {
+    "message": "该文件包含 API 密钥。也一并导入吗?"
   }
 }

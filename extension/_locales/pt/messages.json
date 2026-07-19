@@ -535,5 +535,32 @@
   },
   "optProtectedHint": {
     "message": "Um nome de grupo por linha. O TrueTabs nunca tira abas desses grupos - nem ao navegar, nem com «Organizar». Também alternável na linha do grupo no popup."
+  },
+  "optDataHeader": {
+    "message": "Backup"
+  },
+  "optDataHint": {
+    "message": "As configurações e Meus grupos sincronizam sozinhos entre seus navegadores pelo Chrome Sync. O arquivo é para o resto: mudar de perfil, reinstalação limpa ou guardar uma cópia."
+  },
+  "dataExport": {
+    "message": "Exportar configurações"
+  },
+  "dataImport": {
+    "message": "Importar de arquivo"
+  },
+  "dataExported": {
+    "message": "Exportado."
+  },
+  "dataFailed": {
+    "message": "Não é um arquivo de exportação do TrueTabs."
+  },
+  "dataIncludeKey": {
+    "message": "Incluir a chave de API na exportação"
+  },
+  "dataIncludeKeyWarn": {
+    "message": "O arquivo conterá sua chave em texto puro."
+  },
+  "dataImportKeyConfirm": {
+    "message": "Este arquivo contém uma chave de API. Importar também?"
   }
 }

@@ -28,6 +28,13 @@ labeled where you enable it.
 Nothing above ever leaves your machine except in the BYOK mode described
 below. Uninstalling the extension deletes all of it.
 
+The Backup section in Options writes settings and "My groups" to a JSON
+file on your machine, only when you click Export - the file goes nowhere by
+itself. The API key is included only when you explicitly tick "Include the
+API key" (the toggle states, in plain words, that the file will carry the
+key as plain text); importing a file that contains a key asks a second
+time before the key is stored.
+
 ## Smart grouping modes
 
 - **Built-in (Gemini Nano):** the model runs **on your device** via Chrome's

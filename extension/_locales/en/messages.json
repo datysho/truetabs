@@ -541,5 +541,32 @@
   },
   "optProtectedHint": {
     "message": "One group name per line. TrueTabs never moves tabs out of these groups - not on navigation, not on Organize. You can also toggle this on any group row in the popup."
+  },
+  "optDataHeader": {
+    "message": "Backup"
+  },
+  "optDataHint": {
+    "message": "Settings and My groups sync between your browsers through Chrome Sync on their own. The file is for everything else: moving to another profile, a clean reinstall, or keeping a copy."
+  },
+  "dataExport": {
+    "message": "Export settings"
+  },
+  "dataImport": {
+    "message": "Import from file"
+  },
+  "dataExported": {
+    "message": "Exported."
+  },
+  "dataFailed": {
+    "message": "Not a TrueTabs export file."
+  },
+  "dataIncludeKey": {
+    "message": "Include the API key in the export"
+  },
+  "dataIncludeKeyWarn": {
+    "message": "The file will contain your key in plain text."
+  },
+  "dataImportKeyConfirm": {
+    "message": "This file contains an API key. Import the key too?"
   }
 }

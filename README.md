@@ -158,6 +158,20 @@ turn off "Saved tab groups" under Chrome Sync settings. Simplest of all:
 do not use *Save group* on groups TrueTabs manages - it re-creates them
 from signatures after every restart anyway, so the chip adds nothing.
 
+## Sync between browsers, backups, updates
+
+Your settings, "My groups" rules and protected-group locks live in
+`chrome.storage.sync`: sign into the same Chrome profile elsewhere and they
+are simply there. What never syncs, deliberately: the BYOK API key (a secret
+stays on its machine), the archive (it can reach megabytes), and per-session
+state. **Options - Backup** writes the portable rest to a plain JSON file
+and reads it back - the key is included only behind an explicit toggle that
+says, in plain text, what that means; importing a file that carries a key
+asks once more. Web Store updates download in the background and apply at
+the first quiet moment - no AI run in flight, none of the extension's pages
+open; settings survive every version by construction (storage is untouched
+on update, every read validates against the schema).
+
 ## Install (until the Web Store listing is live)
 
 1. Download/clone this repo.

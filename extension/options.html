@@ -404,6 +404,26 @@
           <textarea id="protectedGroups" spellcheck="false"></textarea>
         </div>
 
+        <h3 data-i18n="optDataHeader"></h3>
+        <div class="setting stack">
+          <div class="info">
+            <div class="hint" data-i18n="optDataHint"></div>
+          </div>
+          <div class="custom-actions">
+            <button id="exportBtn" data-i18n="dataExport"></button>
+            <button id="importBtn" data-i18n="dataImport"></button>
+            <input type="file" id="importFile" accept="application/json" hidden />
+            <span class="byok-note" id="dataNote" style="visibility: hidden"></span>
+          </div>
+        </div>
+        <div class="setting">
+          <div class="info">
+            <div class="label" data-i18n="dataIncludeKey"></div>
+            <div class="hint err" data-i18n="dataIncludeKeyWarn"></div>
+          </div>
+          <input type="checkbox" class="switch" id="exportWithKey" />
+        </div>
+
         <h3 data-i18n="optSmartHeader"></h3>
         <div class="setting">
           <div class="info">

@@ -535,5 +535,32 @@
   },
   "optProtectedHint": {
     "message": "Un nom de groupe par ligne. TrueTabs ne retire aucun onglet de ces groupes - ni à la navigation, ni via « Organiser ». Réglable aussi depuis la ligne du groupe dans le popup."
+  },
+  "optDataHeader": {
+    "message": "Sauvegarde"
+  },
+  "optDataHint": {
+    "message": "Les réglages et Mes groupes se synchronisent d'eux-mêmes entre vos navigateurs via Chrome Sync. Le fichier sert au reste : migration vers un autre profil, réinstallation propre, copie de précaution."
+  },
+  "dataExport": {
+    "message": "Exporter les réglages"
+  },
+  "dataImport": {
+    "message": "Importer depuis un fichier"
+  },
+  "dataExported": {
+    "message": "Exporté."
+  },
+  "dataFailed": {
+    "message": "Ce n'est pas un fichier d'export TrueTabs."
+  },
+  "dataIncludeKey": {
+    "message": "Inclure la clé API dans l'export"
+  },
+  "dataIncludeKeyWarn": {
+    "message": "Le fichier contiendra votre clé en clair."
+  },
+  "dataImportKeyConfirm": {
+    "message": "Ce fichier contient une clé API. L'importer aussi ?"
   }
 }

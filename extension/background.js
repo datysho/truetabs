@@ -126,6 +126,25 @@ async function getSettings() {
   return normalizeSettings(settings);
 }
 
+// Keys the rename map consumed: pruned on write, never carried forward.
+const RETIRED_KEYS = new Set(["groupAuto", "smartAutoAssign", "sortMode", "smartOther"]);
+
+// The single settings write path. Reads raw, overlays the patch, normalizes
+// the KNOWN keys - and puts every unknown key back on top: unknown belongs
+// to a NEWER schema on a synced profile, and normalizeSettings dropping it
+// used to mean an older machine's first write silently ate a newer
+// machine's settings (settings-platform spec, forward-compat).
+async function writeSettings(patch) {
+  const { settings: raw } = await chrome.storage.sync.get("settings");
+  const merged = { ...(raw || {}), ...patch };
+  const next = normalizeSettings(merged);
+  for (const key of Object.keys(merged)) {
+    if (!(key in next) && !RETIRED_KEYS.has(key)) next[key] = merged[key];
+  }
+  await chrome.storage.sync.set({ settings: next });
+  return next;
+}
+
 // "Group new tabs: by topic" and "Group by topic using: <engine>" are ONE
 // decision seen from two sides, so the rule lives HERE, in the engine, not in
 // a page: two pages can set these keys, and a rule owned by one of them is a
@@ -3089,6 +3108,8 @@ async function tick() {
   await reviewMismatched();
   // Aged surplus blanks: the collapse trigger's tick-side half.
   await reviewBlanks();
+  // A deferred CWS update retries here until its quiet moment arrives.
+  await tryApplyUpdate();
 }
 
 function ensureAlarm() {
@@ -3201,10 +3222,9 @@ async function handleUi(request) {
       if (!(request.key in DEFAULTS)) return { ok: false };
       const { settings = {} } = await chrome.storage.sync.get("settings");
       settings[request.key] = request.value;
-      // Persist the normalized shape: a bad value degrades to the default
-      // instead of poisoning storage for every later read.
-      const next = normalizeSettings(pairGrouping(settings, request.key));
-      await chrome.storage.sync.set({ settings: next });
+      // Persist the normalized shape (a bad value degrades to the default)
+      // through the ONE write path that keeps a newer version's keys alive.
+      const next = await writeSettings(pairGrouping(settings, request.key));
       i18nReady = null; // language may have changed
       if (request.key === "iconStyle") applyActionIcon(request.value);
       // Flipping a layout setting re-sorts immediately - these are
@@ -3236,16 +3256,49 @@ async function handleUi(request) {
       // The popup row's lock: one title in or out of the protected list.
       // Rides the same normalized settings write as ui:setSetting - both
       // pages repaint from THIS answer, never from an optimistic guess.
-      const title = String(request.title || "").trim();
+      const title = protectKey(request.title);
       if (!title) return { ok: false };
-      const { settings = {} } = await chrome.storage.sync.get("settings");
-      const list = new Set(normalizeSettings(settings).protectedGroups);
-      if (request.on) list.add(title.slice(0, 40));
-      else list.delete(title.slice(0, 40));
-      settings.protectedGroups = [...list];
-      const next = normalizeSettings(settings);
-      await chrome.storage.sync.set({ settings: next });
+      const list = new Set((await getSettings()).protectedGroups);
+      if (request.on) list.add(title);
+      else list.delete(title);
+      const next = await writeSettings({ protectedGroups: [...list] });
       return { ok: true, settings: next };
+    }
+    case "ui:exportData": {
+      // Settings and rules in one clean file. The BYOK key never rides along
+      // unless the user ticked the explicit include box - and then the file
+      // says so in plain sight (a plaintext key is a deliberate, double-opted
+      // foot-gun, not an accident).
+      const payload = {
+        format: "truetabs-settings",
+        schema: 1,
+        version: chrome.runtime.getManifest().version,
+        exportedAt: new Date().toISOString(),
+        settings: await getSettings(),
+        customGroups: await getCustomGroups(),
+      };
+      if (request.includeKey) {
+        const key = await getByokKey();
+        if (key) payload.byokKey = key;
+      }
+      return payload;
+    }
+    case "ui:importData": {
+      const p = request.payload;
+      if (!p || typeof p !== "object" || p.format !== "truetabs-settings") {
+        return { ok: false, error: "format" };
+      }
+      if (JSON.stringify(p).length > 64 * 1024) return { ok: false, error: "tooBig" };
+      const rules = normalizeCustomGroups(p.customGroups);
+      if (JSON.stringify(rules).length > 7000) return { ok: false, error: "tooBig" };
+      const settings = await writeSettings(normalizeSettings(p.settings));
+      await chrome.storage.sync.set({ customGroups: rules });
+      if (request.withKey && typeof p.byokKey === "string" && p.byokKey) {
+        await chrome.storage.local.set({ byokKey: p.byokKey });
+      }
+      i18nReady = null; // language may have changed
+      await bumpPlaceableGen(); // imported rules reclaim what is already parked
+      return { ok: true, settings, customGroups: rules, keyImported: !!(request.withKey && p.byokKey) };
     }
     case "ui:organizeNow":
       return organizeNow(request.scope || "window", request.windowId);
@@ -3562,19 +3615,56 @@ async function handleUi(request) {
 
 // --- event listeners (top-level, synchronous registration) ------------------------------
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   ensureAlarm();
   ensureSettleBootstrap();
+  if (details) {
+    traceDiag(`installed: ${details.reason}${details.previousVersion ? ` from ${details.previousVersion}` : ""}`);
+  }
   // Settle stored state into the current shape once per install/update.
-  // Reads are normalized anyway; this write-back prunes retired keys.
+  // Reads are normalized anyway; this write-back prunes retired keys - and
+  // rides writeSettings so a newer schema's keys survive it.
   enqueue(async () => {
     const { settings } = await chrome.storage.sync.get("settings");
-    if (settings) await chrome.storage.sync.set({ settings: normalizeSettings(settings) });
+    if (settings) await writeSettings({});
   }, "migrate-settings");
 });
 chrome.runtime.onStartup.addListener(() => {
   ensureAlarm();
   ensureSettleBootstrap();
+});
+
+// --- update applier ---------------------------------------------------------
+// Chrome downloads CWS updates in the background and applies them when the
+// extension goes idle; a busy worker or an open page defers that - sometimes
+// until a browser restart. This closes the tail: apply the pending update at
+// the first QUIET moment. No "update ready" UI, ever - the butler updates
+// himself; settings survive by construction (storage is never touched by an
+// update, reads normalize against the schema, session flags are cleared on
+// init). Spec: docs/specs/update-applier.md.
+async function tryApplyUpdate(dry = false) {
+  const { updatePending } = await chrome.storage.session.get("updatePending");
+  if (!updatePending) return "none";
+  if (!(await isSettled())) return "blocked:settle";
+  const { smartRunning, smartDownload } = await chrome.storage.session.get([
+    "smartRunning",
+    "smartDownload",
+  ]);
+  if (smartRunning || smartDownload) return "blocked:smart";
+  if (globalThis.__ttDiag.queued !== globalThis.__ttDiag.finished) return "blocked:queue";
+  const contexts = await chrome.runtime
+    .getContexts({ contextTypes: ["TAB", "POPUP"] })
+    .catch(() => []);
+  if (contexts && contexts.length) return "blocked:pages"; // the user is in our pages
+  if (!dry) chrome.runtime.reload();
+  return "applied";
+}
+globalThis.__ttTryApplyUpdate = (dry) => tryApplyUpdate(dry);
+
+chrome.runtime.onUpdateAvailable.addListener((details) => {
+  chrome.storage.session
+    .set({ updatePending: (details && details.version) || true })
+    .then(() => tryApplyUpdate());
 });
 
 async function handleCommit(details) {

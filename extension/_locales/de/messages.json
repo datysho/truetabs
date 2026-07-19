@@ -535,5 +535,32 @@
   },
   "optProtectedHint": {
     "message": "Ein Gruppenname pro Zeile. TrueTabs entfernt aus diesen Gruppen keine Tabs - weder bei Navigation noch über „Aufräumen“. Auch per Klick in der Gruppenzeile des Popups umschaltbar."
+  },
+  "optDataHeader": {
+    "message": "Sicherung"
+  },
+  "optDataHint": {
+    "message": "Einstellungen und Meine Gruppen synchronisieren sich über Chrome Sync von selbst zwischen Ihren Browsern. Die Datei ist für den Rest: Umzug in ein anderes Profil, Neuinstallation, Kopie zur Sicherheit."
+  },
+  "dataExport": {
+    "message": "Einstellungen exportieren"
+  },
+  "dataImport": {
+    "message": "Aus Datei importieren"
+  },
+  "dataExported": {
+    "message": "Exportiert."
+  },
+  "dataFailed": {
+    "message": "Keine TrueTabs-Exportdatei."
+  },
+  "dataIncludeKey": {
+    "message": "API-Schlüssel in den Export aufnehmen"
+  },
+  "dataIncludeKeyWarn": {
+    "message": "Die Datei enthält Ihren Schlüssel im Klartext."
+  },
+  "dataImportKeyConfirm": {
+    "message": "Diese Datei enthält einen API-Schlüssel. Auch importieren?"
   }
 }
