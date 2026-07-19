@@ -2721,6 +2721,32 @@ async function main() {
     assert((await getTab(b3.id)) !== null, "the latest survives");
   });
 
+  await test("blanks: a rapid burst of New Tabs converges to one, however late the jobs run", async () => {
+    await resetWorld();
+    // The field report: Cmd+T hammered fast leaves a pile. Fire the creates
+    // CONCURRENTLY so the collapse jobs run long after the focus has moved
+    // on - any "who was active a moment ago" snapshot is outrun here; only
+    // a flag on the tab itself survives the queue lag.
+    const ids = await swEval(async () => {
+      const win = (await chrome.windows.getLastFocused()).id;
+      const made = await Promise.all(
+        Array.from({ length: 6 }, () =>
+          chrome.tabs.create({ windowId: win, active: true }),
+        ),
+      );
+      return made.map((t) => t.id);
+    });
+    await waitFor(
+      "the pile collapsed to the survivor",
+      async () => {
+        let alive = 0;
+        for (const id of ids) if (await getTab(id)) alive++;
+        return alive === 1;
+      },
+      6000,
+    );
+  });
+
   await test("blanks: a just-created blank is in flight, not a victim", async () => {
     await resetWorld();
     const b1 = await newBlank({ active: false });

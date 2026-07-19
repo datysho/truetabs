@@ -335,6 +335,7 @@ function newTabState(tab) {
     key: dupeKey(tabUrl(tab)),
     domain: registrableDomain(tabUrl(tab)),
     prevDomain: null, // the domain the PREVIOUS commit held (new-intent signal)
+    wasActive: false, // the user has focused this tab at least once
     groupedByUs: null,
     ungroupedByUser: false,
     mismatch: null, // at-rest clock payload {domain, key, since}
@@ -1068,10 +1069,6 @@ async function sweepDuplicates(scope, currentWindowId) {
 // flight, not an abandoned tab; closing it would eat someone's navigation.
 const BLANK_MIN_AGE_MS = 5_000;
 
-// Focus history per window (in-memory; see the onActivated listener).
-const activeByWindow = new Map();
-const prevActiveByWindow = new Map();
-
 // The one definition of a collapsible blank, shared by the collapse trigger,
 // the tick sweep, the manual Sweep button and the popup's surplus count:
 // ephemeral page, not pinned, not active, not inside any group (a grouped
@@ -1092,7 +1089,7 @@ const looseBlank = (t) =>
 // unknown can only mean the created-job has not run yet; treating unknown
 // as old once ate freshly-created neighbours whose state write was still
 // queued behind a storm.
-async function scanBlanks(tabs, opts = {}) {
+async function scanBlanks(tabs) {
   const loose = tabs.filter(looseBlank);
   if (!loose.length) return { keepId: null, victims: [] };
   const activeBlank = tabs.some(
@@ -1103,9 +1100,11 @@ async function scanBlanks(tabs, opts = {}) {
       isEphemeralUrl(t.url || t.pendingUrl || ""),
   );
   const born = new Map();
+  const seen = new Set();
   for (const t of loose) {
     const st = await getTabState(t.id);
     born.set(t.id, st ? st.firstSeenAt || 0 : Infinity);
+    if (st && st.wasActive) seen.add(t.id);
   }
   let keepId = null;
   if (!activeBlank) {
@@ -1122,11 +1121,11 @@ async function scanBlanks(tabs, opts = {}) {
     .filter(
       (t) =>
         t.id !== keepId &&
-        // The blank the user JUST LEFT dies instantly, whatever its age: the
-        // user was on it, saw it empty and asked for another - that is the
+        // A blank the user has SEEN and left dies at any age - that is the
         // "instant" the customer chose, and it can never be a software tab
-        // in flight (those are never the tab under the user's fingers).
-        (t.id === opts.userLeftId ||
+        // in flight (those never take focus). Never-focused blanks wait out
+        // the in-flight floor.
+        (seen.has(t.id) ||
           (born.get(t.id) !== Infinity && now() - born.get(t.id) >= BLANK_MIN_AGE_MS)),
     )
     .map((t) => t.id);
@@ -1153,15 +1152,8 @@ async function collapseBlanks(newTab) {
   // The FULL window goes into the scan: the newcomer is the active scratch
   // (or the newest) and the age floor shields it either way - filtering it
   // out would blind the survivor rule to the very tab the user just opened.
-  // If the newcomer took the focus, the tab the user LEFT for it is fair
-  // game at any age (Cmd+T from a New Tab = the duplicate dies now, not on
-  // the next sweep).
-  const userLeftId =
-    activeByWindow.get(newTab.windowId) === newTab.id
-      ? prevActiveByWindow.get(newTab.windowId)
-      : null;
   const tabs = await chrome.tabs.query({ windowId: newTab.windowId });
-  const { victims } = await scanBlanks(tabs, { userLeftId });
+  const { victims } = await scanBlanks(tabs);
   await closeBlankSet(victims, "blank-collapse");
 }
 
@@ -4066,18 +4058,22 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
 });
 
 chrome.tabs.onActivated.addListener(({ tabId, windowId }) => {
-  // "Who did the user just leave" - the discriminator that lets the blank
-  // collapse be truly instant for the human path: a blank that WAS the
-  // active tab a moment ago is an abandoned scratch (the user saw it empty
-  // and asked for another), never a software create-then-navigate in flight.
-  // In-memory only: a worker death degrades to the age rule, gracefully.
-  prevActiveByWindow.set(windowId, activeByWindow.get(windowId) ?? null);
-  activeByWindow.set(windowId, tabId);
   // Recency follows use through the SAME layout engine as everything else -
   // one mechanism, one set of gates. The 150ms coalesce keeps Ctrl+Tab
   // cycling to a single re-sort after the hopping stops.
   recencyAssert(windowId);
   enqueue(async () => {
+    // The user SAW this tab: a once-per-tab stamp that makes the blank
+    // collapse burst-proof - an ex-active blank is an abandoned scratch at
+    // any age, however late its collapse job runs (rapid Cmd+T chains defeat
+    // any "who was active a moment ago" snapshot; a flag on the tab itself
+    // cannot be outrun). Software create-then-navigate tabs never focus, so
+    // the in-flight floor still protects exactly them.
+    const st = await getTabState(tabId);
+    if (st && !st.wasActive) {
+      st.wasActive = true;
+      await putTabState(tabId, st);
+    }
     const tab = await quiet(chrome.tabs.get, tabId);
     if (!tab || tab.groupId === -1 || tab.groupId == null) return;
     const ourGroups = await getOurGroups();
