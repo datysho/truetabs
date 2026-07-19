@@ -1132,9 +1132,40 @@ async function scanBlanks(tabs) {
   return { keepId, victims };
 }
 
+// Blanks are contentless and user-throttled (each one exists because a
+// human pressed Cmd+T), so they must never burn the SHARED close budget nor
+// trip the ten-minute global pause: an aggressive New-Tab session was eating
+// the 25/min breaker, and then EVERYTHING stood down - the pile just sat
+// there, tick included. A wide ledger of their own still caps true
+// pathology (something spawning blanks forever); overflow skips QUIETLY and
+// the minute tick retries.
+const BLANK_CLOSE_WINDOW_MS = 60_000;
+const BLANK_CLOSE_BURST = 120;
+
 async function closeBlankSet(victims, reason) {
   if (!victims.length) return;
-  const closed = await closeTabsGuarded(victims, reason);
+  const granted = [];
+  for (const id of victims) {
+    if (
+      await takeToken(
+        "blankCloseLedger",
+        "blankCloseAllowance",
+        BLANK_CLOSE_WINDOW_MS,
+        BLANK_CLOSE_BURST,
+      )
+    ) {
+      granted.push(id);
+    } else {
+      break; // quiet skip - never a trip, never a pause
+    }
+  }
+  if (!granted.length) return;
+  await markSelfClosed(granted);
+  for (const id of granted) await quiet(chrome.tabs.remove, id);
+  let closed = 0;
+  for (const id of granted) {
+    if (!(await quiet(chrome.tabs.get, id))) closed++;
+  }
   if (closed) {
     await bumpCounter("dedupedToday", closed);
     traceDiag(`${reason}: closed ${closed}`);

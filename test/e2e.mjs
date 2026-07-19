@@ -259,6 +259,8 @@ async function resetWorld() {
       "createLedger",
       "closeAllowance",
       "createAllowance",
+      "blankCloseLedger",
+      "blankCloseAllowance",
       "pausedUntil",
       "breakerNotifiedAt",
       "mismatchIdx",
@@ -2744,6 +2746,34 @@ async function main() {
         return alive === 1;
       },
       6000,
+    );
+  });
+
+  await test("blanks: a hammering session never trips the breaker into a dead pile", async () => {
+    await resetWorld();
+    // The field report, round three: hold Cmd+T until well past the shared
+    // 25/min close budget. Blank closes must ride their OWN quiet ledger -
+    // on the old code close #26 tripped the breaker, PAUSED all automation
+    // for ten minutes, and the rest of the pile just sat there.
+    const ids = [];
+    for (let i = 0; i < 30; i++) {
+      const t = await newBlank({ active: true });
+      ids.push(t.id);
+      await sleep(60);
+    }
+    await waitFor(
+      "the pile converged to one survivor",
+      async () => {
+        let alive = 0;
+        for (const id of ids) if (await getTab(id)) alive++;
+        return alive === 1;
+      },
+      15000,
+    );
+    const diag = await ui({ type: "ui:diagnostics" });
+    assert(
+      !diag.pausedUntil || diag.pausedUntil <= Date.now(),
+      "thirty blanks never paused the automation",
     );
   });
 
