@@ -2936,12 +2936,19 @@ async function main() {
     const g1 = await openViaCommit(`${altUrl}/famG1`, { active: false });
     const g2 = await openViaCommit(`${altUrl}/famG2`, { active: false });
     await waitFor("grouped", async () => (await getTab(g2.id)).groupId !== -1);
+    // getTab projects no index - read it the way every other layout test does.
+    // Offset-aware: any pinned tabs sit before the zone by platform rule, so
+    // the contract under test is [pinned][locked][groups], not absolute 0/1.
+    const tabIndex = (id) => swEval((tid) => chrome.tabs.get(tid).then((t) => t.index), id);
+    const pinnedNow = () =>
+      swEval(async () => (await chrome.tabs.query({ pinned: true })).length);
     await waitFor(
       "the locked tab holds the zone with the block packed after it",
       async () => {
         const l = await getTab(L.id);
-        const gFirst = Math.min((await getTab(g1.id)).index, (await getTab(g2.id)).index);
-        return l.index === 0 && l.groupId === -1 && gFirst === 1;
+        const off = await pinnedNow();
+        const gFirst = Math.min(await tabIndex(g1.id), await tabIndex(g2.id));
+        return (await tabIndex(L.id)) === off && l.groupId === -1 && gFirst === off + 1;
       },
     );
     await ui({ type: "ui:setSetting", key: "groupsOnTop", value: false });
