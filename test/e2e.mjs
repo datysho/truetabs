@@ -509,6 +509,34 @@ async function main() {
     assert((await getTab(target.id)) !== null, "target alive");
   });
 
+  await test("dedup: a tab that outlived a restart is not fresh", async () => {
+    await resetWorld();
+    const target = await openViaCommit(`${baseUrl}/restartTarget`, { active: false });
+    const traveler = await openViaCommit(`${baseUrl}/restartStart`, { active: true });
+    // A browser restart or an extension reload wipes session state and the
+    // settle pass re-seeds every tab already open. Those tabs carry a
+    // back-stack the seed cannot see: seeding them fresh hands the tab the
+    // user is LOOKING AT to the dedup engine on its next navigation - and a
+    // page can perform that navigation by itself.
+    await swEval(() => globalThis.__ttSimulateReload());
+    await waitFor("re-settled", async () => (await ui({ type: "ui:getState" })).settled);
+    await forceSettle();
+    await swEval(
+      (tabId, u) =>
+        new Promise((resolve) =>
+          chrome.tabs.update(tabId, { url: u }, () => {
+            void chrome.runtime.lastError;
+            resolve();
+          }),
+        ),
+      traveler.id,
+      `${baseUrl}/restartTarget`,
+    );
+    await sleep(700);
+    assert((await getTab(traveler.id)) !== null, "restored tab alive - a restart is not a birth");
+    assert((await getTab(target.id)) !== null, "target alive");
+  });
+
   await test("dedup: two strikes retire the key for the session", async () => {
     await resetWorld();
     const url = `${baseUrl}/strikeMe`;

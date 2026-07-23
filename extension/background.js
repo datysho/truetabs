@@ -401,7 +401,17 @@ function ensureSettleBootstrap() {
     // Seed per-tab state for everything already open (no actions taken):
     // archive clocks start from "seen now", never from a guessed past.
     for (const tab of await chrome.tabs.query({})) {
-      if (!(await getTabState(tab.id))) await putTabState(tab.id, newTabState(tab));
+      if (await getTabState(tab.id)) continue;
+      const seeded = newTabState(tab);
+      // A tab already showing a page COMMITTED that page before we got here -
+      // a restart is not a birth. Seeding it at zero would make every restored
+      // tab fresh, and fresh is the one thing dedup is allowed to close: the
+      // next navigation - one the page can perform by itself - would shut the
+      // tab under the user's eyes in favour of an older twin holding the same
+      // url. The seed already reads the tab's url, key and domain; the commit
+      // count has to tell the same truth.
+      if (seeded.key) seeded.committedCount = 1;
+      await putTabState(tab.id, seeded);
     }
     await readoptGroups();
     await chrome.storage.session.set({ settled: true });
