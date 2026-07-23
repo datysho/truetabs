@@ -350,9 +350,23 @@ async function dropTabState(tabId) {
   await chrome.storage.session.remove(stateKey(tabId));
 }
 
+// The ONE predicate for "this window is a tab strip TrueTabs may manage".
+// window.type is not enough: Chrome reports a Document Picture-in-Picture
+// window as type "normal" - in windows.onCreated and in windows.getAll alike -
+// and puts a real about:blank tab inside it (verified on Chrome 148). Google
+// Meet opens one by itself when the user leaves the call tab while somebody
+// presents, so it arrives mid-call, unasked. That window is an overlay, not a
+// strip: counting its tab, sweeping it, or moving that tab out destroys the
+// user's floating call window - which is what Merge windows did (v1.20.3).
+// alwaysOnTop is the discriminator: Chrome offers no way to make a browsing
+// window always-on-top, while overlay surfaces are one by construction.
+function canHostTabs(win) {
+  return !!win && win.type === "normal" && !win.incognito && !win.alwaysOnTop;
+}
+
 async function normalWindows() {
   const windows = await chrome.windows.getAll({ windowTypes: ["normal"] });
-  return windows.filter((w) => !w.incognito);
+  return windows.filter(canHostTabs);
 }
 
 async function normalTabs(scopeWindowId = null) {
@@ -911,7 +925,7 @@ async function dedupOnCommit(tabId, url, kind, st) {
   if (isFamilyLocked(tab.id)) return; // TruePin's zone: never a victim either
   if (await isAppOwnFlow(tab, url)) return; // the site opened it: its flow, hands off
   const win = await quiet(chrome.windows.get, tab.windowId);
-  if (!win || win.type !== "normal") return;
+  if (!canHostTabs(win)) return;
   // Only a tab's first real page is a victim: an existing tab that navigated
   // here carries a back-stack that a close would destroy. Arc dedups opens,
   // not in-place navigation.
@@ -984,7 +998,7 @@ async function mergeIntoNavigated(tabId, url, st) {
   const tab = await quiet(chrome.tabs.get, tabId);
   if (!tab || tab.incognito || tab.pinned) return null;
   const win = await quiet(chrome.windows.get, tab.windowId);
-  if (!win || win.type !== "normal") return null;
+  if (!canHostTabs(win)) return null;
   const all = await normalTabs(settings.dedupScope === "window" ? tab.windowId : null);
   const ourGroups = await getOurGroups();
   const stale = all.filter(
@@ -1264,7 +1278,7 @@ async function collapseBlanks(newTab) {
   if (!settings.dedupAuto) return;
   if (!(await isSettled()) || (await isPaused())) return;
   const win = await quiet(chrome.windows.get, newTab.windowId);
-  if (!win || win.type !== "normal") return;
+  if (!canHostTabs(win)) return;
   // The FULL window goes into the scan: the newcomer is the active scratch
   // (or the newest) and the age floor shields it either way - filtering it
   // out would blind the survivor rule to the very tab the user just opened.
@@ -1422,7 +1436,7 @@ async function undoBatch(batchId, { recordStrikes = true } = {}) {
   await withCreateAllowance(entries.length, async () => {
     for (const entry of entries.slice().reverse()) {
       const win = await quiet(chrome.windows.get, entry.winHint);
-      const windowId = win && win.type === "normal" ? entry.winHint : undefined;
+      const windowId = canHostTabs(win) ? entry.winHint : undefined;
       const tab = await guardedCreate({ windowId, url: entry.url, active: false }, "undo");
       if (!tab) continue;
       restored++;
@@ -1458,7 +1472,7 @@ async function restoreEntries(ids) {
   await withCreateAllowance(entries.length, async () => {
     for (const entry of entries.slice().reverse()) {
       const win = await quiet(chrome.windows.get, entry.winHint);
-      const windowId = win && win.type === "normal" ? entry.winHint : undefined;
+      const windowId = canHostTabs(win) ? entry.winHint : undefined;
       const tab = await guardedCreate({ windowId, url: entry.url, active: false }, "restore");
       if (!tab) continue;
       restored++;
@@ -1735,7 +1749,7 @@ async function customAssign(tabId, st) {
   if (!placeable(tab, await getOurGroups())) return false;
   if (st.ungroupedByUser) return false;
   const win = await quiet(chrome.windows.get, tab.windowId);
-  if (!win || win.type !== "normal") return false;
+  if (!canHostTabs(win)) return false;
   const rule = customRuleFor(customs, tab.url);
   if (!rule) return false;
   if (await isStruck("group", `custom:${rule.id}`)) return false;
@@ -1869,7 +1883,7 @@ async function rehomeNavigated(tabId, st, inheritGid, opts = {}) {
   const tab = await quiet(chrome.tabs.get, tabId);
   if (!tab || tab.pinned || tab.incognito || isFamilyLocked(tab.id)) return;
   const win = await quiet(chrome.windows.get, tab.windowId);
-  if (!win || win.type !== "normal") return;
+  if (!canHostTabs(win)) return;
   const settings = await getSettings();
   const ourGroups = await getOurGroups();
   const grouped = tab.groupId !== -1 && tab.groupId != null;
@@ -2044,7 +2058,7 @@ async function groupOnCommit(tabId, st) {
   const ourGroupsNow = await getOurGroups();
   if (!placeable(tab, ourGroupsNow)) return; // never out of a REAL group
   const win = await quiet(chrome.windows.get, tab.windowId);
-  if (!win || win.type !== "normal") return;
+  if (!canHostTabs(win)) return;
   if (st.committedCount > 1) return;
   if (st.ungroupedByUser) return; // pulled out once: hands off for the session
   const domain = st.domain;
@@ -2583,7 +2597,7 @@ async function ungroupAll() {
   let groupsGone = 0;
   for (const group of (await quiet(chrome.tabGroups.query, {})) || []) {
     const win = await quiet(chrome.windows.get, group.windowId);
-    if (!win || win.type !== "normal" || win.incognito) continue;
+    if (!canHostTabs(win)) continue;
     ungrouped += await ungroupOne(group.id, ourGroups);
     groupsGone++;
   }
@@ -2645,7 +2659,7 @@ async function regroupRestored(tab, entry) {
 
 async function mergeWindows(targetWindowId) {
   const target = await quiet(chrome.windows.get, targetWindowId);
-  if (!target || target.type !== "normal" || target.incognito) {
+  if (!canHostTabs(target)) {
     return { moved: 0, groupsMoved: 0, windowsEmptied: 0, pinnedLeft: 0 };
   }
   let moved = 0;
@@ -3800,7 +3814,7 @@ async function handleUi(request) {
       let changed = 0;
       for (const group of (await quiet(chrome.tabGroups.query, {})) || []) {
         const win = await quiet(chrome.windows.get, group.windowId);
-        if (!win || win.type !== "normal" || win.incognito) continue;
+        if (!canHostTabs(win)) continue;
         if (group.collapsed === !!request.collapsed) continue;
         if (request.collapsed) {
           const members = await chrome.tabs.query({ groupId: group.id });
@@ -3982,6 +3996,10 @@ async function handleUi(request) {
         windows.push({
           id: win.id,
           type: win.type,
+          // type alone hides an overlay window (a call's picture-in-picture
+          // reports "normal"): the dump must show what the engine judges by.
+          alwaysOnTop: win.alwaysOnTop,
+          managed: canHostTabs(win),
           incognito: win.incognito,
           tabCount: (win.tabs || []).length,
           urls: (win.tabs || []).map((t) => t.url), // urls only - titles can leak content

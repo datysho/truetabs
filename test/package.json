@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node e2e.mjs"
+    "test": "node e2e.mjs",
+    "test:appflow": "node repro-appflow.mjs",
+    "test:pip": "node repro-pip-window.mjs"
   },
   "devDependencies": {
     "puppeteer": "^24.0.0"

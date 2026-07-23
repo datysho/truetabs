@@ -289,11 +289,25 @@ const archiveEntries = () =>
 function startServer() {
   const server = http.createServer((req, res) => {
     const name = req.url.replace(/\W/g, "") || "index";
+    // /pip* pages open a Document Picture-in-Picture window on click - the
+    // overlay Google Meet opens by itself when the user leaves the call tab
+    // while somebody presents. requestWindow needs a real user gesture.
+    const pipScript = req.url.startsWith("/pip")
+      ? `<script>
+           document.body.addEventListener("click", async () => {
+             try {
+               const w = await documentPictureInPicture.requestWindow({width: 320, height: 200});
+               w.document.body.textContent = "call mini window";
+               window.__pipOk = true;
+             } catch (e) { window.__pipErr = String(e); }
+           });
+         </script>`
+      : "";
     const respond = () => {
       res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
       res.end(
         `<!doctype html><html><head><title>page-${name}</title></head>` +
-          `<body style="height:100vh;margin:0">page ${name}</body></html>`,
+          `<body style="height:100vh;margin:0">page ${name}${pipScript}</body></html>`,
       );
     };
     // /slow* pages take 1.5s to respond: lets tests prove that pre-commit
@@ -3783,6 +3797,96 @@ async function main() {
     );
     await swEval(() => globalThis.__ttSetMockAi(null));
     await bmkDisable();
+  });
+
+  await test("platform: a call's mini window is no tab strip - not counted, not merged", async () => {
+    await resetWorld();
+    const current = (await queryTabs({ active: true }))[0].windowId;
+    await openViaCommit(`${baseUrl}/pipHost`, { windowId: current, active: true });
+    const page = await waitFor("pip host page", async () =>
+      (await browser.pages()).find((p) => p.url().includes("/pipHost")),
+    );
+    const before = (await ui({ type: "ui:getState" })).counts;
+    await page.bringToFront();
+    await page.click("body"); // requestWindow needs the gesture
+    const opened = await waitFor("mini window opens", async () =>
+      page.evaluate(() => (window.__pipOk ? "ok" : window.__pipErr || null)),
+    );
+    assert(opened === "ok", `the mini window opened (${opened})`);
+    const wins = await swEval(() =>
+      chrome.windows.getAll({ populate: true }).then((all) =>
+        all.map((w) => ({
+          id: w.id,
+          type: w.type,
+          alwaysOnTop: w.alwaysOnTop,
+          tabs: (w.tabs || []).map((t) => t.id),
+        })),
+      ),
+    );
+    const pip = wins.find((w) => w.alwaysOnTop);
+    // The platform quirk this guard exists for, asserted rather than
+    // remembered: Chrome files the overlay under type "normal" and gives it a
+    // real tab. When that changes, this line is where we find out.
+    assert(pip, "the mini window is visible to the windows API");
+    assert(pip.type === "normal", `Chrome still calls it "normal" (got ${pip.type})`);
+    assert(pip.tabs.length === 1, "and still puts a tab inside it");
+
+    const after = (await ui({ type: "ui:getState" })).counts;
+    assert(
+      after.windows === before.windows,
+      `the popup counts strips, not overlays (${before.windows} -> ${after.windows})`,
+    );
+    assert(
+      after.tabs === before.tabs,
+      `the overlay's tab is in no pool (${before.tabs} -> ${after.tabs})`,
+    );
+
+    // Merge windows used to rip the tab out of the overlay - which closes the
+    // user's floating call window and buries its document as an about:blank
+    // tab in the strip. Nothing of the overlay may move.
+    const merged = await ui({ type: "ui:mergeWindows", targetWindowId: current });
+    await sleep(600);
+    const stillThere = await swEval(
+      (id) =>
+        new Promise((r) =>
+          chrome.windows.get(id, { populate: true }, (w) => {
+            void chrome.runtime.lastError;
+            r(w ? { tabs: (w.tabs || []).map((t) => t.id) } : null);
+          }),
+        ),
+      pip.id,
+    );
+    assert(stillThere, "the mini window survived Merge windows");
+    assert(stillThere.tabs.length === 1, "with its tab still in it");
+    assert(
+      !merged.windowsEmptied,
+      `an overlay is not an emptied window (reported ${merged.windowsEmptied})`,
+    );
+    await page.evaluate(() => documentPictureInPicture.window?.close());
+    await sleep(300);
+  });
+
+  await test("platform: one predicate owns the tab-strip judgment", async () => {
+    // The v1.20.3 bug was possible because "is this window ours to manage"
+    // was hand-written in a dozen places, each free to miss a case - and all
+    // twelve missed the overlay. Keep the judgment in one function: a new
+    // copy of it anywhere is the drift that regressed us, not a detail.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../extension/background.js", import.meta.url), "utf8");
+    const lines = src.split("\n");
+    const copies = lines
+      .map((line, i) => ({ line, no: i + 1 }))
+      .filter((l) => /\btype\s*[!=]==\s*"normal"/.test(l.line));
+    assert(copies.length === 1, `one judgment, not ${copies.length}: ${copies.map((c) => c.no)}`);
+    const predicateAt = lines.findIndex((l) => l.includes("function canHostTabs")) + 1;
+    assert(
+      predicateAt > 0 && copies[0].no - predicateAt <= 3,
+      `the judgment lives inside canHostTabs (line ${copies[0].no}, predicate at ${predicateAt})`,
+    );
+    assert(
+      /alwaysOnTop/.test(lines[copies[0].no - 1]),
+      "and it weighs alwaysOnTop - type alone cannot tell an overlay from a strip",
+    );
   });
 
   await test("host access: the manifest can never ask for an arbitrary site", async () => {
