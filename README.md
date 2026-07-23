@@ -88,6 +88,14 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
 - **Hard no-touch list.** Pinned tabs (TruePin territory), the active tab,
   tabs playing audio, meeting sites (allowlist), your own hand-made tab
   groups - never archived, never grouped, never closed.
+- **Apps get to run their own flows.** When a site opens a tab into itself -
+  ChatGPT's "branch in new chat", an editor popping the open document out, a
+  checkout returning to its own order page - that tab is the application at
+  work, not a duplicate you opened, and automation leaves it alone. Same for
+  a tab a page opens blank and fills a moment later (how sites survive the
+  popup blocker): it gets 30 seconds of flight before any hygiene applies.
+  Duplicates you open yourself, and links from other sites, are collapsed
+  exactly as before.
 
 <details>
 <summary><b>Under the hood</b></summary>
@@ -118,6 +126,11 @@ Everything here descends from [TruePin](https://github.com/datysho/truepin)'s
   classification; the one theoretical miss is a target=_blank form POST to an
   URL you already have open - its origin page stays open, and two strikes
   retire the key anyway.
+- A tab a site opens into itself is never auto-deduped (see the safety model),
+  so opening a second copy of a page from that same site by hand is not
+  collapsed either. Chrome reports both the same way - opener id, transition
+  "link" - and no API tells them apart. The popup still counts it as a
+  duplicate and "Sweep duplicates" still collects it.
 - In-place merge triggers only on address-bar and bookmark navigations; link
   browsing never merges or reshuffles anything.
 - The tabs API cannot see camera/microphone use - meeting sites are protected

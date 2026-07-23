@@ -33,6 +33,71 @@ function setStatus(text, isError) {
   el.className = isError ? "err" : "";
 }
 
+// Overlay scrollbar. The native bar is hidden in CSS - it would steal a layout
+// lane under macOS "always show scrollbars", or shift the content sideways the
+// moment it appears. We draw a thin thumb ON TOP of the list: full-width,
+// symmetric content, nothing moves when scrolling begins. Wheel and trackpad
+// scroll natively; the thumb is a live indicator and can be dragged.
+function initOverlayScroll() {
+  const scroll = $("scroll");
+  const host = scroll.parentElement;
+  const thumb = $("ttThumb");
+  const INSET = 4; // .tt-scrollbar top+bottom insets (2px each)
+  let hideTimer = null;
+
+  function layout() {
+    const { scrollTop, scrollHeight, clientHeight } = scroll;
+    const scrollable = scrollHeight - clientHeight > 1;
+    host.classList.toggle("scrollable", scrollable);
+    if (!scrollable) return;
+    const trackH = clientHeight - INSET;
+    const h = Math.max(28, Math.round((clientHeight / scrollHeight) * trackH));
+    const top = Math.round((scrollTop / (scrollHeight - clientHeight)) * (trackH - h));
+    thumb.style.height = `${h}px`;
+    thumb.style.transform = `translateY(${top}px)`;
+  }
+  function flash() {
+    host.classList.add("scrolling");
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(() => host.classList.remove("scrolling"), 1000);
+  }
+
+  scroll.addEventListener(
+    "scroll",
+    () => {
+      layout();
+      flash();
+    },
+    { passive: true },
+  );
+  new ResizeObserver(layout).observe(scroll);
+  // The group list is rebuilt on every render: recompute when it changes.
+  new MutationObserver(layout).observe(scroll, { childList: true, subtree: true });
+
+  thumb.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    thumb.classList.add("drag");
+    thumb.setPointerCapture(event.pointerId);
+    const startY = event.clientY;
+    const startTop = scroll.scrollTop;
+    const trackH = scroll.clientHeight - INSET;
+    const range = scroll.scrollHeight - scroll.clientHeight;
+    const span = trackH - thumb.offsetHeight;
+    const onMove = (e) => {
+      if (span > 0) scroll.scrollTop = startTop + ((e.clientY - startY) / span) * range;
+    };
+    const onUp = () => {
+      thumb.classList.remove("drag");
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  });
+
+  layout();
+}
+
 function render() {
   if (!state) return;
   const c = state.counts;
@@ -46,7 +111,8 @@ function render() {
   $("dedupToggle").checked = !!state.settings.dedupAuto;
   $("archiveToggle").checked = state.settings.archiveAfter !== "off";
   $("groupToggle").checked = state.settings.autoGroup !== "off";
-  paintAiRow(state.settings);
+  paintGroupChildren(state.settings);
+  $("groupsOnTopToggle").checked = !!state.settings.groupsOnTop;
   $("sortGroups").value = state.settings.sortGroups;
   $("sortTabs").value = state.settings.sortTabs;
 
@@ -97,14 +163,22 @@ function render() {
   renderGroups();
 }
 
-// The AI switch rides under the grouping switch: it is the "AI / no AI" axis,
-// and it is honest because flipping it renames the Organize button to Smart
-// Organize in this very repaint - the consequence is visible in 344px.
-function paintAiRow(settings) {
+// Two switches ride UNDER the grouping switch, because neither means anything
+// while the engine places nothing: the AI axis ("by topic / by site" - flipping
+// it renames Organize to Smart Organize in this very repaint) and the catch-all
+// ("Other" collects whatever found no home). With grouping off they say so
+// instead of pretending their state matters.
+function paintGroupChildren(settings) {
   const on = settings.autoGroup !== "off";
   $("aiToggle").checked = settings.smartEngine !== "off";
-  $("aiToggle").disabled = !on;
-  $("aiRow").classList.toggle("disabled", !on);
+  $("otherToggle").checked = !!settings.otherGroup;
+  for (const [row, box] of [
+    ["aiRow", "aiToggle"],
+    ["otherRow", "otherToggle"],
+  ]) {
+    $(box).disabled = !on;
+    $(row).classList.toggle("disabled", !on);
+  }
 }
 
 // --- groups section: jump, fold, drag-reorder --------------------------------
@@ -429,6 +503,7 @@ async function init() {
   windowId = win.id;
 
   initFooter();
+  initOverlayScroll();
   $("groupList").addEventListener("dragover", onListDragOver);
   $("groupList").addEventListener("drop", onListDrop);
   $("organizeBtn").addEventListener("click", () => {
@@ -529,6 +604,8 @@ async function init() {
         : "builtin";
     send({ type: "ui:setSetting", key: "smartEngine", value }).then(refresh);
   });
+  wireToggle("otherToggle", "otherGroup", (checked) => checked);
+  wireToggle("groupsOnTopToggle", "groupsOnTop", (checked) => checked);
   $("archiveToggle").addEventListener("change", (event) => {
     send({
       type: "ui:setSetting",
@@ -579,7 +656,8 @@ async function prePaint() {
   $("dedupToggle").checked = !!s.dedupAuto;
   $("archiveToggle").checked = s.archiveAfter !== "off";
   $("groupToggle").checked = s.autoGroup !== "off";
-  paintAiRow(s);
+  paintGroupChildren(s);
+  $("groupsOnTopToggle").checked = !!s.groupsOnTop;
   $("sortGroups").value = s.sortGroups;
   $("sortTabs").value = s.sortTabs;
   $("organizeBtn").textContent =

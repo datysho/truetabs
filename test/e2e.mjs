@@ -1532,6 +1532,49 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "archiveAfter", value: "24h" });
   });
 
+  await test("options page: one centered action row, one toast, no reserved notes", async () => {
+    const extUrl = (await findSwTarget()).url().replace("background.js", "options.html");
+    const page = await browser.newPage();
+    await page.setViewport({ width: 900, height: 900 });
+    await page.goto(extUrl, { waitUntil: "networkidle0" });
+    await sleep(600);
+    const shape = await page.evaluate(() => {
+      const row = document.querySelector(".actions");
+      const buttons = [...row.querySelectorAll("button")].map((b) => b.id);
+      const card = document.querySelector(".card").getBoundingClientRect();
+      const rect = row.getBoundingClientRect();
+      const toast = document.getElementById("toast");
+      return {
+        buttons,
+        centered: Math.abs((rect.left + rect.right) / 2 - (card.left + card.right) / 2) < 2,
+        legacy: !!document.getElementById("dataNote") || !!document.getElementById("diagNote"),
+        toastFixed: getComputedStyle(toast).position === "fixed",
+        toastHidden: !toast.classList.contains("show"),
+        chips: !!document.querySelector('[data-i18n="optChipsHint"]'),
+      };
+    });
+    assert(
+      shape.buttons.join(",") === "diagBtn,exportBtn,importBtn",
+      `all three page actions ride one row (got ${shape.buttons})`,
+    );
+    assert(shape.centered, "the row is centered under the card");
+    assert(!shape.legacy, "the per-button notes are gone - one voice only");
+    assert(shape.toastFixed && shape.toastHidden, "the toast is out of the layout and quiet");
+    assert(shape.chips, "the saved-groups explainer is on the page");
+    // The toast is the ONE confirmation surface: exporting shows it.
+    await page.click("#exportBtn");
+    await waitFor(
+      "toast confirms the export",
+      async () =>
+        await page.evaluate(() => {
+          const el = document.getElementById("toast");
+          return el.classList.contains("show") && el.textContent.trim().length > 0;
+        }),
+      4000,
+    );
+    await page.close();
+  });
+
   await test("getState answers instantly even while the mutation queue grinds", async () => {
     await swEval(() => globalThis.__ttEnqueueSleep(2500));
     const t0 = Date.now();
@@ -2656,6 +2699,68 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "sortTabs", value: "off" });
   });
 
+  await test("popup: the catch-all and groups-at-front switches write through, and dim honestly", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    await ui({ type: "ui:setSetting", key: "groupsOnTop", value: false });
+    const extBase = (await findSwTarget()).url().replace("background.js", "");
+    const page = await browser.newPage();
+    await page.goto(`${extBase}popup.html`, { waitUntil: "networkidle0" });
+    await sleep(600);
+    // Layout switch: independent of routing, so it is never dimmed.
+    await page.click("#groupsOnTopToggle");
+    await sleep(400);
+    assert(
+      (await ui({ type: "ui:getState" })).settings.groupsOnTop === true,
+      "groups-at-front writes straight to the engine",
+    );
+    // Routing child: with grouping off it governs nothing and says so.
+    await page.click("#otherToggle");
+    await sleep(400);
+    assert(
+      (await ui({ type: "ui:getState" })).settings.otherGroup === false,
+      "the catch-all writes straight to the engine",
+    );
+    await page.click("#groupToggle");
+    await sleep(500);
+    const dimmed = await page.evaluate(() => ({
+      other: document.getElementById("otherToggle").disabled,
+      ai: document.getElementById("aiToggle").disabled,
+      row: document.getElementById("otherRow").classList.contains("disabled"),
+      onTop: document.getElementById("groupsOnTopToggle").disabled,
+    }));
+    assert(dimmed.other && dimmed.ai && dimmed.row, "both grouping children dim with the parent");
+    assert(!dimmed.onTop, "the layout switch stays live");
+    await page.close();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+    await ui({ type: "ui:setSetting", key: "otherGroup", value: true });
+    await ui({ type: "ui:setSetting", key: "groupsOnTop", value: false });
+  });
+
+  await test("popup: the scroll region carries its own overlay bar, never a reserved lane", async () => {
+    await resetWorld();
+    const extBase = (await findSwTarget()).url().replace("background.js", "");
+    const page = await browser.newPage();
+    await page.goto(`${extBase}popup.html`, { waitUntil: "networkidle0" });
+    await sleep(600);
+    const geom = await page.evaluate(() => {
+      const scroll = document.getElementById("scroll");
+      const host = scroll.parentElement;
+      const thumb = document.getElementById("ttThumb");
+      scroll.scrollTop = scroll.scrollHeight; // force the thumb to lay out
+      return {
+        native: scroll.offsetWidth - scroll.clientWidth, // 0 = no lane stolen
+        full: scroll.clientWidth === host.clientWidth,
+        overlayOnTop: getComputedStyle(thumb.parentElement).position === "absolute",
+        scrollable: scroll.scrollHeight - scroll.clientHeight > 1,
+      };
+    });
+    assert(geom.native === 0, `no native scrollbar lane (got ${geom.native}px)`);
+    assert(geom.full, "the list keeps the full width of its host");
+    assert(geom.overlayOnTop, "the bar is drawn over the content, not beside it");
+    await page.close();
+  });
+
   // --- 1.15.0: universal re-home, blank hygiene, twin guard --------------------
   // (specs: nav-rehome, blank-collapse, native-groups-compat)
 
@@ -3009,6 +3114,61 @@ async function main() {
     await sleep(600);
     assert((await getTab(b1.id)) !== null && (await getTab(b2.id)) !== null, "collapse is off");
     await ui({ type: "ui:setSetting", key: "dedupAuto", value: true });
+  });
+
+  // --- app flows: tabs a SITE opens for itself -------------------------------
+  // The customer case: ChatGPT's "branch in new chat" opens a tab the app then
+  // moves on. Chrome reports window.open, <a target=_blank> and tabs.create
+  // identically ("link" plus an opener id - probed on Chrome for Testing), so
+  // the opener's own site is the only signal that separates an application's
+  // flow from a duplicate the human opened.
+  await test("app flow: a site's own new tab is never an automatic dedup victim", async () => {
+    await resetWorld();
+    const open1 = await openViaCommit(`${baseUrl}/flow-app`, { active: false });
+    const flow = await swEval(
+      (u, opener) => chrome.tabs.create({ url: u, openerTabId: opener, active: true }),
+      `${baseUrl}/flow-app`,
+      open1.id,
+    );
+    await sleep(1200);
+    assert((await getTab(flow.id)) !== null, "the app's flow tab survives");
+    assert((await getTab(open1.id)) !== null, "and so does the page that opened it");
+    // The explicit command still collects it: automation guesses, the user speaks.
+    const swept = await ui({ type: "ui:sweepDupes", scope: "all" });
+    assert(swept.closed >= 1, "manual sweep still collapses the pair");
+  });
+
+  await test("app flow: a cross-site opener does not shield a duplicate", async () => {
+    await resetWorld();
+    const first = await openViaCommit(`${baseUrl}/flow-x`, { active: false });
+    const opener = await openViaCommit(`${altUrl}/flow-elsewhere`, { active: false });
+    const victim = await swEval(
+      (u, op) => chrome.tabs.create({ url: u, openerTabId: op, active: true }),
+      `${baseUrl}/flow-x`,
+      opener.id,
+    );
+    await waitFor("the duplicate collapsed", async () => (await getTab(victim.id)) === null);
+    assert((await getTab(first.id)) !== null, "the original survives");
+  });
+
+  await test("app flow: a page-opened blank rides out its flight window, then ages out", async () => {
+    await resetWorld();
+    // The popup-blocker dance: window.open() fires on the click, the url
+    // arrives when the app's request comes back. The tab sits blank, it took
+    // focus, and the user is already back in the tab they came from.
+    const host = await openViaCommit(`${baseUrl}/flow-host`, { active: true });
+    const flight = await swEval(
+      (op) => chrome.tabs.create({ openerTabId: op, active: true }),
+      host.id,
+    );
+    await swEval((id) => chrome.tabs.update(id, { active: true }), host.id); // seen and left
+    await sleep(600);
+    await newBlank({ active: true }); // a collapse trigger: the harshest path
+    await sleep(800);
+    assert((await getTab(flight.id)) !== null, "the flow in flight is not a scratch tab");
+    // Past the flight window it is ordinary litter and the sweep takes it.
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now() + 40_000);
+    await waitFor("aged-out flight blank swept", async () => (await getTab(flight.id)) === null);
   });
 
   await test("native: one live group per OUR title - the twin is reused, never minted", async () => {

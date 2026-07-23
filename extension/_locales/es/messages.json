@@ -126,7 +126,7 @@
     "message": "Evitar pestañas duplicadas"
   },
   "optDedupAutoHint": {
-    "message": "Si abres una página que ya está abierta, cambia a la pestaña existente."
+    "message": "Si abres una página que ya está abierta, cambia a la pestaña existente. También evita que se acumulen pestañas nuevas vacías de más."
   },
   "optDedupScope": {
     "message": "Buscar la copia existente"
@@ -568,6 +568,18 @@
   },
   "optBmkGroupsHint": {
     "message": "Una carpeta dentro de «TrueTabs» en tus marcadores define un grupo duradero: ábrela desde el popup, actualiza la carpeta desde el grupo vivo. TrueTabs nunca borra marcadores - cerrar pestañas no toca las carpetas. Requiere el permiso de marcadores (se pide al activarlo)."
+  },
+  "optChipsHeader": {
+    "message": "Grupos guardados de Chrome"
+  },
+  "optChipsHint": {
+    "message": "Un grupo guardado deja un chip de color en la barra de marcadores. Chrome no da a las extensiones ningún acceso a esos chips: TrueTabs no ve si un grupo está guardado, no puede dejar de guardarlo ni borrar un chip. Se acumulan solos: los grupos existen por ventana y los chips se sincronizan por dispositivo, así que el mismo nombre vuelve como varios chips."
+  },
+  "optChipsHow": {
+    "message": "Los muertos se quitan a mano: clic derecho en el chip - Eliminar grupo. Para que no aparezcan nuevos, no guardes los grupos utilitarios de TrueTabs (Otros, grupos de sitio) o desactiva «Grupos de pestañas guardados» en la sincronización de Chrome. Para los grupos que quieras conservar están las carpetas de marcadores de arriba: una carpeta, un grupo, sin copias."
+  },
+  "optDataWhere": {
+    "message": "La exportación y la importación están en la fila de botones al final de esta página."
   },
   "bmkHeader": {
     "message": "Desde marcadores"

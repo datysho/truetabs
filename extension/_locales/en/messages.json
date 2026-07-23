@@ -130,7 +130,7 @@
     "message": "Prevent duplicate tabs"
   },
   "optDedupAutoHint": {
-    "message": "Opening a page you already have switches to the existing tab instead."
+    "message": "Opening a page you already have switches to the existing tab instead. It also keeps surplus empty New Tab pages from piling up."
   },
   "optDedupScope": {
     "message": "Look for the existing copy"
@@ -574,6 +574,18 @@
   },
   "optBmkGroupsHint": {
     "message": "A folder under “TrueTabs” in your bookmarks defines a durable group: open it from the popup, update the folder from the live group. TrueTabs never deletes bookmarks - closing tabs leaves folders untouched. Needs the bookmarks permission (asked when you switch this on)."
+  },
+  "optChipsHeader": {
+    "message": "Chrome's saved groups"
+  },
+  "optChipsHint": {
+    "message": "Saving a group leaves a coloured chip on the bookmarks bar. Chrome gives extensions no access to those chips: TrueTabs cannot see whether a group is saved, cannot unsave one and cannot delete a chip. They also pile up on their own - groups exist per window, and chips sync per device, so the same name comes back as several chips."
+  },
+  "optChipsHow": {
+    "message": "Clear the dead ones by hand: right-click a chip - Delete group. To stop new ones appearing, do not save the utility groups TrueTabs makes (Other, site groups), or turn “Saved tab groups” off in Chrome's sync settings. For groups worth keeping, use the bookmark folders above - one folder, one group, no copies."
+  },
+  "optDataWhere": {
+    "message": "Export and import are in the button row at the bottom of this page."
   },
   "bmkHeader": {
     "message": "From bookmarks"

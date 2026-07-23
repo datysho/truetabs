@@ -37,7 +37,11 @@ Verdicts: **composes** (independent, no caveats) · **composes\*** (with a state
 | Blank collapse + in-flight tabs | exclusive | 5 s age floor: a just-created blank is a page in flight (session restore, other software) - never a victim |
 | Blank collapse + active / pinned / grouped blanks | exclusive | Never victims; grouped blank = the user's decision |
 | Blank collapse + archive | exclusive | Blanks are closed, never archived - there is nothing to restore |
+| Auto dedup + a tab the site opened into itself | exclusive | Opener's registrable domain equals the destination's: an application's own flow (branch link, popped-out document, checkout return) is never an automatic victim. Chrome cannot tell a script-opened tab from a hand-opened one, so the opener's site is the only discriminator |
+| Auto dedup + a child of the victim | exclusive | A tab THIS tab opened is not a survivor candidate against it: a child never justifies closing its parent |
+| Blank collapse + page-opened blanks | exclusive | 30 s flight window, and the "seen and left" shortcut does not apply - `window.open()` takes focus by design while the app waits for its url |
 | Manual Sweep + strikes / toggles | composes | An explicit command ignores `dedupAuto` and strikes - flags guard against automation, not clicks |
+| Manual Sweep + app-flow duplicates / blanks in flight | composes\* | The Sweep still collects an app-flow duplicate (the user is speaking, not automation guessing), but never a blank inside its flight window - an explicit command does not shoot a navigation in progress |
 | Manual Sweep + grouped blanks | exclusive | The one `looseBlank` definition rules them all: a blank the user parked inside a group survives even the explicit Sweep |
 | Dedup + non-web schemes (`file://`, `chrome-extension://`) | composes\* | Deduped by identity, closed WITHOUT an archive row (cannot be restored faithfully; the twin stays open) |
 

@@ -126,7 +126,7 @@
     "message": "Empêcher les onglets en double"
   },
   "optDedupAutoHint": {
-    "message": "Ouvrir une page déjà ouverte bascule vers l'onglet existant."
+    "message": "Ouvrir une page déjà ouverte bascule vers l'onglet existant. Elle empêche aussi les pages Nouvel onglet vides de s'accumuler."
   },
   "optDedupScope": {
     "message": "Chercher la copie existante"
@@ -568,6 +568,18 @@
   },
   "optBmkGroupsHint": {
     "message": "Un dossier sous « TrueTabs » dans vos favoris définit un groupe durable : ouvrez-le depuis le popup, mettez le dossier à jour depuis le groupe vivant. TrueTabs ne supprime jamais de favoris - fermer des onglets ne touche pas aux dossiers. Nécessite la permission favoris (demandée à l'activation)."
+  },
+  "optChipsHeader": {
+    "message": "Groupes enregistrés de Chrome"
+  },
+  "optChipsHint": {
+    "message": "Un groupe enregistré laisse une pastille colorée dans la barre de favoris. Chrome n'offre aux extensions aucun accès à ces pastilles : TrueTabs ne voit pas si un groupe est enregistré, ne peut pas annuler l'enregistrement ni supprimer une pastille. Elles s'accumulent d'elles-mêmes : les groupes existent par fenêtre et les pastilles se synchronisent par appareil - un même nom revient en plusieurs pastilles."
+  },
+  "optChipsHow": {
+    "message": "Les anciennes se retirent à la main : clic droit sur la pastille - Supprimer le groupe. Pour éviter d'en créer, n'enregistrez pas les groupes utilitaires de TrueTabs (Autres, groupes de sites) ou désactivez « Groupes d'onglets enregistrés » dans la synchronisation de Chrome. Pour les groupes à garder, utilisez les dossiers de favoris ci-dessus : un dossier, un groupe, sans copies."
+  },
+  "optDataWhere": {
+    "message": "L'export et l'import sont dans la rangée de boutons en bas de cette page."
   },
   "bmkHeader": {
     "message": "Depuis les favoris"

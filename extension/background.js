@@ -868,6 +868,27 @@ function pickSurvivor(candidates, victimWindowId) {
   )[0];
 }
 
+// A tab a page opened INTO ITS OWN SITE is that application's flow, not a
+// duplicate the human opened: ChatGPT's "branch in new chat" opens
+// /c/WEB:<id> and swaps the url once the branch exists, editors pop out a
+// second view of the open document, checkouts re-enter their own order page,
+// consoles open a run in a second tab. Chrome reports all of them exactly
+// like a click - transitionType "link" plus an opener id (verified: window
+// .open, <a target=_blank> and tabs.create are indistinguishable) - so the
+// opener's own site is the only honest signal we get. Closing such a tab
+// aborts the app mid-flow, and the user reads it as "the button is broken".
+// Cross-site opens (a link out of a page, a login window at the provider)
+// keep the full dedup: that is where the duplicates the product exists for
+// actually come from. The manual Sweep still collects these - an explicit
+// command is the user speaking, not automation guessing.
+async function isAppOwnFlow(tab, url) {
+  if (!tab || tab.openerTabId == null) return false;
+  const target = registrableDomain(url);
+  if (!target) return false;
+  const opener = await quiet(chrome.tabs.get, tab.openerTabId);
+  return !!opener && registrableDomain(tabUrl(opener)) === target;
+}
+
 async function dedupOnCommit(tabId, url, kind, st) {
   const settings = await getSettings();
   if (!settings.dedupAuto || !(await isSettled()) || (await isPaused())) return;
@@ -878,6 +899,7 @@ async function dedupOnCommit(tabId, url, kind, st) {
   const tab = await quiet(chrome.tabs.get, tabId);
   if (!tab || tab.incognito || tab.pinned) return; // pinned is NEVER a victim
   if (isFamilyLocked(tab.id)) return; // TruePin's zone: never a victim either
+  if (await isAppOwnFlow(tab, url)) return; // the site opened it: its flow, hands off
   const win = await quiet(chrome.windows.get, tab.windowId);
   if (!win || win.type !== "normal") return;
   // Only a tab's first real page is a victim: an existing tab that navigated
@@ -886,7 +908,13 @@ async function dedupOnCommit(tabId, url, kind, st) {
   if (st.committedCount > FRESH_COMMIT_LIMIT) return;
 
   const all = await normalTabs(settings.dedupScope === "window" ? tab.windowId : null);
-  const candidates = all.filter((t) => t.id !== tabId && dupeKey(t.url) === key);
+  // A tab THIS page opened is never a reason to close the page: the app asked
+  // for a second view of itself, and answering by killing the original is the
+  // mirror image of the flow bug above (it happens whenever the parent's own
+  // commit job lands after the child already exists).
+  const candidates = all.filter(
+    (t) => t.id !== tabId && t.openerTabId !== tabId && dupeKey(t.url) === key,
+  );
   if (!candidates.length) return;
 
   let survivor = pickSurvivor(candidates, tab.windowId);
@@ -906,7 +934,7 @@ async function dedupOnCommit(tabId, url, kind, st) {
   dedupRecent[key] = { closedAt: now(), survivorId: survivor.id };
   await chrome.storage.session.set({ dedupRecent });
   await bumpCounter("dedupedToday");
-  traceDiag(`dedup ${kind} ${key} -> kept ${survivor.id}`);
+  traceDiag(`dedup ${kind} ${key} victim ${tab.id} -> kept ${survivor.id}`);
 }
 
 // Fast pre-empt: a FRESH tab heading to an already-open page is resolved at
@@ -1045,8 +1073,13 @@ async function sweepDuplicates(scope, currentWindowId) {
   // Surplus empty new-tab pages are duplicates of nothing: close them too
   // (not archived - there is no content to keep). Active/pinned/grouped
   // blanks live - a blank the user parked inside a group is a decision, and
-  // the manual button honors the same line the automation draws.
-  const blanks = tabs.filter(looseBlank);
+  // the manual button honors the same line the automation draws. A blank a
+  // page opened seconds ago is a flow waiting for its url, not a duplicate:
+  // even an explicit sweep does not shoot a navigation in flight.
+  const blanks = [];
+  for (const t of tabs.filter(looseBlank)) {
+    if (!(await blankInFlight(t))) blanks.push(t);
+  }
   if (!victims.length && !plainVictims.length && !blanks.length) return { closed: 0, batchId: null };
   const batchId = newBatchId();
   const groupInfoCache = new Map();
@@ -1087,6 +1120,25 @@ async function sweepDuplicates(scope, currentWindowId) {
 // flight, not an abandoned tab; closing it would eat someone's navigation.
 const BLANK_MIN_AGE_MS = 5_000;
 
+// A blank a PAGE opened gets a much longer floor, and the "seen and left"
+// shortcut does not apply to it. The pattern is everywhere: to survive the
+// popup blocker an app calls window.open() on the click and fills the tab in
+// once its request comes back - the tab sits blank, focused, for as long as
+// that call takes, and the user is often back in the original tab by then.
+// Under the human floor such a tab is an abandoned scratch; it is actually a
+// flow in flight, and closing it kills the branch/checkout/export the user
+// just asked for. After the flight window the ordinary rules resume: an app
+// that abandoned a blank leaves litter like anyone else.
+const BLANK_FLIGHT_MS = 30_000;
+
+// One definition, used by the scan and by the manual Sweep alike.
+async function blankInFlight(tab) {
+  if (!tab || tab.openerTabId == null) return false;
+  const st = await getTabState(tab.id);
+  const born = st && st.firstSeenAt ? st.firstSeenAt : now();
+  return now() - born < BLANK_FLIGHT_MS;
+}
+
 // The one definition of a collapsible blank, shared by the collapse trigger,
 // the tick sweep, the manual Sweep button and the popup's surplus count:
 // ephemeral page, not pinned, not active, not inside any group (a grouped
@@ -1119,10 +1171,12 @@ async function scanBlanks(tabs) {
   );
   const born = new Map();
   const seen = new Set();
+  const inFlight = new Set(); // page-opened blanks, still inside their window
   for (const t of loose) {
     const st = await getTabState(t.id);
     born.set(t.id, st ? st.firstSeenAt || 0 : Infinity);
     if (st && st.wasActive) seen.add(t.id);
+    if (await blankInFlight(t)) inFlight.add(t.id);
   }
   let keepId = null;
   if (!activeBlank) {
@@ -1139,10 +1193,13 @@ async function scanBlanks(tabs) {
     .filter(
       (t) =>
         t.id !== keepId &&
+        // A page-opened blank is a flow waiting for its url: immune for the
+        // whole flight window, focus or no focus (window.open takes focus by
+        // design, so "seen and left" says nothing about it).
+        !inFlight.has(t.id) &&
         // A blank the user has SEEN and left dies at any age - that is the
-        // "instant" the customer chose, and it can never be a software tab
-        // in flight (those never take focus). Never-focused blanks wait out
-        // the in-flight floor.
+        // "instant" the customer chose. Never-focused blanks wait out the
+        // in-flight floor.
         (seen.has(t.id) ||
           (born.get(t.id) !== Infinity && now() - born.get(t.id) >= BLANK_MIN_AGE_MS)),
     )

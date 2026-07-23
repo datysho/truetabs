@@ -126,7 +126,7 @@
     "message": "Impedir abas duplicadas"
   },
   "optDedupAutoHint": {
-    "message": "Ao abrir uma página que já está aberta, muda para a aba existente."
+    "message": "Ao abrir uma página que já está aberta, muda para a aba existente. Também evita que sobrem páginas de nova guia vazias."
   },
   "optDedupScope": {
     "message": "Procurar a cópia existente"
@@ -568,6 +568,18 @@
   },
   "optBmkGroupsHint": {
     "message": "Uma pasta dentro de “TrueTabs” nos favoritos define um grupo duradouro: abra-a pelo popup, atualize a pasta a partir do grupo vivo. O TrueTabs nunca apaga favoritos - fechar abas não toca nas pastas. Requer a permissão de favoritos (pedida ao ativar)."
+  },
+  "optChipsHeader": {
+    "message": "Grupos salvos do Chrome"
+  },
+  "optChipsHint": {
+    "message": "Um grupo salvo deixa um chip colorido na barra de favoritos. O Chrome não dá às extensões nenhum acesso a esses chips: o TrueTabs não vê se um grupo está salvo, não consegue cancelar o salvamento nem excluir um chip. Eles se acumulam sozinhos: grupos existem por janela e os chips sincronizam por dispositivo - o mesmo nome volta como vários chips."
+  },
+  "optChipsHow": {
+    "message": "Os antigos saem na mão: clique com o botão direito no chip - Excluir grupo. Para não surgirem novos, não salve os grupos utilitários do TrueTabs (Outros, grupos de site) ou desligue “Grupos de guias salvos” na sincronização do Chrome. Para os grupos que valem a pena manter, use as pastas de favoritos acima - uma pasta, um grupo, sem cópias."
+  },
+  "optDataWhere": {
+    "message": "Exportar e importar ficam na linha de botões no fim desta página."
   },
   "bmkHeader": {
     "message": "Dos favoritos"

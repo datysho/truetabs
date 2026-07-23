@@ -7,6 +7,7 @@ TrueTabs - Chrome MV3 extension that keeps the tab strip organized: grouping by 
 - Test: `cd test && npm test` - run TWICE before any merge or release (flake control); 79 e2e contracts against real Chrome for Testing. Filter one test: `ONLY="substring" npm test`; watch it live: `HEADFUL=1 npm test`.
 - Assets: `cd test && node shots.mjs && node shot-social.mjs` - regenerate store screenshots and social previews from the live CSS; every file must be an exact legal CWS size (checked by machine, never by eye).
 - Package: `./package.sh` - guarded build: strips the dev key, keeps a single zip in `dist/`, asserts the packaged manifest version matches source. Rebuild after ANY version bump; a stale zip is a store rejection.
+- Standing repro: `cd test && node repro-appflow.mjs` - real `window.open` flows (app branch links, OAuth hops, redirect chains, blanks filled late) against the live build; prints what survived. The chronic class is "automation kills a tab an application opened".
 
 ## Process
 
@@ -40,5 +41,6 @@ None.
 - Cold start is settle-then-adopt behind the readiness gate - no auto dedup/archive/group while the session restores (lesson mirror-cold-start-cascade).
 - Engine self-op markers are set BEFORE the API call and consumed by the event they produce, on every branch; handlers judge by the event payload, not re-read state.
 - Defensive automation (strikes, pauses) must be visible in the popup with one-click resume - invisible self-disabling reads as "broken" (lesson invisible-safety-reads-as-broken).
+- Chrome does NOT distinguish a script-opened tab from a hand-opened one: `window.open`, `<a target=_blank>` and `tabs.create` all commit as `link` with an opener id. Any rule about "who opened this" must be built from the opener's own site, never from the transition (spec app-flows-and-popup-automation).
 - When a feature is cut, sweep STORE_LISTING/PRIVACY/locale texts - they drift and mislead CWS reviewers (lesson store-texts-drift).
 - Full lesson corpus and registry: `~/Clemond/system/lessons/` (this repo's rows mostly in lessons-dev.md).

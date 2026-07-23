@@ -80,6 +80,10 @@ WHY YOU CAN TRUST THE AUTOMATION
   all automation for 10 minutes and tells you once.
 - Hard no-touch list: pinned tabs, the active tab, tabs playing audio,
   meeting sites, and tab groups you made yourself are never touched.
+- Apps run their own flows: when a site opens a tab into itself (a chat
+  branching into a new tab, an editor popping the document out, a checkout
+  returning to its order page), that tab is the app at work, not a duplicate
+  you opened - automation leaves it alone.
 - Session-restore safe: zero automation until your session settles.
 
 PRIVACY
@@ -162,7 +166,7 @@ generators emit exact CWS sizes, no resizing or compositing by hand.
 
 ## Submission checklist
 
-- [ ] `cd test && npm test` - 79/79 green, twice (flake control)
+- [ ] `cd test && npm test` - full suite green, twice (flake control)
 - [ ] Permission audit: every permission above exists in manifest.json and is
       exercised by live code; nothing extra (cws-permission-scope lesson)
 - [ ] Store texts in this file match the actually shipped features

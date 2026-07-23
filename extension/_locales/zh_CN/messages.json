@@ -126,7 +126,7 @@
     "message": "防止标签页重复"
   },
   "optDedupAutoHint": {
-    "message": "打开已存在的页面时，切换到现有标签页。"
+    "message": "打开已存在的页面时，切换到现有标签页。同时避免多余的空白新标签页堆积。"
   },
   "optDedupScope": {
     "message": "查找现有副本的范围"
@@ -568,6 +568,18 @@
   },
   "optBmkGroupsHint": {
     "message": "书签中“TrueTabs”下的文件夹定义一个持久分组:在弹窗中打开它,或用当前分组更新文件夹。TrueTabs 绝不删除书签 - 关闭标签页不会动文件夹。需要书签权限(开启时询问)。"
+  },
+  "optChipsHeader": {
+    "message": "Chrome 的已保存分组"
+  },
+  "optChipsHint": {
+    "message": "保存分组会在书签栏留下一个彩色标签。Chrome 不向扩展开放这些标签：TrueTabs 无法得知分组是否已保存，无法取消保存，也无法删除标签。它们还会自行堆积：分组按窗口存在，标签按设备同步，同一个名字会以多个标签回来。"
+  },
+  "optChipsHow": {
+    "message": "旧的只能手动清理：右键点击标签 - 删除分组。想少产生新的，就不要保存 TrueTabs 的工具分组（其他、站点分组），或在 Chrome 同步设置中关闭“已保存的标签页分组”。需要长期保留的分组请用上面的书签文件夹 - 一个文件夹一个分组，不会复制。"
+  },
+  "optDataWhere": {
+    "message": "导出和导入在本页底部的按钮行中。"
   },
   "bmkHeader": {
     "message": "来自书签"

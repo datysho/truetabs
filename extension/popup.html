@@ -35,10 +35,57 @@
         font-size: 15px;
         letter-spacing: 0.1px;
       }
+      /* The one scroll region: header and the action bar stay put. The native
+         scrollbar is hidden entirely (under macOS "always show scrollbars" it
+         steals a lane, and appearing mid-list shifts the content sideways) and
+         replaced by an OVERLAY thumb drawn on top: the list keeps its full
+         width and symmetric padding whether or not it scrolls, and nothing
+         moves when scrolling starts. popup.js sizes and places the thumb. */
+      .scrollhost {
+        position: relative;
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+      }
       .scroll {
         flex: 1 1 auto;
         min-height: 0;
         overflow-y: auto;
+        overscroll-behavior: contain;
+        scrollbar-width: none; /* Firefox: hide native, we draw our own */
+      }
+      .scroll::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+      }
+      .tt-scrollbar {
+        position: absolute;
+        top: 2px;
+        right: 2px;
+        bottom: 2px;
+        width: 6px;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        pointer-events: none;
+      }
+      /* Only when there is something to scroll, and only while scrolling or
+         hovering the region - a calm, out-of-the-way indicator. */
+      .scrollhost.scrollable.scrolling .tt-scrollbar,
+      .scrollhost.scrollable:hover .tt-scrollbar {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .tt-thumb {
+        position: absolute;
+        right: 0;
+        top: 0;
+        width: 6px;
+        border-radius: 3px;
+        background: var(--track);
+      }
+      .tt-thumb:hover,
+      .tt-thumb.drag {
+        background: var(--muted);
       }
       section {
         padding: 12px 16px;
@@ -332,7 +379,8 @@
       <span class="name">TrueTabs</span>
     </header>
 
-    <div class="scroll">
+    <div class="scrollhost">
+      <div class="scroll" id="scroll">
       <div class="engine-down" id="engineDown" hidden></div>
       <section class="hero-section">
         <div class="hero">
@@ -412,6 +460,18 @@
           <span class="switch-label" data-i18n="toggleGroupAi"></span>
           <input type="checkbox" id="aiToggle" class="switch" />
         </label>
+        <!-- The catch-all is grouping's second child: with grouping off nobody
+             places anything, so it says so instead of pretending. -->
+        <label class="row row-sub" id="otherRow">
+          <span class="switch-label" data-i18n="optOtherGroup"></span>
+          <input type="checkbox" id="otherToggle" class="switch" />
+        </label>
+        <!-- Layout, not routing: it holds even with grouping off (the groups
+             you made by hand still get lined up). -->
+        <label class="row">
+          <span class="switch-label" data-i18n="optGroupsOnTop"></span>
+          <input type="checkbox" id="groupsOnTopToggle" class="switch" />
+        </label>
         <label class="row">
           <span class="switch-label" data-i18n="optSortGroups"></span>
           <select id="sortGroups">
@@ -433,6 +493,10 @@
       </section>
 
       <div id="status"></div>
+      </div>
+      <div class="tt-scrollbar" id="ttScrollbar" aria-hidden="true">
+        <div class="tt-thumb" id="ttThumb"></div>
+      </div>
     </div>
 
     <footer class="action-bar">

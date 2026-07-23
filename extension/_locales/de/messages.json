@@ -126,7 +126,7 @@
     "message": "Doppelte Tabs verhindern"
   },
   "optDedupAutoHint": {
-    "message": "Öffnen Sie eine bereits offene Seite, wird zum bestehenden Tab gewechselt."
+    "message": "Öffnen Sie eine bereits offene Seite, wird zum bestehenden Tab gewechselt. Außerdem lässt es überzählige leere Neuer-Tab-Seiten nicht auflaufen."
   },
   "optDedupScope": {
     "message": "Bestehende Kopie suchen"
@@ -568,6 +568,18 @@
   },
   "optBmkGroupsHint": {
     "message": "Ein Ordner unter „TrueTabs“ in den Lesezeichen definiert eine dauerhafte Gruppe: aus dem Popup öffnen, den Ordner aus der Live-Gruppe aktualisieren. TrueTabs löscht nie Lesezeichen - das Schließen von Tabs lässt Ordner unangetastet. Braucht die Lesezeichen-Berechtigung (wird beim Einschalten erfragt)."
+  },
+  "optChipsHeader": {
+    "message": "Gespeicherte Gruppen von Chrome"
+  },
+  "optChipsHint": {
+    "message": "Eine gespeicherte Gruppe hinterlässt einen farbigen Chip in der Lesezeichenleiste. Chrome gibt Erweiterungen keinen Zugriff darauf: TrueTabs sieht nicht, ob eine Gruppe gespeichert ist, kann das Speichern nicht rückgängig machen und keinen Chip löschen. Sie häufen sich von selbst: Gruppen gelten pro Fenster, Chips werden pro Gerät synchronisiert - derselbe Name kommt als mehrere Chips zurück."
+  },
+  "optChipsHow": {
+    "message": "Alte entfernst du selbst: Rechtsklick auf den Chip - Gruppe löschen. Damit keine neuen entstehen, speichere die Hilfsgruppen von TrueTabs nicht (Sonstiges, Site-Gruppen) oder schalte „Gespeicherte Tabgruppen“ in Chromes Synchronisierung aus. Für Gruppen, die bleiben sollen, gibt es oben die Lesezeichenordner - ein Ordner, eine Gruppe, keine Kopien."
+  },
+  "optDataWhere": {
+    "message": "Export und Import stehen in der Schaltflächenreihe unten auf dieser Seite."
   },
   "bmkHeader": {
     "message": "Aus Lesezeichen"

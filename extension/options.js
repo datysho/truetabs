@@ -33,6 +33,20 @@ const SELECTS = [
   "language",
 ];
 
+// One voice for every transient confirmation - copied, exported, imported,
+// failed. A fixed pill outside the layout: nothing reserves a box, nothing
+// shifts when it appears, and the same message never renders two ways.
+let toastTimer = null;
+function showToast(key, isError = false) {
+  const el = $("toast");
+  el.textContent = t(key);
+  el.className = isError ? "toast err show" : "toast show";
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    el.className = isError ? "toast err" : "toast";
+  }, 3200);
+}
+
 const PROVIDER_ORIGINS = {
   openai: "https://api.openai.com/*",
   gemini: "https://generativelanguage.googleapis.com/*",
@@ -386,21 +400,12 @@ function paintControls() {
   // One clean JSON file: settings + My groups. The BYOK key rides only behind
   // the explicit include toggle (export) and a second confirmation (import) -
   // a plaintext key is a deliberate double-opted step, never a side effect.
-  const dataNote = (key) => {
-    const note = $("dataNote");
-    note.textContent = t(key);
-    note.style.visibility = "visible";
-    setTimeout(() => {
-      note.style.visibility = "hidden";
-    }, 2500);
-  };
-
   $("exportBtn").addEventListener("click", async () => {
     const payload = await send({
       type: "ui:exportData",
       includeKey: $("exportWithKey").checked,
     });
-    if (!payload || payload.error) return dataNote("dataFailed");
+    if (!payload || payload.error) return showToast("dataFailed", true);
     const stamp = new Date().toISOString().slice(0, 10);
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
     const a = document.createElement("a");
@@ -408,7 +413,7 @@ function paintControls() {
     a.download = `truetabs-settings-${payload.version}-${stamp}.json`;
     a.click();
     URL.revokeObjectURL(a.href);
-    dataNote("dataExported");
+    showToast("dataExported");
   });
 
   $("importBtn").addEventListener("click", () => $("importFile").click());
@@ -417,19 +422,19 @@ function paintControls() {
     const file = e.target.files && e.target.files[0];
     e.target.value = ""; // re-selecting the same file must fire again
     if (!file) return;
-    if (file.size > 64 * 1024) return dataNote("dataFailed");
+    if (file.size > 64 * 1024) return showToast("dataFailed", true);
     let parsed = null;
     try {
       parsed = JSON.parse(await file.text());
     } catch {
-      return dataNote("dataFailed");
+      return showToast("dataFailed", true);
     }
     const withKey =
       typeof parsed?.byokKey === "string" && parsed.byokKey
         ? window.confirm(t("dataImportKeyConfirm"))
         : false;
     const result = await send({ type: "ui:importData", payload: parsed, withKey });
-    if (!result || !result.ok) return dataNote("dataFailed");
+    if (!result || !result.ok) return showToast("dataFailed", true);
     location.reload(); // repaint every control from the imported truth
   });
 
@@ -499,7 +504,6 @@ function paintControls() {
   // clipboard write happens), and if the write is refused anyway the JSON
   // lands in a selectable box instead of the button doing nothing at all.
   $("diagBtn").addEventListener("click", async () => {
-    $("diagNote").textContent = "";
     $("diagDump").hidden = true;
     let text;
     try {
@@ -507,23 +511,16 @@ function paintControls() {
       if (!dump || dump.error) throw new Error((dump && dump.error) || "no response");
       text = JSON.stringify(dump, null, 2);
     } catch (err) {
-      $("diagNote").textContent = t("engineDownBody");
-      $("diagNote").className = "note err";
-      return;
+      return showToast("engineDownBody", true);
     }
     try {
       await navigator.clipboard.writeText(text);
-      $("diagNote").className = "note";
-      $("diagNote").textContent = t("optDiagCopied");
-      setTimeout(() => {
-        $("diagNote").textContent = "";
-      }, 4000);
+      showToast("optDiagCopied");
     } catch {
       $("diagDump").value = text;
       $("diagDump").hidden = false;
       $("diagDump").select();
-      $("diagNote").className = "note err";
-      $("diagNote").textContent = t("optDiagFailed");
+      showToast("optDiagFailed", true);
     }
   });
 }
