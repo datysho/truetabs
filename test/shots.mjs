@@ -112,6 +112,18 @@ async function shot(pageName, file, { scheme }) {
 
 const CWS = { w: 1280, h: 800 };
 const TILE = { w: 440, h: 280 }; // the store's small promo tile
+const MARQUEE = { w: 1400, h: 560 }; // the store's marquee (featured carousel)
+
+// One composition, three canvases - and the same type on all three would be
+// wrong on two of them: the tile is a thumbnail read at a glance, the marquee
+// is a banner shown at full width. Each canvas names its own scale instead of
+// deriving it from the width, so a new size cannot silently inherit type that
+// was tuned for a different one.
+const SCALE = {
+  tile: { padR: 24, padL: 28, gap: 10, brandMb: 12, icon: 34, radius: 8, name: 25, h1: 17, subTop: 8, sub: 11 },
+  screenshot: { padR: 56, padL: 72, gap: 16, brandMb: 28, icon: 60, radius: 13, name: 44, h1: 34, subTop: 18, sub: 18 },
+  marquee: { padR: 64, padL: 88, gap: 18, brandMb: 30, icon: 72, radius: 16, name: 54, h1: 40, subTop: 20, sub: 21 },
+};
 
 // The popup is 344 wide: it cannot BE a store screenshot, it has to be placed
 // on one. Same composition as the social image, sized for the store canvas.
@@ -154,8 +166,9 @@ async function shotPopupRaw(scheme) {
   return file;
 }
 
-async function compose(scheme, popupFile, { size, file, headline, sub, popupW, popupTop }) {
+async function compose(scheme, popupFile, { size, scale, file, headline, sub, popupW, popupTop }) {
   const t = PANEL[scheme];
+  const z = SCALE[scale];
   const page = await browser.newPage();
   await page.setViewport({ width: size.w, height: size.h, deviceScaleFactor: 1 });
   await page.setContent(
@@ -166,12 +179,12 @@ async function compose(scheme, popupFile, { size, file, headline, sub, popupW, p
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         background: ${t.bg}; display: flex; align-items: center;
       }
-      .left { flex: 1; padding: 0 ${size.w > 800 ? 56 : 24}px 0 ${size.w > 800 ? 72 : 28}px; }
-      .brand { display: flex; align-items: center; gap: ${size.w > 800 ? 16 : 10}px; margin-bottom: ${size.w > 800 ? 28 : 12}px; }
-      .brand img { width: ${size.w > 800 ? 60 : 34}px; height: ${size.w > 800 ? 60 : 34}px; border-radius: ${size.w > 800 ? 13 : 8}px; }
-      .brand .name { font-size: ${size.w > 800 ? 44 : 25}px; font-weight: 650; letter-spacing: -0.5px; color: ${t.fg}; }
-      h1 { font-size: ${size.w > 800 ? 34 : 17}px; line-height: 1.25; font-weight: 600; letter-spacing: -0.3px; color: ${t.fg}; }
-      .sub { margin-top: ${size.w > 800 ? 18 : 8}px; font-size: ${size.w > 800 ? 18 : 11}px; line-height: 1.5; color: ${t.sub}; }
+      .left { flex: 1; padding: 0 ${z.padR}px 0 ${z.padL}px; }
+      .brand { display: flex; align-items: center; gap: ${z.gap}px; margin-bottom: ${z.brandMb}px; }
+      .brand img { width: ${z.icon}px; height: ${z.icon}px; border-radius: ${z.radius}px; }
+      .brand .name { font-size: ${z.name}px; font-weight: 650; letter-spacing: -0.5px; color: ${t.fg}; }
+      h1 { font-size: ${z.h1}px; line-height: 1.25; font-weight: 600; letter-spacing: -0.3px; color: ${t.fg}; }
+      .sub { margin-top: ${z.subTop}px; font-size: ${z.sub}px; line-height: 1.5; color: ${t.sub}; }
       .right { flex: none; width: ${popupW + 30}px; height: ${size.h}px; position: relative; }
       .popup {
         position: absolute; top: ${popupTop}px; left: 0; width: ${popupW}px;
@@ -199,6 +212,7 @@ for (const scheme of ["light", "dark"]) {
   const popupFile = await shotPopupRaw(scheme);
   await compose(scheme, popupFile, {
     size: CWS,
+    scale: "screenshot",
     file: `store-popup-${scheme}.png`,
     headline: "The Arc-style tab butler for Chrome",
     sub: "No duplicate tabs. Stale tabs auto-archived, always undoable.<br>Grouped by site - or by topic, with AI that runs on your device.",
@@ -208,11 +222,21 @@ for (const scheme of ["light", "dark"]) {
   if (scheme === "light") {
     await compose(scheme, popupFile, {
       size: TILE,
+      scale: "tile",
       file: "store-tile-440x280.png",
       headline: "Tabs that keep themselves in order",
       sub: "",
       popupW: 168,
       popupTop: 26,
+    });
+    await compose(scheme, popupFile, {
+      size: MARQUEE,
+      scale: "marquee",
+      file: "store-marquee-1400x560.png",
+      headline: "Tabs that keep themselves in order",
+      sub: "No duplicates. Stale tabs auto-archived, always undoable.<br>Grouped by site - or by topic, with AI that runs on your device.",
+      popupW: 400,
+      popupTop: 44,
     });
   }
   fs.unlinkSync(popupFile);

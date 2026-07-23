@@ -178,7 +178,9 @@ generators emit exact CWS sizes, no resizing or compositing by hand.
   (the 344-wide popup composed on a branded canvas),
   `store-options-{light,dark}.png`, `store-archive-{light,dark}.png`
 - Small promo tile (440x280): `store/screenshots/store-tile-440x280.png`
-- Marquee (1400x560): not made - only needed for featured placement
+- Marquee promo tile (1400x560): `store/screenshots/store-marquee-1400x560.png`
+  - Optional: the store only uses it if editors pick the item for the featured
+    carousel. It gates nothing in review.
 - GitHub social preview (1280x640): `store/social-preview.png` (+ `-dark`),
   Settings -> Social preview; also the README hero
 - Regenerate: `cd test && node shots.mjs && node shot-social.mjs`
