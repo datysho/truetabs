@@ -148,25 +148,58 @@ Free forever. Open source (MIT): https://github.com/datysho/truetabs
 
 ## Privacy practices declarations
 
-- Single purpose: tab lifecycle management (dedup, archive, grouping).
-- Data usage: does NOT collect user data. The optional BYOK mode transmits
-  tab titles/domains to the user's own AI provider on the user's key;
-  disclosed in the UI at the point of enablement and in the privacy policy.
+- Single purpose (dashboard field, paste verbatim):
+
+  ```
+  TrueTabs has one purpose: keeping the user's open tabs organized in Chrome's own tab strip.
+
+  Everything it does serves that purpose. It prevents duplicates - opening a URL that is already open focuses the existing tab instead of adding a second one. It archives tabs the user has not touched for a configurable period, so the strip holds only what is in use, into a local searchable archive that restores in one click. It files tabs into Chrome tab groups by site, by topic, or by the user's own rules, and keeps the order the user chose.
+
+  There is no second function. Nothing is injected into web pages, there are no accounts, no analytics, no telemetry and no network requests by default. Tab URLs and titles are read only to decide whether a tab is a duplicate, whether it has gone stale, and which group it belongs in.
+  ```
+
+  One purpose, three expressions of it. Never list dedup/archive/grouping as
+  three co-equal functions: a reviewer may read that as three purposes.
+- Remote code: **No**. Verified by machine before every submit - zero `eval`,
+  zero `new Function`, zero dynamic `import()`, zero external `src`/`href` in
+  any HTML, no wasm. All 38 packaged files are local.
+- Data usage: the BYOK mode transmits tab titles/domains to the user's own AI
+  provider on the user's key; disclosed in the UI at the point of enablement
+  and in the privacy policy.
 - Bookmark groups read and write bookmarks on the user's own machine (and
   through the user's own Chrome sync); nothing is transmitted anywhere and
   nothing is collected.
-- No remote code. All logic ships in the package.
 - Privacy policy URL: https://github.com/datysho/truetabs/blob/main/PRIVACY.md
 - Support URL (dashboard field): https://github.com/datysho/truetabs/issues
-- **Data-usage checkboxes** - tick NOTHING in these categories: personally
-  identifiable information, health, financial, authentication, personal
-  communications, location, user activity. Tick **Website content** only if
-  the reviewer asks about BYOK: tab titles and domains are sent to the user's
-  own provider, on the user's key, in a mode that is off by default.
-  Certifications (all three apply, tick each): data is not sold to third
-  parties; data is not used or transferred for purposes unrelated to the
-  single purpose; data is not used or transferred to determine
-  creditworthiness or for lending.
+- **Data-usage checkboxes** - tick **Web history**, and nothing else.
+  - Why it is ticked at all: the CWS user-data FAQ defines "handle" as
+    "collecting, transmitting, using, or sharing", and states that extensions
+    "are required to disclose how they handle user data, even when data is
+    processed or stored locally on a user's device and is not transmitted to
+    external servers or third parties". Web browsing activity is "any
+    information about the websites or other web resources a user requests or
+    interacts with, including the domains or URLs the browser interacts with".
+    Reading tab URLs/titles and storing archive entries locally IS that.
+    Local-only is not an exemption from disclosure.
+  - Why it is safe: browsing-activity handling is permitted "to the extent
+    required for a user-facing feature described prominently in the Product's
+    Chrome Web Store page and in the Product's user interface" - which is the
+    whole of TrueTabs, described in both places.
+  - **Website content** is the wrong box and must stay unticked: it means page
+    contents (text, images, hyperlinks). TrueTabs injects no content scripts
+    and never reads a page.
+  - **Authentication information** is the one arguable box - the BYOK key is a
+    credential held in `storage.local`. Recommendation: leave it unticked. The
+    field asks what is collected FROM users; the key is entered by the user for
+    their own provider, never reaches us, and goes nowhere but the service it
+    authenticates to (the FAQ treats the analogous FTP-client-with-user-
+    specified-server case the same way). Revisit if a reviewer raises it.
+  - Untick everything else: PII, health, financial, personal communications,
+    location, user activity.
+  - Certifications (all three apply, tick each): data is not sold to third
+    parties; data is not used or transferred for purposes unrelated to the
+    single purpose; data is not used or transferred to determine
+    creditworthiness or for lending.
 
 ## Assets
 
