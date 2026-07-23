@@ -117,9 +117,10 @@ function render() {
   $("sortTabs").value = state.settings.sortTabs;
 
   // Organize speaks the active engine: with smart grouping on, the button IS
-  // Smart Organize (it falls back to site grouping by itself).
-  $("organizeBtn").textContent =
-    state.settings.smartEngine !== "off" ? t("actSmartOrganize") : t("actOrganize");
+  // Smart Organize (it falls back to site grouping by itself). "On" is the
+  // engine's own smartUsable, not the setting - a switch pointing at a model
+  // that was never downloaded promises AI the click cannot deliver.
+  $("organizeBtn").textContent = state.smartUsable ? t("actSmartOrganize") : t("actOrganize");
 
   const warming = $("warming");
   if (state.smartProgress && state.smartProgress.total > 0) {

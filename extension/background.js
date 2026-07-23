@@ -2220,6 +2220,12 @@ async function organizeNow(scope, currentWindowId) {
 // rules only - otherwise it would mint site groups the next smart run would
 // tear back apart. An EXPLICIT pass may (the user asked, and underdelivery
 // must not leave a mess).
+//
+// The invariant assumes there IS an owner. When the tier cannot run - model
+// never downloaded, still downloading, no key - no smart run is coming to
+// tear anything apart, and "rules only" plus the catch-all stops meaning
+// "wait for the AI" and starts meaning "park the whole window in Other". A
+// dead tier degrades to site buckets, the same answer smartAssign gives.
 async function bumpPlaceableGen() {
   const { placeableGen = 0 } = await chrome.storage.session.get("placeableGen");
   await chrome.storage.session.set({ placeableGen: placeableGen + 1 });
@@ -2267,6 +2273,10 @@ async function dissolveLoneGroups(windowId = null) {
 
 async function reviewPlaceable(windowId = null) {
   const settings = await getSettings();
+  // Topic mode owns clustering only while the tier can actually answer.
+  const siteBuckets =
+    settings.autoGroup === "site" ||
+    (settings.autoGroup === "topic" && !(await smartTierUsable(settings)));
   for (const win of await normalWindows()) {
     if (windowId != null && win.id !== windowId) continue;
     // The floor runs BEFORE the pool is built, so a freed tab is simply
@@ -2289,7 +2299,7 @@ async function reviewPlaceable(windowId = null) {
     // it would destroy the undo of the user's OWN Organize click.
     if (pool.length) {
       await organizePool(win.id, pool, {
-        siteBuckets: settings.autoGroup === "site",
+        siteBuckets,
         park: settings.otherGroup,
         createdGids: [],
       });
@@ -2718,6 +2728,19 @@ async function smartAvailability() {
   }
   smartAvailCache = { at: Date.now(), value };
   return value;
+}
+
+// ONE answer to "can the topic tier place a tab right now". The per-tab path
+// has always degraded to site grouping when the tier is structurally
+// unavailable (smartAssign returns "fallback"), so every other caller must ask
+// the same question or the engine holds two opinions at once. The expensive
+// disagreement is the background review's: it does rules only in topic mode
+// because the AI owns clustering, and with no AI behind it that reads as
+// "place nothing" - the catch-all then swallows the whole window.
+async function smartTierUsable(settings) {
+  if (settings.smartEngine === "builtin") return (await smartAvailability()) === "available";
+  if (settings.smartEngine === "byok") return !!(await getByokKey()) || !!globalThis.__ttMockAi;
+  return false; // "off"
 }
 
 function smartPrompt(items, existingTopics = []) {
@@ -3214,6 +3237,18 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings, op
 async function smartOrganize(scope, currentWindowId) {
   const settings = await getSettings();
   if (settings.smartEngine === "off") return { grouped: 0, groupsCreated: 0, fellBack: false };
+  // No model behind the button: LanguageModel.create() would sit on a 2-4 GB
+  // download with the progress meter frozen at "0 of N", and the download only
+  // ever starts where the user asked for it (the options page). The click
+  // still means "organize" - answer it deterministically, the same
+  // degradation the per-tab path makes.
+  // Through the queue: ui:smartOrganize answers OFF it (an AI run must not
+  // freeze settings), so every phase that actually moves tabs enqueues itself
+  // - the smart run does, and this degraded one is no different.
+  if (!(await smartTierUsable(settings))) {
+    const done = await enqueue(() => organizeNow(scope, currentWindowId), "smart-degraded");
+    return { ...done, fellBack: true };
+  }
   const { smartRunning } = await chrome.storage.session.get("smartRunning");
   if (smartRunning && now() - smartRunning < 10 * 60e3) return { busy: true };
   await chrome.storage.session.set({ smartRunning: now() });
@@ -3462,6 +3497,9 @@ async function uiGetState(request) {
     ).length,
     settled,
     smartAvailability: await smartAvailability(),
+    // The engine answers whether the tier can run; a page must never
+    // re-implement that rule from engine + key + availability.
+    smartUsable: await smartTierUsable(settings),
     smartProgress: (await chrome.storage.session.get("smartProgress")).smartProgress || null,
     byokKeySet: !!(await getByokKey()),
   };

@@ -1179,6 +1179,74 @@ async function main() {
     await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
   });
 
+  await test("no model: the review places by site, the catch-all never eats the window", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    await ui({ type: "ui:setSetting", key: "otherGroup", value: true });
+    const a1 = await createTab({ url: `${baseUrl}/noModelA1` });
+    const a2 = await createTab({ url: `${baseUrl}/noModelA2` });
+    const b1 = await createTab({ url: `${altUrl}/noModelB1` });
+    await createTab({ url: `${altUrl}/noModelB2` });
+    await sleep(400);
+    // The user flips AI on while Chrome has never downloaded the model. The
+    // mode change wakes the background review - and topic mode tells it to
+    // make no site buckets, because the AI owns clustering. With no AI behind
+    // that, nothing places anything and the catch-all takes the whole window.
+    await swEval(() => globalThis.__ttSetMockAi({ availability: "downloadable" }));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "topic" });
+    await swEval((n) => globalThis.__ttTick({ now: n }), Date.now());
+    await sleep(800);
+    const a1Now = await getTab(a1.id);
+    const a2Now = await getTab(a2.id);
+    const b1Now = await getTab(b1.id);
+    assert(a1Now.groupId !== -1 && a1Now.groupId === a2Now.groupId, "one site, one group");
+    assert(b1Now.groupId !== a1Now.groupId, "the second site got its own group");
+    const diag = await ui({ type: "ui:diagnostics" });
+    const parked = Object.entries(diag.ourGroups).filter(([, g]) => g.other);
+    assert(
+      !parked.some(([gid]) => Number(gid) === a1Now.groupId || Number(gid) === b1Now.groupId),
+      "nobody was parked in the catch-all",
+    );
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("no model: Smart Organize answers instead of sitting on a download", async () => {
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const c1 = await createTab({ url: `${baseUrl}/noModelC1` });
+    const c2 = await createTab({ url: `${baseUrl}/noModelC2` });
+    await sleep(400);
+    // A model that never answers is what LanguageModel.create() looks like
+    // while Chrome pulls 2-4 GB: the click must not disappear into it.
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "downloadable",
+        respond: () => new Promise(() => {}),
+      }),
+    );
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    const state = await ui({ type: "ui:getState" });
+    assert(state.smartUsable === false, "the engine says the tier cannot run");
+    const answered = await Promise.race([
+      ui({ type: "ui:smartOrganize", scope: "all" }),
+      sleep(6000).then(() => null),
+    ]);
+    assert(answered, "the click was answered, not swallowed by the download");
+    assert(answered.fellBack === true, "answered by the deterministic pass");
+    const c1Now = await getTab(c1.id);
+    assert(
+      c1Now.groupId !== -1 && c1Now.groupId === (await getTab(c2.id)).groupId,
+      "grouped by site meanwhile",
+    );
+    assert(!(await ui({ type: "ui:getState" })).smartProgress, "no meter left frozen");
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
   await test("restart: reload re-adopts domain groups by 3-of-3 signature", async () => {
     await resetWorld();
     await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
