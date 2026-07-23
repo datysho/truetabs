@@ -66,6 +66,12 @@ WHAT IT DOES
   into place, a manual drag snaps back, and "recently used first" surfaces
   the tab you touch. Prefer it on demand? Turn "Keep the order
   automatically" off and the order applies only when you press Organize.
+- Bookmark groups (optional, off by default): a folder under "TrueTabs" in
+  your bookmarks is a durable group definition. "Open" materializes it (tabs
+  you already have join instead of duplicating), "Update folder" pushes the
+  live membership back, and the popup marks a group that drifted from its
+  folder. Closing tabs never touches bookmarks. Definitions travel between
+  browsers through Chrome's own bookmark sync.
 - Free memory earlier (optional): a tab going stale can be unloaded from
   memory before it is archived - it keeps its place in the strip and reloads
   when you click it.
@@ -80,6 +86,8 @@ WHY YOU CAN TRUST THE AUTOMATION
   all automation for 10 minutes and tells you once.
 - Hard no-touch list: pinned tabs, the active tab, tabs playing audio,
   meeting sites, and tab groups you made yourself are never touched.
+- Lock any group: the padlock on its popup row, and automation never takes a
+  tab out of it again.
 - Apps run their own flows: when a site opens a tab into itself (a chat
   branching into a new tab, an editor popping the document out, a checkout
   returning to its order page), that tab is the app at work, not a duplicate
@@ -116,6 +124,14 @@ Free forever. Open source (MIT): https://github.com/datysho/truetabs
 - **webNavigation** - Classifying navigation commits (transition types and
   qualifiers) so redirect chains, form submissions and reloads are NEVER
   treated as duplicate opens. The tabs API alone cannot distinguish these.
+- **bookmarks (optional)** - The optional "Bookmark groups" feature, off by
+  default: a folder under the "TrueTabs" bookmarks folder is a durable group
+  definition. Requested at RUNTIME only when the user switches the feature on
+  and released when they switch it off. Bookmarks are read and written only
+  on the user's explicit clicks ("To bookmarks", "Update folder", "Open") and
+  only inside the "TrueTabs" folder; no automatic path writes there and the
+  extension never deletes a folder. Closing, archiving and deduplicating tabs
+  contain no bookmark calls at all.
 - **Optional host permissions** (api.openai.com, generativelanguage.googleapis.com,
   api.x.ai, user's custom endpoint) - Requested at RUNTIME only when the
   user saves their own API key for the optional smart-grouping mode, and
@@ -136,6 +152,9 @@ Free forever. Open source (MIT): https://github.com/datysho/truetabs
 - Data usage: does NOT collect user data. The optional BYOK mode transmits
   tab titles/domains to the user's own AI provider on the user's key;
   disclosed in the UI at the point of enablement and in the privacy policy.
+- Bookmark groups read and write bookmarks on the user's own machine (and
+  through the user's own Chrome sync); nothing is transmitted anywhere and
+  nothing is collected.
 - No remote code. All logic ships in the package.
 - Privacy policy URL: https://github.com/datysho/truetabs/blob/main/PRIVACY.md
 - Support URL (dashboard field): https://github.com/datysho/truetabs/issues

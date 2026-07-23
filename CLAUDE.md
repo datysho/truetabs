@@ -4,7 +4,7 @@ TrueTabs - Chrome MV3 extension that keeps the tab strip organized: grouping by 
 
 ## Commands
 
-- Test: `cd test && npm test` - run TWICE before any merge or release (flake control); 79 e2e contracts against real Chrome for Testing. Filter one test: `ONLY="substring" npm test`; watch it live: `HEADFUL=1 npm test`.
+- Test: `cd test && npm test` - run TWICE before any merge or release (flake control); 138 e2e contracts against real Chrome for Testing. Filter one test: `ONLY="substring" npm test`; watch it live: `HEADFUL=1 npm test`.
 - Assets: `cd test && node shots.mjs && node shot-social.mjs` - regenerate store screenshots and social previews from the live CSS; every file must be an exact legal CWS size (checked by machine, never by eye).
 - Package: `./package.sh` - guarded build: strips the dev key, keeps a single zip in `dist/`, asserts the packaged manifest version matches source. Rebuild after ANY version bump; a stale zip is a store rejection.
 - Standing repro: `cd test && node repro-appflow.mjs` - real `window.open` flows (app branch links, OAuth hops, redirect chains, blanks filled late) against the live build; prints what survived. The chronic class is "automation kills a tab an application opened".
