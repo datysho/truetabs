@@ -313,6 +313,14 @@ function cleanLabel(domain) {
   return first.charAt(0).toUpperCase() + first.slice(1);
 }
 
+// ONE key for "is this the same group label?" - every reuse, adoption and
+// twin check runs through it. A model names the same topic "YouTube" once
+// and "Youtube" the next run: exact-string comparison reads those as two
+// labels and mints a second group beside the first, which is exactly the
+// duplicate the twin guard exists to prevent. Case and inner whitespace
+// carry no meaning in a group title, so the key drops both.
+const labelKey = (title) => String(title || "").trim().toLowerCase().replace(/\s+/g, " ");
+
 
 const tabUrl = (tab) => (tab && (tab.url || tab.pendingUrl)) || "";
 
@@ -1514,7 +1522,20 @@ async function upsertGroupSig(sig) {
   await chrome.storage.local.set({ ourGroupSigs: next });
 }
 
-async function removeGroupSig(title, color) {
+// A signature is keyed by title+color, so ONE signature can be the ownership
+// proof of several live groups (the same topic in two windows). Dropping it
+// because one of them died or was renamed disowns the survivors: after the
+// next restart they read as foreign, and the run that would have reused them
+// mints same-named twins instead. Only the last holder takes its proof away.
+async function removeGroupSig(title, color, exceptGid = null) {
+  const ourGroups = await getOurGroups();
+  // Registry entries, not live groups: a signature is keyed by the exact
+  // string it was written with, so the holder check is exact too.
+  const stillHeld = Object.entries(ourGroups).some(
+    ([gid, entry]) =>
+      Number(gid) !== Number(exceptGid) && entry.title === title && entry.color === color,
+  );
+  if (stillHeld) return;
   const { ourGroupSigs = [] } = await chrome.storage.local.get("ourGroupSigs");
   await chrome.storage.local.set({
     ourGroupSigs: ourGroupSigs.filter((s) => !(s.title === title && s.color === color)),
@@ -1535,7 +1556,9 @@ async function readoptGroups(candidates = null) {
   const groups = candidates || (await quiet(chrome.tabGroups.query, {})) || [];
   for (const group of groups) {
     if (known.has(group.id)) continue;
-    const sig = ourGroupSigs.find((s) => s.title === group.title && s.color === group.color);
+    const sig = ourGroupSigs.find(
+      (s) => labelKey(s.title) === labelKey(group.title) && s.color === group.color,
+    );
     if (!sig) continue;
     const members = await chrome.tabs.query({ groupId: group.id });
     if (!members.length) continue;
@@ -1567,15 +1590,18 @@ async function createOurGroup(
   { domain, title, color, smart = false, other = false, customId = null, bookmark = false },
   meta = null, // out-param: meta.adopted = the returned gid was a reused twin, NOT a new group
 ) {
-  // Twin guard (native-groups-compat): one live group per OUR title per
-  // window. A same-titled group already live here - ours, or a chip-restored
+  // Twin guard (native-groups-compat): one live group per OUR label per
+  // window. A same-labelled group already live here - ours, or a chip-restored
   // copy still carrying our signature - is REUSED, never twinned: same-named
   // live twins are the raw material of Chrome's duplicate saved-group chips.
-  // A same-titled hand-made group with an alien signature keeps its
-  // independence and we mint ours beside it.
+  // A same-labelled hand-made group with an alien signature keeps its
+  // independence and we stay off its label entirely.
+  // The match runs on labelKey, not the raw string: a model that answers
+  // "Youtube" this run and "YouTube" the last one means one topic, and an
+  // exact comparison would read the second answer as a brand new group.
   let finalTitle = title;
   const twin = ((await quiet(chrome.tabGroups.query, { windowId })) || []).find(
-    (g) => (g.title || "") === title,
+    (g) => labelKey(g.title) === labelKey(title),
   );
   if (twin) {
     let ourGroupsNow = await getOurGroups();
@@ -1606,11 +1632,20 @@ async function createOurGroup(
       // duplicate the guard exists to prevent.
       return joined ? twin.id : null;
     }
-    // A same-titled group of a DIFFERENT kind lives here. Site groups fall
+    // A same-labelled group of a DIFFERENT kind lives here. Site groups fall
     // back to the full domain as the title (the registered-collision rule,
-    // extended to live groups); other kinds mint beside - rare, and honest
-    // about being different groups.
+    // extended to live groups).
     if (!smart && !customId && !bookmark && domain) finalTitle = domain;
+    // A topic the engine invented never mints onto a taken label: the model
+    // picks names from the same small vocabulary every run, so "beside" is
+    // not a rare honest twin here - it is a second, third and fourth chip
+    // reading the same word. The caller bounces these tabs and they land in
+    // the catch-all. A name the USER asked for (rule group, bookmark group)
+    // still mints beside: that request is explicit, not a guess.
+    else if (smart) {
+      traceDiag(`smart group "${title}" skipped: label taken by group ${twin.id}`);
+      return null;
+    }
   }
   // Mark BEFORE the call: a tab moving out of one of our groups (a stray
   // leaving the catch-all for its real site group) emits a leave event, and
@@ -1690,7 +1725,9 @@ async function addToOurGroup(tabId, gid) {
 function groupTitleFor(ourGroups, windowId, domain) {
   const label = cleanLabel(domain);
   for (const g of Object.values(ourGroups)) {
-    if (g.windowId === windowId && g.title === label && g.domain !== domain) return domain;
+    if (g.windowId === windowId && labelKey(g.title) === labelKey(label) && g.domain !== domain) {
+      return domain;
+    }
   }
   return label;
 }
@@ -1707,7 +1744,7 @@ async function ensureCustomGroup(rule, windowId, tabIds) {
   if (gid != null && !(await quiet(chrome.tabGroups.get, gid))) gid = null;
   if (gid == null) {
     const sameTitle = ((await quiet(chrome.tabGroups.query, { windowId })) || []).find(
-      (g) => (g.title || "").toLowerCase() === rule.name.toLowerCase(),
+      (g) => labelKey(g.title) === labelKey(rule.name),
     );
     if (sameTitle) {
       gid = sameTitle.id;
@@ -2277,7 +2314,7 @@ async function dissolveLoneGroups(windowId = null) {
     if (members.length !== 1) continue;
     await markSelfOp("tabgroup", members[0].id);
     await quiet(chrome.tabs.ungroup, [members[0].id]);
-    await removeGroupSig(owner.title, owner.color);
+    await removeGroupSig(owner.title, owner.color, gid);
     delete ourGroups[gid];
     dissolved++;
   }
@@ -2342,7 +2379,7 @@ async function undoOrganize() {
     await quiet(chrome.tabs.ungroup, members.map((m) => m.id));
     ungrouped += members.length;
     if (ourGroups[gid]) {
-      await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color);
+      await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color, gid);
     }
     delete ourGroups[gid];
   }
@@ -2585,7 +2622,7 @@ async function ungroupOne(gid, ourGroups) {
     await quiet(chrome.tabs.ungroup, members.map((m) => m.id));
   }
   if (ourGroups[gid]) {
-    await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color);
+    await removeGroupSig(ourGroups[gid].title, ourGroups[gid].color, gid);
     delete ourGroups[gid];
   }
   return members.length;
@@ -2757,13 +2794,25 @@ async function smartTierUsable(settings) {
   return false; // "off"
 }
 
-function smartPrompt(items, existingTopics = []) {
+// Labels already worn by groups the run may not fill - the user's own
+// groups, site groups, the catch-all. Naming a topic after one of them
+// cannot end in reuse (kinds differ, ownership differs), only in a second
+// chip with the same word, so the model is told the word is spent.
+function takenLines(takenNames) {
+  return (
+    "Names already used by other groups - do NOT answer with these names:\n" +
+    takenNames.map((t) => `- ${t}`).join("\n")
+  );
+}
+
+function smartPrompt(items, existingTopics = [], takenNames = []) {
   const list = items.map((it, i) => `${i}. [${it.domain}] ${it.title}`).join("\n");
   const topics = existingTopics.length
     ? `Existing group names - REUSE these names when tabs fit them:\n${existingTopics
         .map((t) => `- ${t}`)
         .join("\n")}\n\n`
     : "";
+  const taken = takenNames.length ? `${takenLines(takenNames)}\n\n` : "";
   return (
     "You organize browser tabs into topic groups.\n" +
     "Cluster the numbered tabs below into 3-10 groups.\n" +
@@ -2777,6 +2826,7 @@ function smartPrompt(items, existingTopics = []) {
     "language of the titles.\n" +
     'Answer with ONLY JSON: {"groups":[{"name":"...","tabIndices":[0,2]}]}\n\n' +
     topics +
+    taken +
     `Tabs:\n${list}`
   );
 }
@@ -2965,13 +3015,14 @@ async function setSmartProgress(done, total) {
   else await chrome.storage.session.remove("smartProgress");
 }
 
-function refinePrompt(items, existingTopics) {
+function refinePrompt(items, existingTopics, takenNames = []) {
   const list = items.map((it, i) => `${i}. [${it.domain}] ${it.title}`).join("\n");
   const topics = existingTopics.length
     ? `Existing group names - REUSE these when a tab fits:\n${existingTopics
         .map((t) => `- ${t}`)
         .join("\n")}\n\n`
     : "";
+  const taken = takenNames.length ? `${takenLines(takenNames)}\n\n` : "";
   return (
     "You organize browser tabs into topic groups.\n" +
     "These tabs did not fit the big groups. Find SPECIFIC new topics that " +
@@ -2983,6 +3034,7 @@ function refinePrompt(items, existingTopics) {
     "language of the titles.\n" +
     'Answer with ONLY JSON: {"groups":[{"name":"...","tabIndices":[0,2]}]}\n\n' +
     topics +
+    taken +
     `Tabs:\n${list}`
   );
 }
@@ -2991,9 +3043,9 @@ function refinePrompt(items, existingTopics) {
 // rule groups (with their hints, so the model knows what belongs there).
 function smartTopicLines(themes, customs) {
   const lines = new Map();
-  for (const t of themes.values()) lines.set(t.name.toLowerCase(), t.name);
+  for (const t of themes.values()) lines.set(labelKey(t.name), t.name);
   for (const c of customs) {
-    if (c.on) lines.set(c.name.toLowerCase(), c.hint ? `${c.name} (${c.hint})` : c.name);
+    if (c.on) lines.set(labelKey(c.name), c.hint ? `${c.name} (${c.hint})` : c.name);
   }
   return [...lines.values()];
 }
@@ -3005,11 +3057,9 @@ async function applySmartBatch(windowId, parsed, batch, themes, customs, setting
   return enqueue(async () => {
     const assigned = new Set();
     const bounced = [];
-    const customByLower = new Map(
-      customs.filter((c) => c.on).map((c) => [c.name.toLowerCase(), c]),
-    );
+    const customByLower = new Map(customs.filter((c) => c.on).map((c) => [labelKey(c.name), c]));
     for (const g of parsed) {
-      const key = g.name.toLowerCase();
+      const key = labelKey(g.name);
       const ourGroupsNow = await getOurGroups();
       const live = [];
       for (const i of g.tabIndices) {
@@ -3090,10 +3140,25 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings, op
   const rest = routed.rest;
 
   const customs = await getCustomGroups();
-  const themes = new Map(); // lower(name) -> { name, gid }
-  for (const [gid, g] of Object.entries(await getOurGroups())) {
-    if (g.smart && !g.other && g.windowId === windowId) {
-      themes.set(g.title.toLowerCase(), { name: g.title, gid: Number(gid) });
+  // What topics already exist is a question about the STRIP, not about the
+  // session registry: the registry lives in storage.session and is empty
+  // after every browser start, while the groups it described are still on
+  // screen. Seeding themes from the registry alone hides them from the
+  // prompt, the model reinvents the same topic under a near-synonym, and
+  // the strip ends the run with "Cloud Providers" beside "Cloud Hosting
+  // Providers". Re-adopt by signature first, then read the live window.
+  await enqueue(() => readoptGroups(), "smart-readopt");
+  const ourNow = await getOurGroups();
+  const liveGroups = (await quiet(chrome.tabGroups.query, { windowId })) || [];
+  const themes = new Map(); // labelKey(name) -> { name, gid }
+  const offered = new Set(customs.filter((c) => c.on).map((c) => labelKey(c.name)));
+  const takenLabels = []; // live groups we may NOT reuse: never offer their names
+  for (const g of liveGroups) {
+    const owner = ourNow[g.id];
+    if (owner && owner.smart && !owner.other) {
+      themes.set(labelKey(owner.title), { name: owner.title, gid: g.id });
+    } else if (g.title && !offered.has(labelKey(g.title))) {
+      takenLabels.push(g.title);
     }
   }
 
@@ -3122,7 +3187,7 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings, op
     let parsed = null;
     try {
       parsed = parseSmartResponse(
-        await smartCall(smartPrompt(items, smartTopicLines(themes, customs)), onChunk),
+        await smartCall(smartPrompt(items, smartTopicLines(themes, customs), takenLabels), onChunk),
         items.length,
       );
     } catch (err) {
@@ -3163,7 +3228,7 @@ async function smartRunWindow(windowId, pool, totalPool, done, run, settings, op
     }));
     try {
       const parsed = parseSmartResponse(
-        await smartCall(refinePrompt(items, smartTopicLines(themes, customs))),
+        await smartCall(refinePrompt(items, smartTopicLines(themes, customs), takenLabels)),
         items.length,
       );
       if (parsed) {
@@ -3343,7 +3408,7 @@ async function pickTopicFor(tab, st, ourGroups) {
   }
   for (const c of await getCustomGroups()) {
     if (!c.on || !c.hint) continue;
-    if (candidates.some((x) => x.label.toLowerCase() === c.name.toLowerCase())) continue;
+    if (candidates.some((x) => labelKey(x.label) === labelKey(c.name))) continue;
     if (await isStruck("group", `custom:${c.id}`)) continue;
     candidates.push({ label: `${c.name} - ${c.hint}`, custom: c });
   }
@@ -4408,7 +4473,7 @@ chrome.tabGroups.onUpdated.addListener((group) => {
     if (group.title !== ours.title || group.color !== ours.color) {
       // The user claimed it: disowned forever - never renamed, filled or
       // collapsed by us again.
-      await removeGroupSig(ours.title, ours.color);
+      await removeGroupSig(ours.title, ours.color, group.id);
       delete ourGroups[group.id];
       await putOurGroups(ourGroups);
       traceDiag(`group ${group.id} disowned`);

@@ -3889,6 +3889,249 @@ async function main() {
     );
   });
 
+  // --- 1.20.4: one topic label, one group ---------------------------------------
+
+  await test("smart: a case-drifted topic name lands in the group it already made", async () => {
+    // The model names the same topic "YouTube" one run and "Youtube" the
+    // next. The twin guard compared raw strings, so the second answer read
+    // as a brand new topic and minted a second chip beside the first.
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const mockNaming = (name, marker) =>
+      swEval(
+        (n, m) =>
+          globalThis.__ttSetMockAi({
+            availability: "available",
+            respond: (prompt) => {
+              const idx = prompt
+                .split("\n")
+                .filter((line) => /^\d+\. /.test(line))
+                .filter((line) => line.includes(m))
+                .map((line) => parseInt(line, 10));
+              return JSON.stringify({ groups: [{ name: n, tabIndices: idx }] });
+            },
+          }),
+        name,
+        marker,
+      );
+    const a1 = await createTab({ url: `${baseUrl}/caseTubeA1` });
+    const a2 = await createTab({ url: `${altUrl}/caseTubeA2` });
+    await sleep(400);
+    await mockNaming("YouTube", "caseTubeA");
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    const gid = (await getTab(a1.id)).groupId;
+    assert(gid !== -1, "the topic group exists");
+    // restart analog: the registry lives in storage.session, the strip does not
+    await swEval(async () => chrome.storage.session.set({ ourGroups: {} }));
+    const b1 = await createTab({ url: `${baseUrl}/caseTubeB1` });
+    const b2 = await createTab({ url: `${altUrl}/caseTubeB2` });
+    await sleep(400);
+    await mockNaming("youtube", "caseTubeB");
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    const groups = await swEval(() => chrome.tabGroups.query({}));
+    const tubes = groups.filter((g) => (g.title || "").toLowerCase() === "youtube");
+    assert(tubes.length === 1, `one YouTube group, not ${tubes.length}`);
+    assert(tubes[0].id === gid, "and it is the original, reused");
+    for (const t of [b1, b2]) {
+      assert((await getTab(t.id)).groupId === gid, "the second run joined it");
+    }
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("smart: a topic never mints onto a label already worn in the window", async () => {
+    // Ownership gone AND the signature gone (the group was disowned, or its
+    // proof died with a same-named sibling): the group is foreign now. The
+    // engine may not fill it - and it may not put a second chip carrying the
+    // same word beside it either. The tabs bounce to the catch-all.
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const mockNaming = (marker) =>
+      swEval(
+        (m) =>
+          globalThis.__ttSetMockAi({
+            availability: "available",
+            respond: (prompt) => {
+              const idx = prompt
+                .split("\n")
+                .filter((line) => /^\d+\. /.test(line))
+                .filter((line) => line.includes(m))
+                .map((line) => parseInt(line, 10));
+              return JSON.stringify({ groups: [{ name: "Netcup", tabIndices: idx }] });
+            },
+          }),
+        marker,
+      );
+    const a1 = await createTab({ url: `${baseUrl}/netcupA1` });
+    const a2 = await createTab({ url: `${altUrl}/netcupA2` });
+    await sleep(400);
+    await mockNaming("netcupA");
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    const gid = (await getTab(a1.id)).groupId;
+    assert(gid !== -1, "the topic group exists");
+    await swEval(async () => {
+      await chrome.storage.session.set({ ourGroups: {} });
+      await chrome.storage.local.remove("ourGroupSigs");
+    });
+    const b1 = await createTab({ url: `${baseUrl}/netcupB1` });
+    const b2 = await createTab({ url: `${altUrl}/netcupB2` });
+    await sleep(400);
+    await mockNaming("netcupB");
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    const groups = await swEval(() => chrome.tabGroups.query({}));
+    const named = groups.filter((g) => (g.title || "").toLowerCase() === "netcup");
+    assert(named.length === 1, `one Netcup group, not ${named.length}`);
+    assert(named[0].id === gid, "and the survivor is the one that was already there");
+    for (const t of [b1, b2]) {
+      assert((await getTab(t.id)).groupId !== gid, "a foreign group is never filled");
+    }
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("smart: the prompt reads the strip - live topics offered, foreign labels forbidden", async () => {
+    // The registry is empty after every browser start; the groups it
+    // described are still on screen. A prompt built from the registry alone
+    // hides them, and the model reinvents the same topic under a synonym.
+    await resetWorld();
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "builtin" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "off" });
+    const s1 = await createTab({ url: `${baseUrl}/promptSeed1` });
+    const s2 = await createTab({ url: `${altUrl}/promptSeed2` });
+    await sleep(400);
+    await swEval(() =>
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          const idx = prompt
+            .split("\n")
+            .filter((line) => /^\d+\. /.test(line))
+            .filter((line) => line.includes("promptSeed"))
+            .map((line) => parseInt(line, 10));
+          return JSON.stringify({ groups: [{ name: "Kittens", tabIndices: idx }] });
+        },
+      }),
+    );
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    assert((await getTab(s1.id)).groupId !== -1, "the seed topic exists");
+    // a group the engine may not touch, wearing a word of its own
+    const f1 = await openViaCommit(`${baseUrl}/promptForeign1`, { active: false });
+    const f2 = await openViaCommit(`${baseUrl}/promptForeign2`, { active: false });
+    const foreignGid = await swEval((ids) => chrome.tabs.group({ tabIds: ids }), [f1.id, f2.id]);
+    await swEval(
+      (gid) => chrome.tabGroups.update(gid, { title: "Ledger", color: "blue" }),
+      foreignGid,
+    );
+    // restart analog: ownership of the seed lives only in the signature now
+    await swEval(async () => chrome.storage.session.set({ ourGroups: {} }));
+    await swEval(() => {
+      globalThis.__ttPrompts = [];
+      globalThis.__ttSetMockAi({
+        availability: "available",
+        respond: (prompt) => {
+          globalThis.__ttPrompts.push(prompt);
+          return JSON.stringify({ groups: [] });
+        },
+      });
+    });
+    const n1 = await createTab({ url: `${baseUrl}/promptNew1` });
+    const n2 = await createTab({ url: `${altUrl}/promptNew2` });
+    await sleep(400);
+    await ui({ type: "ui:smartOrganize", scope: "all" });
+    const prompts = await swEval(() => globalThis.__ttPrompts || []);
+    assert(prompts.length > 0, "the model was asked");
+    const first = prompts[0];
+    assert(/REUSE these names[\s\S]*- Kittens/.test(first), "the live topic is offered for reuse");
+    assert(/do NOT answer with these names[\s\S]*- Ledger/.test(first), "the foreign label is off");
+    await swEval(() => globalThis.__ttSetMockAi(null));
+    await ui({ type: "ui:setSetting", key: "smartEngine", value: "off" });
+    await ui({ type: "ui:setSetting", key: "autoGroup", value: "site" });
+  });
+
+  await test("smart: one key owns the question 'is this group label already taken'", async () => {
+    // The twin guard existed since 1.15.0 and still shipped duplicates,
+    // because "same label" was written out by hand in each place that asked:
+    // raw === here, .toLowerCase() there. Every comparison of a LIVE group's
+    // title runs through labelKey - a second spelling of that judgment is the
+    // drift that put three "Other" chips in one strip, not a detail.
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync(new URL("../extension/background.js", import.meta.url), "utf8");
+    const lines = src.split("\n");
+    const raw = lines
+      .map((line, i) => ({ line, no: i + 1 }))
+      // a live group object read back from chrome.tabGroups, compared by title
+      .filter((l) => /\b(?:g|group)\.title\b/.test(l.line))
+      .filter((l) => /[=!]==/.test(l.line))
+      .filter((l) => !/labelKey\(/.test(l.line))
+      // the disown check is deliberately exact: a rename IS a claim
+      .filter((l) => !/group\.title !== ours\.title/.test(l.line));
+    assert(raw.length === 0, `every live-title comparison runs through labelKey: ${raw.map((r) => r.no)}`);
+    assert(
+      /const labelKey = \(title\) =>[\s\S]{0,160}toLowerCase\(\)/.test(src),
+      "and labelKey folds case - the model does not spell a topic the same way twice",
+    );
+  });
+
+  await test("groups: a disowned group never takes a living sibling's ownership proof", async () => {
+    // One signature (title+color) can be the proof for SEVERAL live groups -
+    // the same site or topic in two windows. Dropping it when one of them is
+    // claimed by the user disowned the others: after the next restart they
+    // read as foreign, and the run that should have reused them twinned them.
+    await resetWorld();
+    // The catch-all would swallow the fixture before the site groups form.
+    await ui({ type: "ui:setSetting", key: "otherGroup", value: false });
+    // A second window steals the "current window" default, so every tab here
+    // names its window explicitly.
+    const w1 = (await createTab({ url: "about:blank", active: false })).windowId;
+    const w = await swEval(
+      (u) => new Promise((r) => chrome.windows.create({ url: u }, (win) => r(win.id))),
+      `${baseUrl}/sigKeepSeed`,
+    );
+    await sleep(600);
+    const a1 = await openViaCommit(`${baseUrl}/sigKeepA1`, { windowId: w1, active: false });
+    const a2 = await openViaCommit(`${baseUrl}/sigKeepA2`, { windowId: w1, active: false });
+    await waitFor("group in the first window", async () => (await getTab(a2.id)).groupId !== -1);
+    const keepGid = (await getTab(a2.id)).groupId;
+    const b1 = await openViaCommit(`${baseUrl}/sigKeepB1`, { windowId: w, active: false });
+    const b2 = await openViaCommit(`${baseUrl}/sigKeepB2`, { windowId: w, active: false });
+    await waitFor("group in the second window", async () => (await getTab(b2.id)).groupId !== -1);
+    const twinGid = (await getTab(b2.id)).groupId;
+    assert(twinGid !== keepGid, "two separate groups, same title and colour");
+    const allGroups = await swEval(() => chrome.tabGroups.query({}));
+    const survivor = allGroups.find((g) => g.id === keepGid);
+    assert(survivor, `the first window's group is still live (have ${JSON.stringify(allGroups)})`);
+    // the user claims the second window's copy: that one is disowned forever
+    await swEval((gid) => chrome.tabGroups.update(gid, { title: "MINE" }), twinGid);
+    await sleep(500);
+    const sigs = await swEval(
+      async () => (await chrome.storage.local.get("ourGroupSigs")).ourGroupSigs || [],
+    );
+    assert(
+      sigs.some((s) => s.title === survivor.title && s.color === survivor.color),
+      `the survivor keeps its signature (got ${JSON.stringify(sigs.map((s) => s.title))})`,
+    );
+    // and the proof still works: ownership wiped, the group is re-adopted and
+    // reused rather than twinned
+    await swEval(async () => chrome.storage.session.set({ ourGroups: {} }));
+    const a3 = await openViaCommit(`${baseUrl}/sigKeepA3`, { windowId: w1, active: false });
+    const a4 = await openViaCommit(`${baseUrl}/sigKeepA4`, { windowId: w1, active: false });
+    await waitFor(
+      "the survivor was re-adopted",
+      async () =>
+        (await getTab(a3.id)).groupId === keepGid && (await getTab(a4.id)).groupId === keepGid,
+    );
+    const named = (await swEval(() => chrome.tabGroups.query({}))).filter(
+      (g) => g.title === survivor.title,
+    );
+    assert(named.length === 1, `one group for that title, not ${named.length}`);
+    await swEval((id) => new Promise((r) => chrome.windows.remove(id, () => r())), w);
+    await ui({ type: "ui:setSetting", key: "otherGroup", value: true });
+  });
+
   await test("host access: the manifest can never ask for an arbitrary site", async () => {
     // The privacy promise is structural, not behavioural: what the extension
     // MAY request is the manifest's ceiling. A broad pair here would read as
